@@ -213,6 +213,9 @@ function onOpen() {
     .createMenu("Inward TAT")
     .addItem("Set up workbook", "setupInwardTatWorkbook")
     .addItem("Validate workbook", "validateInwardTatWorkbook")
+    .addSeparator()
+    .addItem("Configure daily email", "configureInwardTatEmail")
+    .addItem("Send email now", "sendDailyInwardTatEmail")
     .addToUi();
 }
 
