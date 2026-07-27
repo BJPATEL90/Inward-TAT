@@ -1,11 +1,51 @@
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 
 await mkdir("dist/server", { recursive: true });
 await mkdir("dist/.openai", { recursive: true });
 await copyFile(".openai/hosting.json", "dist/.openai/hosting.json");
+
+const staticAssets = {
+  "/index.html": {
+    contentType: "text/html; charset=utf-8",
+    body: await readFile("dist/index.html", "utf8"),
+  },
+};
+
+for (const fileName of await readdir("dist/assets")) {
+  const extension = fileName.split(".").at(-1)?.toLowerCase();
+  staticAssets[`/assets/${fileName}`] = {
+    contentType:
+      extension === "css"
+        ? "text/css; charset=utf-8"
+        : extension === "js"
+          ? "text/javascript; charset=utf-8"
+          : "application/octet-stream",
+    body: await readFile(`dist/assets/${fileName}`, "utf8"),
+  };
+}
+
 await writeFile(
   "dist/server/index.js",
-  `export default {
+  `const STATIC_ASSETS = ${JSON.stringify(staticAssets)};
+
+function serveStatic(pathname) {
+  const key = pathname === "/" ? "/index.html" : pathname;
+  const asset = STATIC_ASSETS[key] || (
+    pathname.startsWith("/api/") ? null : STATIC_ASSETS["/index.html"]
+  );
+  if (!asset) return new Response("Not found", { status: 404 });
+  return new Response(asset.body, {
+    status: 200,
+    headers: {
+      "content-type": asset.contentType,
+      "cache-control": key.startsWith("/assets/")
+        ? "public, max-age=31536000, immutable"
+        : "no-cache",
+    },
+  });
+}
+
+export default {
   async fetch(request, env) {
     const requestUrl = new URL(request.url);
     if (requestUrl.pathname === "/api/dashboard") {
@@ -31,9 +71,7 @@ await writeFile(
         },
       });
     }
-    const response = await env.ASSETS.fetch(request);
-    if (response.status !== 404) return response;
-    return env.ASSETS.fetch(new Request(new URL("/index.html", request.url), request));
+    return serveStatic(requestUrl.pathname);
   },
 };
 `,
