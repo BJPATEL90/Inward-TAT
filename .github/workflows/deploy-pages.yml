@@ -1,0 +1,44 @@
+name: Deploy dashboard to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx vite build --base=/Inward-TAT/
+        env:
+          VITE_APPS_SCRIPT_URL: https://script.google.com/macros/s/AKfycbyu8TA21-H7FVjN13yoNKqtQ-zk4M5bEiAQTW9wG6AYwz7m2dQxIPtmP0HaUhuwh2f4/exec
+          VITE_GOOGLE_CLIENT_ID: 1021762366002-ks887scr10gojel9jsljbuoq3htsb2bi.apps.googleusercontent.com
+          VITE_GOOGLE_WORKSPACE_DOMAIN: mosaicwellness.in
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

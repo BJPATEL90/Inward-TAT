@@ -1,5 +1,5 @@
 import { fallbackSnapshot } from "./data";
-import { getStoredSession } from "./auth";
+import { getStoredSession, postToAppsScript } from "./auth";
 
 const API_URL = String(import.meta.env.VITE_APPS_SCRIPT_URL || "/api/dashboard").trim();
 
@@ -14,7 +14,11 @@ export async function loadDashboard({ refresh = false } = {}) {
   url.searchParams.set("_", String(Date.now()));
 
   if (url.hostname === "script.google.com") {
-    const data = await loadJsonp(url);
+    const data = await postToAppsScript({
+      action: "dashboard",
+      refresh: refresh ? "1" : "0",
+      credential: getStoredSession()?.credential || "",
+    });
     if (!data.ok) {
       throw new Error(data.error || "Dashboard API returned an error");
     }
@@ -44,33 +48,4 @@ export function hasLiveApi() {
 function authHeaders() {
   const credential = getStoredSession()?.credential;
   return credential ? { Authorization: `Bearer ${credential}` } : {};
-}
-
-function loadJsonp(url) {
-  return new Promise((resolve, reject) => {
-    const callback = `inwardTat_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const script = document.createElement("script");
-    const timeout = window.setTimeout(() => {
-      cleanup();
-      reject(new Error("Dashboard API timed out"));
-    }, 120000);
-
-    const cleanup = () => {
-      window.clearTimeout(timeout);
-      script.remove();
-      delete window[callback];
-    };
-
-    window[callback] = (data) => {
-      cleanup();
-      resolve(data);
-    };
-    script.onerror = () => {
-      cleanup();
-      reject(new Error("Unable to connect to dashboard API"));
-    };
-    url.searchParams.set("callback", callback);
-    script.src = url.toString();
-    document.head.appendChild(script);
-  });
 }

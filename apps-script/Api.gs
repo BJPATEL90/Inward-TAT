@@ -5,7 +5,19 @@
  * VITE_APPS_SCRIPT_URL to the /exec URL.
  */
 
+const INWARD_TAT_GOOGLE_CLIENT_ID =
+  "1021762366002-ks887scr10gojel9jsljbuoq3htsb2bi.apps.googleusercontent.com";
+const INWARD_TAT_GOOGLE_DOMAIN = "mosaicwellness.in";
+
 function doGet(event) {
+  return handleApiRequest_(event);
+}
+
+function doPost(event) {
+  return handleApiRequest_(event);
+}
+
+function handleApiRequest_(event) {
   const action = String((event && event.parameter && event.parameter.action) || "dashboard")
     .trim()
     .toLowerCase();
@@ -17,8 +29,28 @@ function doGet(event) {
         generatedAt: new Date().toISOString(),
       }, event);
     }
+    if (action === "authconfig") {
+      return apiResponse_({
+        ok: true,
+        clientId: INWARD_TAT_GOOGLE_CLIENT_ID,
+        domain: INWARD_TAT_GOOGLE_DOMAIN,
+      }, event);
+    }
+    if (action === "authverify") {
+      const auth = verifyGoogleCredential_(
+        String((event && event.parameter && event.parameter.credential) || "")
+      );
+      return apiResponse_(auth, event);
+    }
     if (action !== "dashboard") {
       return jsonResponse_({ ok: false, error: "Unsupported action: " + action });
+    }
+
+    const auth = verifyGoogleCredential_(
+      String((event && event.parameter && event.parameter.credential) || "")
+    );
+    if (!auth.ok) {
+      return apiResponse_(auth, event);
     }
 
     const bypassCache =
@@ -44,6 +76,45 @@ function doGet(event) {
       generatedAt: new Date().toISOString(),
     }, event);
   }
+}
+
+function verifyGoogleCredential_(credential) {
+  if (!credential) {
+    return { ok: false, error: "Google sign-in required" };
+  }
+
+  const response = UrlFetchApp.fetch(
+    "https://oauth2.googleapis.com/tokeninfo?id_token=" +
+      encodeURIComponent(credential),
+    { muteHttpExceptions: true }
+  );
+  if (response.getResponseCode() !== 200) {
+    return { ok: false, error: "Google session is invalid or expired" };
+  }
+
+  const claims = JSON.parse(response.getContentText());
+  const verified =
+    claims.aud === INWARD_TAT_GOOGLE_CLIENT_ID &&
+    String(claims.email_verified).toLowerCase() === "true" &&
+    Number(claims.exp || 0) > Math.floor(Date.now() / 1000) &&
+    String(claims.hd || "").toLowerCase() === INWARD_TAT_GOOGLE_DOMAIN;
+
+  if (!verified) {
+    return {
+      ok: false,
+      error: "Use an authorized Mosaic Wellness Google account",
+    };
+  }
+
+  return {
+    ok: true,
+    user: {
+      email: claims.email,
+      name: claims.name || claims.email,
+      picture: claims.picture || "",
+      domain: claims.hd || "",
+    },
+  };
 }
 
 function buildDashboardSnapshot_() {

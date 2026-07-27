@@ -1,4 +1,9 @@
 const SESSION_KEY = "inwardTatGoogleSession";
+const APPS_SCRIPT_URL = String(import.meta.env.VITE_APPS_SCRIPT_URL || "").trim();
+const GOOGLE_CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || "").trim();
+const GOOGLE_WORKSPACE_DOMAIN = String(
+  import.meta.env.VITE_GOOGLE_WORKSPACE_DOMAIN || "mosaicwellness.in",
+).trim();
 
 export function getStoredSession() {
   try {
@@ -18,6 +23,16 @@ export function clearSession() {
 }
 
 export async function getAuthConfig() {
+  if (APPS_SCRIPT_URL) {
+    if (!GOOGLE_CLIENT_ID) {
+      throw new Error("Google sign-in is not configured");
+    }
+    return {
+      ok: true,
+      clientId: GOOGLE_CLIENT_ID,
+      domain: GOOGLE_WORKSPACE_DOMAIN,
+    };
+  }
   const response = await fetch("/api/auth/config", { cache: "no-store" });
   const data = await response.json();
   if (!response.ok || !data.ok) {
@@ -27,6 +42,16 @@ export async function getAuthConfig() {
 }
 
 export async function verifyGoogleCredential(credential) {
+  if (APPS_SCRIPT_URL) {
+    const data = await postToAppsScript({
+      action: "authVerify",
+      credential,
+    });
+    if (!data.ok) {
+      throw new Error(data.error || "Google sign-in could not be verified");
+    }
+    return { credential, user: data.user };
+  }
   const response = await fetch("/api/auth/verify", {
     method: "POST",
     headers: { Authorization: `Bearer ${credential}` },
@@ -37,6 +62,20 @@ export async function verifyGoogleCredential(credential) {
     throw new Error(data.error || "Google sign-in could not be verified");
   }
   return { credential, user: data.user };
+}
+
+export async function postToAppsScript(parameters) {
+  const response = await fetch(APPS_SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    body: new URLSearchParams(parameters),
+    redirect: "follow",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Dashboard API returned ${response.status}`);
+  }
+  return response.json();
 }
 
 export function loadGoogleIdentity() {
