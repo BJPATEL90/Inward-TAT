@@ -215,6 +215,7 @@ function onOpen() {
     .addItem("Validate workbook", "validateInwardTatWorkbook")
     .addSeparator()
     .addItem("Configure daily email", "configureInwardTatEmail")
+    .addItem("Activate daily email + send test", "activateInwardTatEmail")
     .addItem("Send email now", "sendDailyInwardTatEmail")
     .addToUi();
 }

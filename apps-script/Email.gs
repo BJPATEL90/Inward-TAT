@@ -104,6 +104,11 @@ function sendDailyInwardTatEmail() {
   }
 }
 
+function activateInwardTatEmail() {
+  installDailyInwardTatEmailTrigger_();
+  return sendDailyInwardTatEmail();
+}
+
 function buildInwardTatEmailPayload_(config) {
   const timeZone = String(config.TIME_ZONE || "Asia/Kolkata");
   const facts = sheetObjects_(getSheet_(INWARD_TAT.SHEETS.FACT));
@@ -341,6 +346,17 @@ function installDailyInwardTatEmailTrigger_() {
     .everyDays(1)
     .inTimezone(String(config.TIME_ZONE || "Asia/Kolkata"))
     .create();
+}
+
+function installDailyInwardTatEmailTrigger() {
+  installDailyInwardTatEmailTrigger_();
+  const config = getConfig_();
+  return {
+    ok: true,
+    sendTime: String(config.EMAIL_SEND_TIME || ""),
+    timeZone: String(config.TIME_ZONE || "Asia/Kolkata"),
+    recipients: String(config.EMAIL_RECIPIENTS || ""),
+  };
 }
 
 function parseEmailTime_(value) {
