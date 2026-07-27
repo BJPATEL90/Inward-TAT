@@ -341,9 +341,9 @@ function Dashboard({
       </section>
 
       <section className="range-kpis">
-        <MiniKpi label={labels.kpi1 || "Unloading to Putaway"} value={mtd.kpi1Hours} note="Published MTD · fixed" primary />
-        <MiniKpi label={labels.kpi2 || "GRN to Putaway"} value={selectedSummary.kpi2Hours} note="Calculated for selected range" />
-        <MiniKpi label={labels.kpi3 || "Unloading to GRN"} value={selectedSummary.kpi3Hours} note="Calculated for selected range" />
+        <MiniKpi kpi="KPI1" label={labels.kpi1 || "Unloading to Putaway"} value={selectedSummary.kpi1Hours} note="Calculated for selected range" primary />
+        <MiniKpi kpi="KPI2" label={labels.kpi2 || "GRN to Putaway"} value={selectedSummary.kpi2Hours} note="Calculated for selected range" />
+        <MiniKpi kpi="KPI3" label={labels.kpi3 || "Unloading to GRN"} value={selectedSummary.kpi3Hours} note="Calculated for selected range" />
         <article className="completion-card">
           <div className="completion-icon"><CheckCircle2 size={23} /></div>
           <div>
@@ -376,14 +376,14 @@ function PeriodCard({ title, data = {}, dates, tone, labels }) {
     <article className={`period-card tone-${tone}`}>
       <span className="period-title">{title}</span>
       <strong className="primary-duration">{formatDuration(data.kpi1Hours)}</strong>
-      <small>{labels.kpi1 || "Unloading to Putaway"}</small>
+      <small><b>KPI1</b> · {labels.kpi1 || "Unloading to Putaway"}</small>
       <div className="sub-kpis">
         <div>
-          <span>{labels.kpi2 || "GRN to Putaway"}</span>
+          <span><b>KPI2</b> · {labels.kpi2 || "GRN to Putaway"}</span>
           <strong>{formatDuration(data.kpi2Hours)}</strong>
         </div>
         <div>
-          <span>{labels.kpi3 || "Unloading to GRN"}</span>
+          <span><b>KPI3</b> · {labels.kpi3 || "Unloading to GRN"}</span>
           <strong>{formatDuration(data.kpi3Hours)}</strong>
         </div>
       </div>
@@ -395,10 +395,10 @@ function PeriodCard({ title, data = {}, dates, tone, labels }) {
   );
 }
 
-function MiniKpi({ label, value, note, primary = false }) {
+function MiniKpi({ kpi, label, value, note, primary = false }) {
   return (
     <article className={`mini-kpi ${primary ? "primary" : ""}`}>
-      <span>{label}</span>
+      <span><b>{kpi}</b> · {label}</span>
       <strong>{formatDuration(value)}</strong>
       <small>{note}</small>
     </article>
