@@ -7,3 +7,4 @@ dist
 .env.local
 apps-script/
 .openai/
+client_secret_*.json
