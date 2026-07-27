@@ -1,0 +1,9 @@
+node_modules
+dist
+.vite
+.sites-git
+*.log
+.env
+.env.local
+apps-script/
+.openai/
