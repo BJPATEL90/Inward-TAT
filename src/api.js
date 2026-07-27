@@ -1,13 +1,13 @@
 import { fallbackSnapshot } from "./data";
 
-const API_URL = String(import.meta.env.VITE_APPS_SCRIPT_URL || "").trim();
+const API_URL = String(import.meta.env.VITE_APPS_SCRIPT_URL || "/api/dashboard").trim();
 
 export async function loadDashboard({ refresh = false } = {}) {
   if (!API_URL) {
     return { data: fallbackSnapshot, source: "preview" };
   }
 
-  const url = new URL(API_URL);
+  const url = new URL(API_URL, window.location.origin);
   url.searchParams.set("action", "dashboard");
   if (refresh) url.searchParams.set("refresh", "1");
   url.searchParams.set("_", String(Date.now()));

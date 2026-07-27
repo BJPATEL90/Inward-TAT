@@ -631,7 +631,8 @@ function summarizeFacts(rows) {
 }
 
 function formatDuration(hours) {
-  if (!Number.isFinite(Number(hours))) return "—";
+  if (hours === null || hours === undefined || hours === "") return "\u2014";
+  if (!Number.isFinite(Number(hours)) || Number(hours) < 0) return "\u2014";
   const totalMinutes = Math.round(Number(hours) * 60);
   const hourPart = Math.floor(totalMinutes / 60);
   const minutePart = totalMinutes % 60;
