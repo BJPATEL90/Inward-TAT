@@ -58,7 +58,7 @@ function sendDailyInwardTatEmail() {
   try {
     GmailApp.sendEmail(
       recipients,
-      "Inward TAT | MTD update | " + payload.subjectDateLabel,
+      "Inward TAT | " + payload.subjectDateLabel,
       "Please view this email in HTML format.",
       {
         htmlBody: payload.html,
@@ -172,6 +172,7 @@ function buildInwardTatEmailPayload_(config) {
       monthStart,
       periodEnd,
       yesterday,
+      now,
       dashboardUrl,
       timeZone
     ),
@@ -307,10 +308,15 @@ function buildInwardTatEmailHtml_(
   periodStart,
   periodEnd,
   yesterday,
+  publishedAt,
   dashboardUrl,
   timeZone
 ) {
-  const reportingDate = Utilities.formatDate(periodEnd, timeZone, "dd MMM yyyy");
+  const publishedLabel = Utilities.formatDate(
+    publishedAt,
+    timeZone,
+    "dd MMM yyyy, hh:mm a"
+  );
   const previousMonthStart = new Date(
     periodStart.getFullYear(),
     periodStart.getMonth() - 1,
@@ -352,8 +358,9 @@ function buildInwardTatEmailHtml_(
     '<td width="110" valign="middle"><div style="width:88px;height:64px;padding-top:22px;border:1px solid #8fb7ff;border-radius:12px;text-align:center;font-size:11px;line-height:16px;letter-spacing:1px;font-weight:700;color:#dce8ff">MOSAIC<br>WELLNESS</div></td>' +
     '<td valign="middle"><div style="font-size:12px;letter-spacing:2px;font-weight:700;color:#9fc4ff">DAILY INWARD TAT REPORT</div>' +
     '<div style="font-size:28px;line-height:36px;font-weight:700;margin-top:8px">Inward TAT Dashboard</div>' +
-    '<div style="font-size:14px;color:#cbd9f2;margin-top:7px">Reporting date: ' +
-    reportingDate +
+    '<div style="font-size:14px;color:#cbd9f2;margin-top:7px">Published on: ' +
+    publishedLabel +
+    " IST" +
     "</div></td></tr></table></td></tr>" +
     '<tr><td style="padding:32px 38px 36px">' +
     '<div style="font-size:20px;font-weight:700">Vehicle Arrival to Putaway TAT</div>' +
