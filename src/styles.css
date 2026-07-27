@@ -316,6 +316,65 @@ button {
   box-shadow: 0 15px 34px rgba(31, 58, 147, 0.2);
 }
 
+.data-pending-banner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 14px 18px;
+  border: 1px solid #f4d28b;
+  border-left: 4px solid #e7a515;
+  border-radius: 16px;
+  background: #fff9e9;
+  color: #6e4b05;
+  box-shadow: 0 8px 24px rgba(116, 82, 16, 0.08);
+}
+
+.pending-banner-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 12px;
+  background: #ffedbd;
+  color: #b17400;
+}
+
+.pending-banner-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.pending-banner-copy strong {
+  color: #704b00;
+  font-size: 0.92rem;
+}
+
+.pending-banner-copy span {
+  color: #876821;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.pending-count {
+  display: grid;
+  min-width: 105px;
+  justify-items: end;
+}
+
+.pending-count strong {
+  color: #b17400;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.pending-count span {
+  margin-top: 4px;
+  color: #876821;
+  font-size: 0.68rem;
+}
+
 .ribbon-heading {
   margin-bottom: 20px;
 }
@@ -1245,6 +1304,15 @@ tbody tr:hover {
   .period-grid,
   .range-kpis {
     grid-template-columns: 1fr;
+  }
+
+  .data-pending-banner {
+    grid-template-columns: auto 1fr;
+  }
+
+  .pending-count {
+    grid-column: 2;
+    justify-items: start;
   }
 
   .filter-panel,

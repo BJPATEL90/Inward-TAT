@@ -292,6 +292,18 @@ function Dashboard({
   const labels = snapshot?.labels || {};
   const mtd = snapshot?.summary?.mtd || {};
   const yesterday = snapshot?.summary?.yesterday || {};
+  const yesterdayDate = yesterdayIso(snapshot?.generatedAt);
+  const yesterdayFacts = (snapshot?.facts || []).filter(
+    (row) => row.unloadingDate === yesterdayDate,
+  );
+  const pendingYesterday = yesterdayFacts.filter(
+    (row) => row.kpi1Hours == null || row.kpi2Hours == null || row.kpi3Hours == null,
+  );
+  const showYesterdayPending =
+    pendingYesterday.length > 0 &&
+    yesterday.kpi1Hours == null &&
+    yesterday.kpi2Hours == null &&
+    yesterday.kpi3Hours == null;
   const staticPeriods = snapshot?.staticPeriods || {};
   const periodCards = [
     { title: "Last Quarter", data: staticPeriods.lastQuarter, dates: previousQuarterRange(snapshot?.generatedAt), tone: "green" },
@@ -314,6 +326,23 @@ function Dashboard({
           ))}
         </div>
       </section>
+
+      {showYesterdayPending && (
+        <section className="data-pending-banner" role="status">
+          <div className="pending-banner-icon"><Clock3 size={22} /></div>
+          <div className="pending-banner-copy">
+            <strong>Yesterday data entry pending</strong>
+            <span>
+              {pendingYesterday.length} unloading {pendingYesterday.length === 1 ? "record is" : "records are"} awaiting GRN and putaway data for {formatShortDate(yesterdayDate)}.
+              KPI values will update after the next pipeline refresh.
+            </span>
+          </div>
+          <div className="pending-count">
+            <strong>{pendingYesterday.length}</strong>
+            <span>records pending</span>
+          </div>
+        </section>
+      )}
 
       <section className="filter-panel">
         <div>
