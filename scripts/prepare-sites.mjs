@@ -28,6 +28,52 @@ await writeFile(
   "dist/server/index.js",
   `const STATIC_ASSETS = ${JSON.stringify(staticAssets)};
 
+function json(payload, status = 200) {
+  return Response.json(payload, {
+    status,
+    headers: { "cache-control": "no-store" },
+  });
+}
+
+async function authenticateGoogle(request, env) {
+  const authorization = request.headers.get("authorization") || "";
+  const token = authorization.startsWith("Bearer ")
+    ? authorization.slice(7).trim()
+    : "";
+  if (!token) return { ok: false, error: "Google sign-in required" };
+  if (!env.GOOGLE_CLIENT_ID) {
+    return { ok: false, error: "Google OAuth is not configured" };
+  }
+
+  const response = await fetch(
+    "https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(token),
+    { cache: "no-store" }
+  );
+  if (!response.ok) return { ok: false, error: "Google session is invalid or expired" };
+
+  const claims = await response.json();
+  const domain = String(env.GOOGLE_WORKSPACE_DOMAIN || "").toLowerCase();
+  const emailVerified = claims.email_verified === true || claims.email_verified === "true";
+  if (
+    claims.aud !== env.GOOGLE_CLIENT_ID ||
+    !emailVerified ||
+    Number(claims.exp || 0) <= Math.floor(Date.now() / 1000) ||
+    (domain && String(claims.hd || "").toLowerCase() !== domain)
+  ) {
+    return { ok: false, error: "Use an authorized Mosaic Wellness Google account" };
+  }
+
+  return {
+    ok: true,
+    user: {
+      email: claims.email,
+      name: claims.name || claims.email,
+      picture: claims.picture || "",
+      domain: claims.hd || "",
+    },
+  };
+}
+
 function serveStatic(pathname) {
   const key = pathname === "/" ? "/index.html" : pathname;
   const asset = STATIC_ASSETS[key] || (
@@ -48,11 +94,27 @@ function serveStatic(pathname) {
 export default {
   async fetch(request, env) {
     const requestUrl = new URL(request.url);
+    if (requestUrl.pathname === "/api/auth/config") {
+      if (!env.GOOGLE_CLIENT_ID) {
+        return json({ ok: false, error: "Google OAuth is not configured" }, 500);
+      }
+      return json({
+        ok: true,
+        clientId: env.GOOGLE_CLIENT_ID,
+        domain: env.GOOGLE_WORKSPACE_DOMAIN || "mosaicwellness.in",
+      });
+    }
+    if (requestUrl.pathname === "/api/auth/verify") {
+      const auth = await authenticateGoogle(request, env);
+      return auth.ok ? json(auth) : json(auth, 401);
+    }
     if (requestUrl.pathname === "/api/dashboard") {
+      const auth = await authenticateGoogle(request, env);
+      if (!auth.ok) return json(auth, 401);
       if (!env.APPS_SCRIPT_URL) {
-        return Response.json(
+        return json(
           { ok: false, error: "Dashboard data source is not configured" },
-          { status: 500 }
+          500
         );
       }
       const upstreamUrl = new URL(env.APPS_SCRIPT_URL);

@@ -1,4 +1,5 @@
 import { fallbackSnapshot } from "./data";
+import { getStoredSession } from "./auth";
 
 const API_URL = String(import.meta.env.VITE_APPS_SCRIPT_URL || "/api/dashboard").trim();
 
@@ -22,6 +23,7 @@ export async function loadDashboard({ refresh = false } = {}) {
 
   const response = await fetch(url.toString(), {
     method: "GET",
+    headers: authHeaders(),
     redirect: "follow",
     cache: "no-store",
   });
@@ -37,6 +39,11 @@ export async function loadDashboard({ refresh = false } = {}) {
 
 export function hasLiveApi() {
   return Boolean(API_URL);
+}
+
+function authHeaders() {
+  const credential = getStoredSession()?.credential;
+  return credential ? { Authorization: `Bearer ${credential}` } : {};
 }
 
 function loadJsonp(url) {

@@ -5,6 +5,6 @@ dist
 *.log
 .env
 .env.local
-apps-script/
-.openai/
+.openai/*
+!.openai/hosting.json
 client_secret_*.json

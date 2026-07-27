@@ -22,6 +22,89 @@
   box-sizing: border-box;
 }
 
+.login-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 74% 15%, rgba(69, 105, 255, 0.25), transparent 28rem),
+    linear-gradient(135deg, #172b63 0%, #203b91 55%, #2445c7 100%);
+}
+
+.login-card {
+  display: grid;
+  width: min(440px, 100%);
+  justify-items: center;
+  padding: 42px 40px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 28px 70px rgba(8, 25, 72, 0.32);
+  text-align: center;
+}
+
+.login-brand-mark {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 20px;
+  place-items: center;
+  border-radius: 17px;
+  color: #fff;
+  background: linear-gradient(135deg, #183275, #2d50d2);
+  font-size: 20px;
+  font-weight: 800;
+  box-shadow: 0 12px 24px rgba(36, 69, 199, 0.22);
+}
+
+.login-eyebrow {
+  color: var(--blue);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+
+.login-card h1 {
+  margin: 9px 0 10px;
+  color: var(--text);
+  font-size: 30px;
+  letter-spacing: -0.04em;
+}
+
+.login-card p {
+  max-width: 330px;
+  margin: 0 0 26px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.google-signin-button {
+  min-height: 44px;
+}
+
+.login-card > small {
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  margin-top: 15px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #9e241b;
+  background: #fff0ee;
+  font-size: 11px;
+  text-align: left;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -266,6 +349,31 @@ button {
   gap: 8px;
   border-radius: 10px;
   transition: 150ms ease;
+}
+
+.user-action {
+  display: flex;
+  height: 40px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: #50617f;
+  background: #fff;
+  cursor: pointer;
+}
+
+.user-action > span {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border-radius: 8px;
+  color: #fff;
+  background: var(--blue);
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .icon-action {

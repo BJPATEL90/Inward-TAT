@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   CalendarRange,
@@ -8,6 +8,7 @@ import {
   Database,
   Download,
   LayoutDashboard,
+  LogOut,
   Menu,
   RefreshCw,
   Search,
@@ -15,10 +16,120 @@ import {
   X,
 } from "lucide-react";
 import { hasLiveApi, loadDashboard } from "./api";
+import {
+  clearSession,
+  getAuthConfig,
+  getStoredSession,
+  loadGoogleIdentity,
+  storeSession,
+  verifyGoogleCredential,
+} from "./auth";
 
 const FACILITIES = ["All facilities", "SL Ambient", "SL Mother Hub", "SL Rx"];
 
 function App() {
+  const [session, setSession] = useState(null);
+  const [authState, setAuthState] = useState("checking");
+  const handleAuthenticated = useCallback((verified) => {
+    storeSession(verified);
+    setSession(verified);
+    setAuthState("signed-in");
+  }, []);
+
+  useEffect(() => {
+    const stored = getStoredSession();
+    if (!stored?.credential) {
+      setAuthState("signed-out");
+      return;
+    }
+    verifyGoogleCredential(stored.credential)
+      .then((verified) => {
+        storeSession(verified);
+        setSession(verified);
+        setAuthState("signed-in");
+      })
+      .catch(() => {
+        clearSession();
+        setAuthState("signed-out");
+      });
+  }, []);
+
+  if (authState === "checking") return <LoadingScreen />;
+  if (authState !== "signed-in") {
+    return (
+      <GoogleLoginScreen onAuthenticated={handleAuthenticated} />
+    );
+  }
+
+  return (
+    <DashboardApp
+      authUser={session.user}
+      onSignOut={() => {
+        clearSession();
+        window.google?.accounts?.id?.disableAutoSelect();
+        setSession(null);
+        setAuthState("signed-out");
+      }}
+    />
+  );
+}
+
+function GoogleLoginScreen({ onAuthenticated }) {
+  const buttonRef = useRef(null);
+  const [error, setError] = useState("");
+  const [domain, setDomain] = useState("Mosaic Wellness");
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([getAuthConfig(), loadGoogleIdentity()])
+      .then(([config]) => {
+        if (!active || !buttonRef.current) return;
+        setDomain(config.domain);
+        window.google.accounts.id.initialize({
+          client_id: config.clientId,
+          hd: config.domain,
+          callback: async ({ credential }) => {
+            setError("");
+            try {
+              onAuthenticated(await verifyGoogleCredential(credential));
+            } catch (loginError) {
+              setError(loginError.message || "Google sign-in failed");
+            }
+          },
+        });
+        window.google.accounts.id.renderButton(buttonRef.current, {
+          type: "standard",
+          theme: "outline",
+          size: "large",
+          shape: "rectangular",
+          text: "signin_with",
+          width: 320,
+        });
+      })
+      .catch((loginError) => {
+        if (active) setError(loginError.message || "Google sign-in is unavailable");
+      });
+    return () => {
+      active = false;
+    };
+  }, [onAuthenticated]);
+
+  return (
+    <main className="login-page">
+      <section className="login-card">
+        <div className="login-brand-mark">IT</div>
+        <span className="login-eyebrow">Mosaic Wellness</span>
+        <h1>Inward TAT</h1>
+        <p>Sign in with your Mosaic Wellness Google account to access vehicle arrival and putaway performance.</p>
+        <div ref={buttonRef} className="google-signin-button" />
+        {error && <div className="login-error"><AlertCircle size={17} />{error}</div>}
+        <small>Access restricted to @{domain}</small>
+      </section>
+    </main>
+  );
+}
+
+function DashboardApp({ authUser, onSignOut }) {
   const [snapshot, setSnapshot] = useState(null);
   const [source, setSource] = useState("loading");
   const [loading, setLoading] = useState(true);
@@ -171,6 +282,8 @@ function App() {
           refreshing={refreshing}
           lastRefresh={snapshot?.lastRefresh}
           source={source}
+          authUser={authUser}
+          onSignOut={onSignOut}
         />
         {error && (
           <div className="error-banner">
@@ -246,7 +359,7 @@ function Sidebar({ page, setPage, open }) {
   );
 }
 
-function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, source }) {
+function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, source, authUser, onSignOut }) {
   return (
     <header className="topbar">
       <div className="topbar-title">
@@ -272,6 +385,10 @@ function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, s
         <button className="download-button" onClick={exportCsv}>
           <Download size={17} />
           <span>Download CSV</span>
+        </button>
+        <button className="user-action" onClick={onSignOut} title={`Sign out ${authUser?.email || ""}`}>
+          <span>{(authUser?.name || authUser?.email || "User").slice(0, 1).toUpperCase()}</span>
+          <LogOut size={16} />
         </button>
       </div>
     </header>
