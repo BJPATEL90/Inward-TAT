@@ -58,7 +58,7 @@ function sendDailyInwardTatEmail() {
   try {
     GmailApp.sendEmail(
       recipients,
-      "Inward TAT | MTD update | " + payload.periodEndLabel,
+      "Inward TAT | MTD update | " + payload.subjectDateLabel,
       "Please view this email in HTML format.",
       {
         htmlBody: payload.html,
@@ -151,7 +151,7 @@ function buildInwardTatEmailPayload_(config) {
     summary: summary,
     periodStart: monthStart,
     periodEnd: periodEnd,
-    periodEndLabel: Utilities.formatDate(periodEnd, timeZone, "dd MMM yyyy"),
+    subjectDateLabel: Utilities.formatDate(now, timeZone, "dd MMM yyyy"),
     csvBlob: csvBlob,
     chartBlob: chartBlob,
     html: buildInwardTatEmailHtml_(
