@@ -129,6 +129,18 @@ function buildInwardTatEmailPayload_(config) {
     return !latest || date > latest ? date : latest;
   }, null);
   const summary = summarizeEmailFacts_(mtdFacts);
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const yesterdayKey = Utilities.formatDate(yesterday, timeZone, "yyyy-MM-dd");
+  const yesterdaySummary = summarizeEmailFacts_(
+    mtdFacts.filter(function (row) {
+      const unloadingDate = parseDateTime_(row["Unloading Date"]);
+      return (
+        unloadingDate &&
+        Utilities.formatDate(unloadingDate, timeZone, "yyyy-MM-dd") ===
+          yesterdayKey
+      );
+    })
+  );
   const chartBlob = buildMtdTrendChart_(daily, monthStart, nextMonth, timeZone);
   const csvBlob = buildMtdCsv_(mtdFacts, monthStart, periodEnd, timeZone);
   const dashboardUrl =
@@ -143,9 +155,23 @@ function buildInwardTatEmailPayload_(config) {
     csvBlob: csvBlob,
     chartBlob: chartBlob,
     html: buildInwardTatEmailHtml_(
-      summary,
+      {
+        lastQuarter: {
+          kpi1Hours: Number(config.LAST_QUARTER_KPI1_HOURS),
+          kpi2Hours: Number(config.LAST_QUARTER_KPI2_HOURS),
+          kpi3Hours: Number(config.LAST_QUARTER_KPI3_HOURS),
+        },
+        lastMonth: {
+          kpi1Hours: Number(config.LAST_MONTH_KPI1_HOURS),
+          kpi2Hours: Number(config.LAST_MONTH_KPI2_HOURS),
+          kpi3Hours: Number(config.LAST_MONTH_KPI3_HOURS),
+        },
+        mtd: summary,
+        yesterday: yesterdaySummary,
+      },
       monthStart,
       periodEnd,
+      yesterday,
       dashboardUrl,
       timeZone
     ),
@@ -277,57 +303,142 @@ function buildMtdCsv_(facts, periodStart, periodEnd, timeZone) {
 }
 
 function buildInwardTatEmailHtml_(
-  summary,
+  periods,
   periodStart,
   periodEnd,
+  yesterday,
   dashboardUrl,
   timeZone
 ) {
-  const period =
-    Utilities.formatDate(periodStart, timeZone, "dd MMM yyyy") +
-    " – " +
-    Utilities.formatDate(periodEnd, timeZone, "dd MMM yyyy");
-  const completion =
-    summary.records > 0
-      ? Math.round((summary.completeRecords / summary.records) * 100)
-      : 0;
+  const reportingDate = Utilities.formatDate(periodEnd, timeZone, "dd MMM yyyy");
+  const previousMonthStart = new Date(
+    periodStart.getFullYear(),
+    periodStart.getMonth() - 1,
+    1
+  );
+  const previousMonthEnd = new Date(
+    periodStart.getFullYear(),
+    periodStart.getMonth(),
+    0
+  );
+  const currentQuarterStartMonth =
+    Math.floor(periodStart.getMonth() / 3) * 3;
+  const previousQuarterStart = new Date(
+    periodStart.getFullYear(),
+    currentQuarterStartMonth - 3,
+    1
+  );
+  const previousQuarterEnd = new Date(
+    periodStart.getFullYear(),
+    currentQuarterStartMonth,
+    0
+  );
+  const yesterdayLabel = Utilities.formatDate(yesterday, timeZone, "dd MMM yyyy");
+  const alertHtml =
+    periods.yesterday.records === 0
+      ? '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px;border:1px solid #f1c84b;border-radius:12px;background:#fffaf0"><tr><td style="padding:20px 22px;color:#8a3f08"><div style="font-size:18px;font-weight:700">Yesterday data entry is pending.</div><div style="margin-top:10px;font-size:14px"><strong>Reason:</strong> No vehicle unloading records were available for ' +
+        yesterdayLabel +
+        " at the latest refresh.</div></td></tr></table>"
+      : '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px;border:1px solid #9bd9ba;border-radius:12px;background:#f0fbf5"><tr><td style="padding:18px 22px;color:#0b6b43"><strong>Yesterday:</strong> ' +
+        periods.yesterday.completeRecords +
+        " of " +
+        periods.yesterday.records +
+        " records are complete.</td></tr></table>";
   return (
-    '<div style="margin:0;background:#f4f7fc;padding:24px;font-family:Arial,sans-serif;color:#172033">' +
-    '<div style="max-width:900px;margin:auto;background:#fff;border-radius:18px;overflow:hidden;border:1px solid #d9e1ef">' +
-    '<div style="padding:28px 32px;background:linear-gradient(120deg,#1d3475,#2443c4);color:#fff">' +
-    '<div style="font-size:12px;letter-spacing:2px;font-weight:700">EXECUTIVE KPI</div>' +
-    '<h1 style="margin:9px 0 5px;font-size:28px">Vehicle Arrival to Putaway TAT</h1>' +
-    '<div style="font-size:14px;color:#dce5ff">MTD · ' +
-    period +
-    "</div></div>" +
-    '<div style="padding:26px 32px">' +
-    '<div style="display:inline-block;width:44%;min-width:250px;padding:22px;border-radius:14px;background:#f7f9fe;border:1px solid #d9e1ef;vertical-align:top">' +
-    '<div style="font-size:12px;font-weight:700;color:#52627d">KPI1 · UNLOADING TO PUTAWAY</div>' +
-    '<div style="font-size:38px;font-weight:800;color:#0b7a48;margin-top:8px">' +
+    '<div style="margin:0;background:#f1f5fa;padding:20px;font-family:Arial,Helvetica,sans-serif;color:#172033">' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:900px;margin:0 auto;background:#ffffff;border-collapse:separate;border-spacing:0;border-radius:18px;overflow:hidden">' +
+    '<tr><td style="background:#192a5b;padding:34px 40px;color:#ffffff">' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr>' +
+    '<td width="110" valign="middle"><div style="width:88px;height:64px;padding-top:22px;border:1px solid #8fb7ff;border-radius:12px;text-align:center;font-size:11px;line-height:16px;letter-spacing:1px;font-weight:700;color:#dce8ff">MOSAIC<br>WELLNESS</div></td>' +
+    '<td valign="middle"><div style="font-size:12px;letter-spacing:2px;font-weight:700;color:#9fc4ff">DAILY INWARD TAT REPORT</div>' +
+    '<div style="font-size:28px;line-height:36px;font-weight:700;margin-top:8px">Inward TAT Dashboard</div>' +
+    '<div style="font-size:14px;color:#cbd9f2;margin-top:7px">Reporting date: ' +
+    reportingDate +
+    "</div></td></tr></table></td></tr>" +
+    '<tr><td style="padding:32px 38px 36px">' +
+    '<div style="font-size:20px;font-weight:700">Vehicle Arrival to Putaway TAT</div>' +
+    '<div style="font-size:14px;color:#60718d;margin-top:8px">Last Quarter, Last Month, Month to Date, and Yesterday.</div>' +
+    '<div style="font-size:14px;color:#60718d;margin-top:5px">KPI1: Unloading to Putaway &nbsp;·&nbsp; KPI2: GRN to Putaway &nbsp;·&nbsp; KPI3: Unloading to GRN</div>' +
+    '<table role="presentation" width="100%" cellspacing="8" cellpadding="0" style="margin-top:18px;table-layout:fixed"><tr>' +
+    buildEmailPeriodCard_(
+      "LAST QUARTER",
+      periods.lastQuarter,
+      "#dff8e9",
+      "#19a45b",
+      Utilities.formatDate(previousQuarterStart, timeZone, "dd MMM") +
+        " – " +
+        Utilities.formatDate(previousQuarterEnd, timeZone, "dd MMM yyyy")
+    ) +
+    buildEmailPeriodCard_(
+      "LAST MONTH",
+      periods.lastMonth,
+      "#fff8cd",
+      "#e5a900",
+      Utilities.formatDate(previousMonthStart, timeZone, "dd MMM") +
+        " – " +
+        Utilities.formatDate(previousMonthEnd, timeZone, "dd MMM yyyy")
+    ) +
+    buildEmailPeriodCard_(
+      "MONTH TO DATE",
+      periods.mtd,
+      "#dff8e9",
+      "#19a45b",
+      Utilities.formatDate(periodStart, timeZone, "dd MMM") +
+        " – " +
+        Utilities.formatDate(periodEnd, timeZone, "dd MMM yyyy")
+    ) +
+    buildEmailPeriodCard_(
+      "YESTERDAY",
+      periods.yesterday,
+      "#ffe2e2",
+      "#e72f35",
+      yesterdayLabel
+    ) +
+    "</tr></table>" +
+    alertHtml +
+    '<div style="font-size:18px;font-weight:700;margin-top:28px">MTD KPI1 Daily Trend</div>' +
+    '<div style="font-size:13px;color:#60718d;margin-top:5px">Unloading to Putaway average hours by unloading date.</div>' +
+    '<div style="margin-top:14px"><img src="cid:mtdTrend" alt="MTD KPI1 trend" style="display:block;width:100%;max-width:824px;border:1px solid #d9e1ef;border-radius:12px"></div>' +
+    '<div style="text-align:center;margin-top:28px"><a href="' +
+    dashboardUrl +
+    '" style="display:inline-block;background:#2750df;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:9px;font-size:15px;font-weight:700">Open Inward TAT Dashboard</a></div>' +
+    '<div style="font-size:12px;line-height:18px;color:#71809a;margin-top:22px;text-align:center">The attached CSV contains MTD Facility + GRN + SKU level records.<br>Dashboard access is restricted to Mosaic Wellness Google accounts.</div>' +
+    "</td></tr></table></div>"
+  );
+}
+
+function buildEmailPeriodCard_(label, summary, background, accent, dateLabel) {
+  const records =
+    summary.records === undefined || summary.records === null
+      ? ""
+      : '<div style="margin-top:5px"><strong>Records:</strong> ' +
+        summary.records +
+        "</div>";
+  return (
+    '<td width="25%" valign="top" style="background:' +
+    background +
+    ";border-top:4px solid " +
+    accent +
+    ';border-radius:11px;padding:17px 9px;text-align:center;color:#31435f">' +
+    '<div style="font-size:10px;letter-spacing:.5px;font-weight:700;color:#5d6f88">' +
+    label +
+    "</div>" +
+    '<div style="font-size:25px;line-height:32px;font-weight:800;color:' +
+    accent +
+    ';margin:6px 0 9px">' +
     formatEmailHours_(summary.kpi1Hours) +
-    "</div></div>" +
-    '<div style="display:inline-block;width:44%;min-width:250px;margin-left:2%;padding:22px;border-radius:14px;background:#f7f9fe;border:1px solid #d9e1ef;vertical-align:top">' +
-    '<div style="font-size:12px;color:#52627d">KPI2 · GRN TO PUTAWAY</div>' +
-    '<div style="font-size:25px;font-weight:800;color:#1d3475;margin:7px 0 15px">' +
+    "</div>" +
+    '<div style="border-top:1px solid #bfd1df;padding-top:9px;font-size:11px;line-height:17px">' +
+    "<div><strong>KPI2:</strong> " +
     formatEmailHours_(summary.kpi2Hours) +
     "</div>" +
-    '<div style="font-size:12px;color:#52627d">KPI3 · UNLOADING TO GRN</div>' +
-    '<div style="font-size:25px;font-weight:800;color:#1d3475;margin-top:7px">' +
+    "<div><strong>KPI3:</strong> " +
     formatEmailHours_(summary.kpi3Hours) +
-    "</div></div>" +
-    '<p style="margin:20px 0 8px;color:#52627d">' +
-    summary.completeRecords +
-    " complete records of " +
-    summary.records +
-    " MTD records (" +
-    completion +
-    "%).</p>" +
-    '<div style="margin-top:24px"><img src="cid:mtdTrend" alt="MTD KPI1 trend" style="width:100%;max-width:900px;border:1px solid #d9e1ef;border-radius:12px"></div>' +
-    '<div style="margin-top:26px"><a href="' +
-    dashboardUrl +
-    '" style="display:inline-block;background:#2443c4;color:#fff;text-decoration:none;padding:13px 22px;border-radius:9px;font-weight:700">Open Inward TAT Dashboard</a></div>' +
-    '<p style="font-size:12px;color:#71809a;margin-top:20px">The attached CSV contains MTD Facility + GRN + SKU level records. Dashboard access is restricted to Mosaic Wellness Google accounts.</p>' +
-    "</div></div></div>"
+    "</div>" +
+    records +
+    '<div style="font-size:9px;color:#677995;margin-top:7px">' +
+    dateLabel +
+    "</div></div></td>"
   );
 }
 
