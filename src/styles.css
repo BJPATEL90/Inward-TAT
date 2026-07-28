@@ -517,7 +517,7 @@ button {
 .period-card {
   position: relative;
   overflow: hidden;
-  min-height: 230px;
+  min-height: 260px;
   padding: 20px;
   border-radius: 16px;
   color: var(--text);
@@ -538,9 +538,9 @@ button {
   display: block;
   margin-top: 12px;
   color: var(--green);
-  font-size: 31px;
+  font-size: 27px;
   line-height: 1;
-  letter-spacing: -0.045em;
+  letter-spacing: -0.035em;
 }
 
 .tone-amber .primary-duration {
@@ -557,9 +557,19 @@ button {
 
 .period-card > small {
   display: block;
-  margin-top: 6px;
+  margin-top: 5px;
   color: var(--muted);
   font-size: 10px;
+}
+
+.decimal-duration {
+  display: block;
+  margin-top: 5px;
+  color: #71809a;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .sub-kpis {
@@ -586,7 +596,7 @@ button {
 .sub-kpis strong {
   margin-top: 5px;
   color: #23314b;
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .period-card footer {
@@ -746,6 +756,7 @@ button {
 
 .mini-kpi span,
 .mini-kpi strong,
+.mini-kpi em,
 .mini-kpi small {
   display: block;
 }
@@ -759,12 +770,12 @@ button {
 .mini-kpi strong {
   margin-top: 12px;
   color: #182d67;
-  font-size: 27px;
+  font-size: 24px;
   letter-spacing: -0.035em;
 }
 
 .mini-kpi small {
-  margin-top: 7px;
+  margin-top: 6px;
   color: #7a879c;
   font-size: 9px;
 }

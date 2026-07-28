@@ -8,7 +8,7 @@ Access is restricted to verified `@mosaicwellness.in` Google Workspace accounts.
 
 ## KPI definitions
 
-All calculations use continuous elapsed time, including nights, Sundays, and holidays. Results use a simple average across unique `Facility + GRN Number + SKU` records and are displayed as `HH:MM`.
+All calculations use continuous elapsed time, including nights, Sundays, and holidays. Results use a simple average across unique `Facility + GRN Number + SKU` records. KPI cards show an unambiguous hours-and-minutes value such as `29h 50m`, with `29.84 decimal hrs` underneath for reconciliation.
 
 | KPI | Definition | Start | End |
 |---|---|---|---|
@@ -94,7 +94,7 @@ The workbook contains:
 The React dashboard provides:
 
 - Executive ribbon for Last Quarter, Last Month, MTD, and Yesterday
-- KPI1, KPI2, and KPI3 values in `HH:MM`
+- KPI1, KPI2, and KPI3 values as hours and minutes, with decimal hours shown underneath
 - Yesterday data-pending alert when no unloading records are available
 - Custom From/To date filters
 - Facility filter

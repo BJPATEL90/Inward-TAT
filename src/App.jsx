@@ -435,7 +435,7 @@ function Dashboard({
         <div className="ribbon-heading">
           <span>Executive KPI</span>
           <h2>Vehicle Arrival to Putaway TAT</h2>
-          <p>Continuous elapsed time · Simple average · Displayed as HH:MM</p>
+          <p>Continuous elapsed time · Simple average · Hours and minutes with decimal hours below</p>
         </div>
         <div className="period-grid">
           {periodCards.map((card) => (
@@ -521,16 +521,19 @@ function PeriodCard({ title, data = {}, dates, tone, labels }) {
   return (
     <article className={`period-card tone-${tone}`}>
       <span className="period-title">{title}</span>
-      <strong className="primary-duration">{formatDuration(data.kpi1Hours)}</strong>
+      <strong className="primary-duration">{formatDurationWords(data.kpi1Hours)}</strong>
+      <em className="decimal-duration">{formatDecimalHours(data.kpi1Hours)}</em>
       <small><b>KPI1</b> · {labels.kpi1 || "Unloading to Putaway"}</small>
       <div className="sub-kpis">
         <div>
           <span><b>KPI2</b> · {labels.kpi2 || "GRN to Putaway"}</span>
-          <strong>{formatDuration(data.kpi2Hours)}</strong>
+          <strong>{formatDurationWords(data.kpi2Hours)}</strong>
+          <em className="decimal-duration">{formatDecimalHours(data.kpi2Hours)}</em>
         </div>
         <div>
           <span><b>KPI3</b> · {labels.kpi3 || "Unloading to GRN"}</span>
-          <strong>{formatDuration(data.kpi3Hours)}</strong>
+          <strong>{formatDurationWords(data.kpi3Hours)}</strong>
+          <em className="decimal-duration">{formatDecimalHours(data.kpi3Hours)}</em>
         </div>
       </div>
       <footer>
@@ -545,7 +548,8 @@ function MiniKpi({ kpi, label, value, note, primary = false }) {
   return (
     <article className={`mini-kpi ${primary ? "primary" : ""}`}>
       <span><b>{kpi}</b> · {label}</span>
-      <strong>{formatDuration(value)}</strong>
+      <strong>{formatDurationWords(value)}</strong>
+      <em className="decimal-duration">{formatDecimalHours(value)}</em>
       <small>{note}</small>
     </article>
   );
@@ -754,6 +758,21 @@ function formatDuration(hours) {
   const hourPart = Math.floor(totalMinutes / 60);
   const minutePart = totalMinutes % 60;
   return `${String(hourPart).padStart(2, "0")}:${String(minutePart).padStart(2, "0")}`;
+}
+
+function formatDurationWords(hours) {
+  if (hours === null || hours === undefined || hours === "") return "—";
+  if (!Number.isFinite(Number(hours)) || Number(hours) < 0) return "—";
+  const totalMinutes = Math.round(Number(hours) * 60);
+  const hourPart = Math.floor(totalMinutes / 60);
+  const minutePart = totalMinutes % 60;
+  return `${hourPart}h ${String(minutePart).padStart(2, "0")}m`;
+}
+
+function formatDecimalHours(hours) {
+  if (hours === null || hours === undefined || hours === "") return "";
+  if (!Number.isFinite(Number(hours)) || Number(hours) < 0) return "";
+  return `${Number(hours).toFixed(2)} decimal hrs`;
 }
 
 function formatDateTime(value) {

@@ -435,12 +435,21 @@ function buildEmailPeriodCard_(label, summary, background, accent, dateLabel) {
     ';margin:6px 0 9px">' +
     formatEmailHours_(summary.kpi1Hours) +
     "</div>" +
+    '<div style="font-size:9px;font-weight:600;color:#667995;margin-top:-5px;margin-bottom:8px">' +
+    formatEmailDecimalHours_(summary.kpi1Hours) +
+    "</div>" +
     '<div style="border-top:1px solid #bfd1df;padding-top:9px;font-size:11px;line-height:17px">' +
     "<div><strong>KPI2:</strong> " +
     formatEmailHours_(summary.kpi2Hours) +
+    ' <span style="font-size:9px;color:#677995">(' +
+    formatEmailDecimalHours_(summary.kpi2Hours) +
+    ")</span>" +
     "</div>" +
     "<div><strong>KPI3:</strong> " +
     formatEmailHours_(summary.kpi3Hours) +
+    ' <span style="font-size:9px;color:#677995">(' +
+    formatEmailDecimalHours_(summary.kpi3Hours) +
+    ")</span>" +
     "</div>" +
     records +
     '<div style="font-size:9px;color:#677995;margin-top:7px">' +
@@ -526,11 +535,14 @@ function formatEmailHours_(hours) {
   const totalMinutes = Math.round(Number(hours) * 60);
   const hourPart = Math.floor(totalMinutes / 60);
   const minutePart = totalMinutes % 60;
-  return (
-    String(hourPart).padStart(2, "0") +
-    ":" +
-    String(minutePart).padStart(2, "0")
-  );
+  return hourPart + "h " + String(minutePart).padStart(2, "0") + "m";
+}
+
+function formatEmailDecimalHours_(hours) {
+  if (hours === null || hours === undefined || !isFinite(Number(hours))) {
+    return "—";
+  }
+  return Number(hours).toFixed(2) + " decimal hrs";
 }
 
 function csvEscape_(value) {
