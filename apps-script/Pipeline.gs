@@ -1106,6 +1106,22 @@ function hasProcessedCsvUrl_(fileUrl, sourceType) {
 
 function logExecution_(runId, stage, status, message, details) {
   const info = details || {};
+  const consoleMessage =
+    "[" +
+    (runId || "NO-RUN-ID") +
+    "] " +
+    (stage || "GENERAL") +
+    " | " +
+    (status || "INFO") +
+    " | " +
+    (message || "") +
+    (Object.keys(info).length ? " | " + JSON.stringify(info) : "");
+  if (String(status || "").match(/FAILED|ERROR/)) {
+    console.error(consoleMessage);
+  } else {
+    console.log(consoleMessage);
+  }
+
   const sheet = getExecutionLogSheet_();
   sheet.appendRow([
     runId || "",

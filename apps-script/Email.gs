@@ -50,12 +50,38 @@ function configureInwardTatEmail() {
 function sendDailyInwardTatEmail() {
   const startedAt = new Date();
   const runId = "EMAIL-" + Utilities.getUuid();
-  const config = getConfig_();
-  const recipients = String(config.EMAIL_RECIPIENTS || "").trim();
-  validateEmailRecipients_(recipients);
-
-  const payload = buildInwardTatEmailPayload_(config);
+  let recipients = "";
+  let payload = null;
+  console.log("[" + runId + "] EMAIL | STARTED | Preparing Inward TAT email.");
   try {
+    const config = getConfig_();
+    recipients = String(config.EMAIL_RECIPIENTS || "").trim();
+    validateEmailRecipients_(recipients);
+    console.log(
+      "[" +
+        runId +
+        "] EMAIL_CONFIG | COMPLETED | Configuration loaded for " +
+        recipients.split(",").length +
+        " recipient(s)."
+    );
+
+    console.log(
+      "[" + runId + "] EMAIL_PAYLOAD | STARTED | Building KPI cards, chart and MTD CSV."
+    );
+    payload = buildInwardTatEmailPayload_(config);
+    console.log(
+      "[" +
+        runId +
+        "] EMAIL_PAYLOAD | COMPLETED | " +
+        payload.facts.length +
+        " MTD record(s) prepared; attachment " +
+        payload.csvBlob.getName() +
+        "."
+    );
+
+    console.log(
+      "[" + runId + "] EMAIL_SEND | STARTED | Sending stakeholder email."
+    );
     GmailApp.sendEmail(
       recipients,
       "Inward TAT | " + payload.subjectDateLabel,
@@ -80,6 +106,13 @@ function sendDailyInwardTatEmail() {
       "SENT",
       "",
     ]);
+    console.log(
+      "[" +
+        runId +
+        "] EMAIL_SEND | COMPLETED | Email sent successfully to " +
+        recipients.split(",").length +
+        " recipient(s)."
+    );
     return {
       ok: true,
       runId: runId,
@@ -87,16 +120,22 @@ function sendDailyInwardTatEmail() {
       records: payload.facts.length,
     };
   } catch (error) {
+    console.error(
+      "[" +
+        runId +
+        "] EMAIL | FAILED | " +
+        (error.message || String(error))
+    );
     appendEmailLog_([
       runId,
       startedAt,
-      payload.periodStart,
-      payload.periodEnd,
+      payload ? payload.periodStart : "",
+      payload ? payload.periodEnd : "",
       recipients,
-      payload.summary.kpi1Hours,
-      payload.summary.kpi2Hours,
-      payload.summary.kpi3Hours,
-      payload.csvBlob.getName(),
+      payload ? payload.summary.kpi1Hours : "",
+      payload ? payload.summary.kpi2Hours : "",
+      payload ? payload.summary.kpi3Hours : "",
+      payload ? payload.csvBlob.getName() : "",
       "FAILED",
       error.message || String(error),
     ]);
