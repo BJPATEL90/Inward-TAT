@@ -1487,7 +1487,8 @@ function getSheet_(name) {
 }
 
 function installInwardTatTrigger(hour) {
-  const triggerHour = Number(hour);
+  const triggerHour =
+    hour === undefined || hour === null || hour === "" ? 8 : Number(hour);
   if (!Number.isInteger(triggerHour) || triggerHour < 0 || triggerHour > 23) {
     throw new Error("Trigger hour must be a whole number from 0 to 23.");
   }
@@ -1506,4 +1507,18 @@ function installInwardTatTrigger(hour) {
     .inTimezone("Asia/Kolkata")
     .create();
   return { installed: true, hour: triggerHour, nearMinute: 30 };
+}
+
+function installDailyInwardTatPipelineTrigger() {
+  const result = installInwardTatTrigger(8);
+  console.log(
+    "PIPELINE_TRIGGER | INSTALLED | runInwardTatPipeline scheduled daily near 08:30 IST."
+  );
+  return {
+    ok: true,
+    handler: "runInwardTatPipeline",
+    schedule: "Daily near 08:30 IST",
+    hour: result.hour,
+    nearMinute: result.nearMinute,
+  };
 }

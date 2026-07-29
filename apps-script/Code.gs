@@ -214,6 +214,7 @@ function onOpen() {
     .addItem("Set up workbook", "setupInwardTatWorkbook")
     .addItem("Validate workbook", "validateInwardTatWorkbook")
     .addSeparator()
+    .addItem("Install daily pipeline trigger", "installDailyInwardTatPipelineTrigger")
     .addItem("Configure daily email", "configureInwardTatEmail")
     .addItem("Activate daily email + send test", "activateInwardTatEmail")
     .addItem("Send email now", "sendDailyInwardTatEmail")
