@@ -515,31 +515,41 @@ function buildInwardTatEmailHtml_(
   const yesterdayLabel = Utilities.formatDate(yesterday, timeZone, "dd MMM yyyy");
   const alertHtml =
     periods.yesterday.records === 0
-      ? '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px;border:1px solid #f1c84b;border-radius:12px;background:#fffaf0"><tr><td style="padding:20px 22px;color:#8a3f08"><div style="font-size:18px;font-weight:700">Yesterday data entry is pending.</div><div style="margin-top:10px;font-size:14px"><strong>Reason:</strong> No vehicle unloading records were available for ' +
+      ? '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px;border:1px solid #f1c84b;border-radius:12px;background:#fffaf0"><tr><td class="alert-cell" style="padding:20px 22px;color:#8a3f08"><div style="font-size:18px;font-weight:700">Yesterday data entry is pending.</div><div style="margin-top:10px;font-size:14px"><strong>Reason:</strong> No vehicle unloading records were available for ' +
         yesterdayLabel +
         " at the latest refresh.</div></td></tr></table>"
-      : '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px;border:1px solid #9bd9ba;border-radius:12px;background:#f0fbf5"><tr><td style="padding:18px 22px;color:#0b6b43"><strong>Yesterday:</strong> ' +
+      : '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:20px;border:1px solid #9bd9ba;border-radius:12px;background:#f0fbf5"><tr><td class="alert-cell" style="padding:18px 22px;color:#0b6b43"><strong>Yesterday:</strong> ' +
         periods.yesterday.completeRecords +
         " of " +
         periods.yesterday.records +
         " records are complete.</td></tr></table>";
   return (
-    '<div style="margin:0;background:#f1f5fa;padding:20px;font-family:Arial,Helvetica,sans-serif;color:#172033">' +
-    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:900px;margin:0 auto;background:#ffffff;border-collapse:separate;border-spacing:0;border-radius:18px;overflow:hidden">' +
-    '<tr><td style="background:#192a5b;padding:34px 40px;color:#ffffff">' +
+    '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>' +
+    '@media only screen and (max-width:640px){' +
+    '.email-shell{padding:0!important}.email-container{border-radius:0!important}.email-header{padding:24px 18px!important}' +
+    '.header-logo,.header-copy{display:block!important;width:100%!important;text-align:left!important}.header-logo{padding-bottom:18px!important}' +
+    '.header-logo div{width:82px!important;height:57px!important;padding-top:19px!important}.email-title{font-size:24px!important;line-height:30px!important}' +
+    '.email-content{padding:24px 16px 30px!important}.kpi-grid{border-spacing:0!important}.kpi-grid,.kpi-grid tbody,.kpi-grid tr,.kpi-card{display:block!important;width:100%!important}' +
+    '.kpi-card{box-sizing:border-box!important;margin:0 0 12px!important;padding:18px 14px!important}.alert-cell{padding:18px 16px!important}' +
+    '.trend-image{width:100%!important;height:auto!important}.dashboard-button{display:block!important;padding:14px 16px!important}.kpi-definitions span{display:block!important;margin-top:5px!important}.kpi-definitions .separator{display:none!important}' +
+    '}' +
+    '</style></head><body style="margin:0;padding:0;background:#f1f5fa">' +
+    '<div class="email-shell" style="margin:0;background:#f1f5fa;padding:20px;font-family:Arial,Helvetica,sans-serif;color:#172033">' +
+    '<table class="email-container" role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:900px;margin:0 auto;background:#ffffff;border-collapse:separate;border-spacing:0;border-radius:18px;overflow:hidden">' +
+    '<tr><td class="email-header" style="background:#192a5b;padding:34px 40px;color:#ffffff">' +
     '<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr>' +
-    '<td width="110" valign="middle"><div style="width:88px;height:64px;padding-top:22px;border:1px solid #8fb7ff;border-radius:12px;text-align:center;font-size:11px;line-height:16px;letter-spacing:1px;font-weight:700;color:#dce8ff">MOSAIC<br>WELLNESS</div></td>' +
-    '<td valign="middle"><div style="font-size:12px;letter-spacing:2px;font-weight:700;color:#9fc4ff">DAILY INWARD TAT REPORT</div>' +
-    '<div style="font-size:28px;line-height:36px;font-weight:700;margin-top:8px">Inward TAT Dashboard</div>' +
+    '<td class="header-logo" width="110" valign="middle"><div style="width:88px;height:64px;padding-top:22px;border:1px solid #8fb7ff;border-radius:12px;text-align:center;font-size:11px;line-height:16px;letter-spacing:1px;font-weight:700;color:#dce8ff">MOSAIC<br>WELLNESS</div></td>' +
+    '<td class="header-copy" valign="middle"><div style="font-size:12px;letter-spacing:2px;font-weight:700;color:#9fc4ff">DAILY INWARD TAT REPORT</div>' +
+    '<div class="email-title" style="font-size:28px;line-height:36px;font-weight:700;margin-top:8px">Inward TAT Dashboard</div>' +
     '<div style="font-size:14px;color:#cbd9f2;margin-top:7px">Published on: ' +
     publishedLabel +
     " IST" +
     "</div></td></tr></table></td></tr>" +
-    '<tr><td style="padding:32px 38px 36px">' +
+    '<tr><td class="email-content" style="padding:32px 38px 36px">' +
     '<div style="font-size:20px;font-weight:700">Vehicle Arrival to Putaway TAT</div>' +
     '<div style="font-size:14px;color:#60718d;margin-top:8px">Last Quarter, Last Month, Month to Date, and Yesterday.</div>' +
-    '<div style="font-size:14px;color:#60718d;margin-top:5px">KPI1: Unloading to Putaway &nbsp;·&nbsp; KPI2: GRN to Putaway &nbsp;·&nbsp; KPI3: Unloading to GRN</div>' +
-    '<table role="presentation" width="100%" cellspacing="8" cellpadding="0" style="margin-top:18px;table-layout:fixed"><tr>' +
+    '<div class="kpi-definitions" style="font-size:14px;color:#60718d;margin-top:5px"><span>KPI1: Unloading to Putaway</span><span class="separator"> &nbsp;&middot;&nbsp; </span><span>KPI2: GRN to Putaway</span><span class="separator"> &nbsp;&middot;&nbsp; </span><span>KPI3: Unloading to GRN</span></div>' +
+    '<table class="kpi-grid" role="presentation" width="100%" cellspacing="8" cellpadding="0" style="margin-top:18px;table-layout:fixed"><tr>' +
     buildEmailPeriodCard_(
       "LAST QUARTER",
       periods.lastQuarter,
@@ -578,12 +588,12 @@ function buildInwardTatEmailHtml_(
     alertHtml +
     '<div style="font-size:18px;font-weight:700;margin-top:28px">MTD KPI1 Daily Trend</div>' +
     '<div style="font-size:13px;color:#60718d;margin-top:5px">Unloading to Putaway average hours by unloading date.</div>' +
-    '<div style="margin-top:14px"><img src="cid:mtdTrend" alt="MTD KPI1 trend" style="display:block;width:100%;max-width:824px;border:1px solid #d9e1ef;border-radius:12px"></div>' +
+    '<div style="margin-top:14px"><img class="trend-image" src="cid:mtdTrend" alt="MTD KPI1 trend" style="display:block;width:100%;height:auto;max-width:824px;border:1px solid #d9e1ef;border-radius:12px"></div>' +
     '<div style="text-align:center;margin-top:28px"><a href="' +
     dashboardUrl +
-    '" style="display:inline-block;background:#2750df;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:9px;font-size:15px;font-weight:700">Open Inward TAT Dashboard</a></div>' +
+    '" class="dashboard-button" style="display:inline-block;background:#2750df;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:9px;font-size:15px;font-weight:700">Open Inward TAT Dashboard</a></div>' +
     '<div style="font-size:12px;line-height:18px;color:#71809a;margin-top:22px;text-align:center">The attached Excel workbook contains separate Last Month and Current MTD tabs at Facility + GRN + SKU level.<br>Dashboard access is restricted to Mosaic Wellness Google accounts.</div>' +
-    "</td></tr></table></div>"
+    "</td></tr></table></div></body></html>"
   );
 }
 
@@ -595,7 +605,7 @@ function buildEmailPeriodCard_(label, summary, background, accent, dateLabel) {
         summary.records +
         "</div>";
   return (
-    '<td width="25%" valign="top" style="background:' +
+    '<td class="kpi-card" width="25%" valign="top" style="background:' +
     background +
     ";border-top:4px solid " +
     accent +
