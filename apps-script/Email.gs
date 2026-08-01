@@ -531,7 +531,7 @@ function buildInwardTatEmailHtml_(
     '.header-logo div{width:82px!important;height:57px!important;padding-top:19px!important}.email-title{font-size:24px!important;line-height:30px!important}' +
     '.email-content{padding:24px 16px 30px!important}.kpi-grid{border-spacing:0!important}.kpi-grid,.kpi-grid tbody,.kpi-grid tr,.kpi-card{display:block!important;width:100%!important}' +
     '.kpi-card{box-sizing:border-box!important;margin:0 0 12px!important;padding:18px 14px!important}.alert-cell{padding:18px 16px!important}' +
-    '.trend-image{width:100%!important;height:auto!important}.dashboard-button{display:block!important;padding:14px 16px!important}.kpi-definitions span{display:block!important;margin-top:5px!important}.kpi-definitions .separator{display:none!important}' +
+    '.trend-image{width:100%!important;height:auto!important}.dashboard-button{display:block!important;padding:14px 16px!important}.kpi-definitions span{display:block!important;margin-top:5px!important}.kpi-definitions .separator{display:none!important}.email-footer{padding:0 8px!important;overflow-wrap:anywhere!important;word-break:break-word!important}' +
     '}' +
     '</style></head><body style="margin:0;padding:0;background:#f1f5fa">' +
     '<div class="email-shell" style="margin:0;background:#f1f5fa;padding:20px;font-family:Arial,Helvetica,sans-serif;color:#172033">' +
@@ -592,7 +592,7 @@ function buildInwardTatEmailHtml_(
     '<div style="text-align:center;margin-top:28px"><a href="' +
     dashboardUrl +
     '" class="dashboard-button" style="display:inline-block;background:#2750df;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:9px;font-size:15px;font-weight:700">Open Inward TAT Dashboard</a></div>' +
-    '<div style="font-size:12px;line-height:18px;color:#71809a;margin-top:22px;text-align:center">The attached Excel workbook contains separate Last Month and Current MTD tabs at Facility + GRN + SKU level.<br>Dashboard access is restricted to Mosaic Wellness Google accounts.</div>' +
+    '<div class="email-footer" style="font-size:12px;line-height:18px;color:#71809a;margin-top:22px;text-align:center;box-sizing:border-box">The attached Excel workbook contains separate Last Month and Current MTD tabs at Facility + GRN + SKU level.<br>Dashboard access is restricted to Mosaic Wellness Google accounts.</div>' +
     "</td></tr></table></div></body></html>"
   );
 }
