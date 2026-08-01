@@ -526,12 +526,12 @@ function buildInwardTatEmailHtml_(
   return (
     '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>' +
     '@media only screen and (max-width:640px){' +
-    '.email-shell{padding:0!important}.email-container{border-radius:0!important}.email-header{padding:24px 18px!important}' +
+    '.email-shell{width:100vw!important;max-width:100vw!important;padding:0!important;overflow:hidden!important}.email-container{display:block!important;width:100vw!important;max-width:100vw!important;table-layout:fixed!important;border-radius:0!important;overflow:hidden!important}.email-container>tbody,.email-container>tbody>tr{display:block!important;width:100%!important}.email-header{display:block!important;width:100%!important;box-sizing:border-box!important;padding:24px 18px!important}' +
     '.header-logo,.header-copy{display:block!important;width:100%!important;text-align:left!important}.header-logo{padding-bottom:18px!important}' +
     '.header-logo div{width:82px!important;height:57px!important;padding-top:19px!important}.email-title{font-size:24px!important;line-height:30px!important}' +
-    '.email-content{padding:24px 16px 30px!important}.kpi-grid{border-spacing:0!important}.kpi-grid,.kpi-grid tbody,.kpi-grid tr,.kpi-card{display:block!important;width:100%!important}' +
+    '.email-content{display:block!important;width:100%!important;box-sizing:border-box!important;padding:24px 0 30px!important}.content-inner{display:block!important;width:calc(100% - 32px)!important;max-width:calc(100% - 32px)!important;min-width:0!important;margin:0 16px!important;overflow:hidden!important}.kpi-grid{max-width:100%!important;min-width:0!important;table-layout:auto!important;border-spacing:0!important}.kpi-grid,.kpi-grid tbody,.kpi-grid tr,.kpi-card{display:block!important;width:100%!important}' +
     '.kpi-card{box-sizing:border-box!important;margin:0 0 12px!important;padding:18px 14px!important}.alert-cell{padding:18px 16px!important}' +
-    '.trend-image{width:100%!important;height:auto!important}.dashboard-button{display:block!important;padding:14px 16px!important}.kpi-definitions span{display:block!important;margin-top:5px!important}.kpi-definitions .separator{display:none!important}.email-footer{padding:0 8px!important;overflow-wrap:anywhere!important;word-break:break-word!important}' +
+    '.trend-image{width:100%!important;max-width:100%!important;height:auto!important;box-sizing:border-box!important;object-fit:contain!important}.dashboard-button{display:block!important;box-sizing:border-box!important;width:100%!important;padding:14px 16px!important}.kpi-definitions span{display:block!important;margin-top:5px!important}.kpi-definitions .separator{display:none!important}.email-footer{max-width:100%!important;padding:0 8px!important;overflow-wrap:anywhere!important;word-break:break-word!important}' +
     '}' +
     '</style></head><body style="margin:0;padding:0;background:#f1f5fa">' +
     '<div class="email-shell" style="margin:0;background:#f1f5fa;padding:20px;font-family:Arial,Helvetica,sans-serif;color:#172033">' +
@@ -545,7 +545,7 @@ function buildInwardTatEmailHtml_(
     publishedLabel +
     " IST" +
     "</div></td></tr></table></td></tr>" +
-    '<tr><td class="email-content" style="padding:32px 38px 36px">' +
+    '<tr><td class="email-content" style="padding:32px 38px 36px"><div class="content-inner">' +
     '<div style="font-size:20px;font-weight:700">Vehicle Arrival to Putaway TAT</div>' +
     '<div style="font-size:14px;color:#60718d;margin-top:8px">Last Quarter, Last Month, Month to Date, and Yesterday.</div>' +
     '<div class="kpi-definitions" style="font-size:14px;color:#60718d;margin-top:5px"><span>KPI1: Unloading to Putaway</span><span class="separator"> &nbsp;&middot;&nbsp; </span><span>KPI2: GRN to Putaway</span><span class="separator"> &nbsp;&middot;&nbsp; </span><span>KPI3: Unloading to GRN</span></div>' +
@@ -593,7 +593,7 @@ function buildInwardTatEmailHtml_(
     dashboardUrl +
     '" class="dashboard-button" style="display:inline-block;background:#2750df;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:9px;font-size:15px;font-weight:700">Open Inward TAT Dashboard</a></div>' +
     '<div class="email-footer" style="font-size:12px;line-height:18px;color:#71809a;margin-top:22px;text-align:center;box-sizing:border-box">The attached Excel workbook contains separate Last Month and Current MTD tabs at Facility + GRN + SKU level.<br>Dashboard access is restricted to Mosaic Wellness Google accounts.</div>' +
-    "</td></tr></table></div></body></html>"
+    "</div></td></tr></table></div></body></html>"
   );
 }
 
