@@ -66,7 +66,7 @@ function sendDailyInwardTatEmail() {
     );
 
     console.log(
-      "[" + runId + "] EMAIL_PAYLOAD | STARTED | Building KPI cards, chart and MTD CSV."
+      "[" + runId + "] EMAIL_PAYLOAD | STARTED | Building KPI cards, chart and monthly workbook."
     );
     payload = buildInwardTatEmailPayload_(config);
     console.log(
@@ -74,8 +74,8 @@ function sendDailyInwardTatEmail() {
         runId +
         "] EMAIL_PAYLOAD | COMPLETED | " +
         payload.facts.length +
-        " MTD record(s) prepared; attachment " +
-        payload.csvBlob.getName() +
+        " current-month record(s) prepared; attachment " +
+        payload.workbookBlob.getName() +
         "."
     );
 
@@ -88,7 +88,7 @@ function sendDailyInwardTatEmail() {
       "Please view this email in HTML format.",
       {
         htmlBody: payload.html,
-        attachments: [payload.csvBlob],
+        attachments: [payload.workbookBlob],
         inlineImages: { mtdTrend: payload.chartBlob },
         name: "Mosaic Wellness | Inward TAT",
       }
@@ -102,7 +102,7 @@ function sendDailyInwardTatEmail() {
       payload.summary.kpi1Hours,
       payload.summary.kpi2Hours,
       payload.summary.kpi3Hours,
-      payload.csvBlob.getName(),
+      payload.workbookBlob.getName(),
       "SENT",
       "",
     ]);
@@ -135,7 +135,7 @@ function sendDailyInwardTatEmail() {
       payload ? payload.summary.kpi1Hours : "",
       payload ? payload.summary.kpi2Hours : "",
       payload ? payload.summary.kpi3Hours : "",
-      payload ? payload.csvBlob.getName() : "",
+      payload ? payload.workbookBlob.getName() : "",
       "FAILED",
       error.message || String(error),
     ]);
@@ -155,6 +155,12 @@ function buildInwardTatEmailPayload_(config) {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastMonthFacts = facts.filter(function (row) {
+    const date = parseDateTime_(row["Unloading Date"]);
+    return date && date >= previousMonthStart && date < previousMonthEnd;
+  });
   const mtdFacts = facts.filter(function (row) {
     const date = parseDateTime_(row["Unloading Date"]);
     return date && date >= monthStart && date < nextMonth;
@@ -181,7 +187,14 @@ function buildInwardTatEmailPayload_(config) {
     })
   );
   const chartBlob = buildMtdTrendChart_(daily, monthStart, nextMonth, timeZone);
-  const csvBlob = buildMtdCsv_(mtdFacts, monthStart, periodEnd, timeZone);
+  const workbookBlob = buildMonthlyWorkbook_(
+    lastMonthFacts,
+    mtdFacts,
+    previousMonthStart,
+    monthStart,
+    periodEnd,
+    timeZone
+  );
   const dashboardUrl =
     String(config.DASHBOARD_URL || "").trim() || INWARD_TAT_DASHBOARD_URL;
 
@@ -191,7 +204,7 @@ function buildInwardTatEmailPayload_(config) {
     periodStart: monthStart,
     periodEnd: periodEnd,
     subjectDateLabel: Utilities.formatDate(now, timeZone, "dd MMM yyyy"),
-    csvBlob: csvBlob,
+    workbookBlob: workbookBlob,
     chartBlob: chartBlob,
     html: buildInwardTatEmailHtml_(
       {
@@ -302,6 +315,127 @@ function buildMtdTrendChart_(daily, monthStart, nextMonth, timeZone) {
     .build()
     .getAs("image/png")
     .setName("inward-tat-mtd-trend.png");
+}
+
+function monthlyWorkbookHeaders_() {
+  return [
+    "Facility",
+    "GRN Number",
+    "SKU",
+    "Unloading Timestamp",
+    "GRN Received Timestamp",
+    "Putaway Completed Timestamp",
+    "KPI1 Unloading to Putaway Hours",
+    "KPI2 GRN to Putaway Hours",
+    "KPI3 Unloading to GRN Hours",
+    "Record Status",
+    "Exception Code",
+    "Exception Detail",
+  ];
+}
+
+function writeMonthlyWorkbookSheet_(sheet, facts) {
+  const headers = monthlyWorkbookHeaders_();
+  const values = facts.map(function (row) {
+    return headers.map(function (header) {
+      return row[header];
+    });
+  });
+  sheet.clear();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  if (values.length) {
+    sheet.getRange(2, 1, values.length, headers.length).setValues(values);
+  }
+  sheet.setFrozenRows(1);
+  sheet
+    .getRange(1, 1, 1, headers.length)
+    .setBackground("#1d3474")
+    .setFontColor("#ffffff")
+    .setFontWeight("bold");
+  sheet.getRange("D:F").setNumberFormat("yyyy-mm-dd hh:mm:ss");
+  sheet.getRange("G:I").setNumberFormat("0.0000");
+  sheet.setColumnWidths(1, headers.length, 150);
+  sheet.setColumnWidth(3, 220);
+  sheet.setColumnWidth(12, 280);
+}
+
+function buildMonthlyWorkbook_(
+  lastMonthFacts,
+  currentMonthFacts,
+  lastMonthStart,
+  currentMonthStart,
+  currentPeriodEnd,
+  timeZone
+) {
+  const temporary = SpreadsheetApp.create(
+    "TEMP_Inward_TAT_" + Utilities.getUuid()
+  );
+  const temporaryId = temporary.getId();
+  try {
+    const lastMonthLabel = Utilities.formatDate(
+      lastMonthStart,
+      timeZone,
+      "MMM yyyy"
+    );
+    const currentMonthLabel = Utilities.formatDate(
+      currentMonthStart,
+      timeZone,
+      "MMM yyyy"
+    );
+    const lastMonthSheet = temporary.getSheets()[0];
+    lastMonthSheet.setName("Last Month - " + lastMonthLabel);
+    const currentMonthSheet = temporary.insertSheet(
+      "Current MTD - " + currentMonthLabel
+    );
+    writeMonthlyWorkbookSheet_(lastMonthSheet, lastMonthFacts);
+    writeMonthlyWorkbookSheet_(currentMonthSheet, currentMonthFacts);
+    SpreadsheetApp.flush();
+
+    const response = UrlFetchApp.fetch(
+      "https://docs.google.com/spreadsheets/d/" +
+        temporaryId +
+        "/export?format=xlsx",
+      {
+        headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() },
+        muteHttpExceptions: true,
+      }
+    );
+    if (response.getResponseCode() !== 200) {
+      throw new Error(
+        "Monthly workbook export failed with HTTP " +
+          response.getResponseCode() +
+          "."
+      );
+    }
+    const fileName =
+      "Inward_TAT_Last_Month_and_MTD_" +
+      Utilities.formatDate(currentPeriodEnd, timeZone, "yyyyMMdd") +
+      ".xlsx";
+    return response
+      .getBlob()
+      .setContentType(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      )
+      .setName(fileName);
+  } finally {
+    try {
+      const cleanupResponse = UrlFetchApp.fetch(
+        "https://www.googleapis.com/drive/v3/files/" + temporaryId,
+        {
+          method: "delete",
+          headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() },
+          muteHttpExceptions: true,
+        }
+      );
+      if (cleanupResponse.getResponseCode() !== 204) {
+        throw new Error("HTTP " + cleanupResponse.getResponseCode());
+      }
+    } catch (cleanupError) {
+      console.warn(
+        "Temporary monthly workbook cleanup failed: " + cleanupError.message
+      );
+    }
+  }
 }
 
 function buildMtdCsv_(facts, periodStart, periodEnd, timeZone) {
@@ -448,7 +582,7 @@ function buildInwardTatEmailHtml_(
     '<div style="text-align:center;margin-top:28px"><a href="' +
     dashboardUrl +
     '" style="display:inline-block;background:#2750df;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:9px;font-size:15px;font-weight:700">Open Inward TAT Dashboard</a></div>' +
-    '<div style="font-size:12px;line-height:18px;color:#71809a;margin-top:22px;text-align:center">The attached CSV contains MTD Facility + GRN + SKU level records.<br>Dashboard access is restricted to Mosaic Wellness Google accounts.</div>' +
+    '<div style="font-size:12px;line-height:18px;color:#71809a;margin-top:22px;text-align:center">The attached Excel workbook contains separate Last Month and Current MTD tabs at Facility + GRN + SKU level.<br>Dashboard access is restricted to Mosaic Wellness Google accounts.</div>' +
     "</td></tr></table></div>"
   );
 }

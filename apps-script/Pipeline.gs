@@ -417,74 +417,92 @@ function syncGoodsInward_(config, runId) {
       {}
     );
     const source = SpreadsheetApp.openById(sourceId);
-    const sourceSheet = resolveGoodsSourceSheet_(source, config);
-    sourceSheetName = sourceSheet.getName();
+    const sourceSheets = resolveGoodsSourceSheets_(source, config);
+    sourceSheetName = sourceSheets
+      .map(function (sheet) {
+        return sheet.getName();
+      })
+      .join(" + ");
     logExecution_(
       runId,
       "GOODS_INWARD",
       "SOURCE_FOUND",
       "Goods Inward source found: " + source.getName() + " / " + sourceSheetName,
-      {}
+      { sourceTabs: sourceSheetName, sourceTabCount: sourceSheets.length }
     );
-
-    const values = sourceSheet.getDataRange().getValues();
-    if (values.length < 2) {
-      return { status: "EMPTY", rowsRead: 0, rowsWritten: 0 };
-    }
-
-    const headers = values[0].map(cleanHeader_);
-    const sourceHeaderIndex = headerIndex_(headers);
-    const facilityColumn = sourceHeaderIndex[normalizeHeader_("Received at")];
-    if (facilityColumn === undefined) {
-      throw new Error("Goods Inward source is missing the Received at column.");
-    }
     const allowedFacilities = String(
       config.GOODS_ALLOWED_FACILITIES || "SL Mother Hub|SL Ambient"
     )
       .split("|")
       .map(normalizeFacility_)
       .filter(Boolean);
-    const allRecords = values.slice(1).map(function (row, index) {
-      return { row: row, sourceRow: index + 2 };
+    const target = getSheet_(INWARD_TAT.SHEETS.RAW_GOODS);
+    const targetHeaders = readHeaders_(target);
+    const output = [];
+    let rowsRead = 0;
+    let rowsSkipped = 0;
+
+    sourceSheets.forEach(function (sourceSheet) {
+      const values = sourceSheet.getDataRange().getValues();
+      if (values.length < 2) return;
+      const headers = values[0].map(cleanHeader_);
+      const sourceHeaderIndex = headerIndex_(headers);
+      const facilityColumn = sourceHeaderIndex[normalizeHeader_("Received at")];
+      if (facilityColumn === undefined) {
+        throw new Error(
+          "Goods Inward source tab " +
+            sourceSheet.getName() +
+            " is missing the Received at column."
+        );
+      }
+      const allRecords = values.slice(1).map(function (row, index) {
+        return { row: row, sourceRow: index + 2 };
+      });
+      const records = allRecords.filter(function (record) {
+        return (
+          allowedFacilities.indexOf(
+            normalizeFacility_(record.row[facilityColumn])
+          ) !== -1
+        );
+      });
+      rowsRead += allRecords.length;
+      rowsSkipped += allRecords.length - records.length;
+
+      records.forEach(function (record) {
+        const metadata = {
+          "Import Id": importId,
+          "Source Spreadsheet Id": sourceId,
+          "Source Sheet": sourceSheet.getName(),
+          "Source Row": record.sourceRow,
+          "Imported At": new Date(),
+        };
+        output.push(
+          targetHeaders.map(function (targetHeader) {
+            if (Object.prototype.hasOwnProperty.call(metadata, targetHeader)) {
+              return metadata[targetHeader];
+            }
+            const index = sourceHeaderIndex[normalizeHeader_(targetHeader)];
+            return index === undefined ? "" : record.row[index];
+          })
+        );
+      });
     });
-    const records = allRecords.filter(function (record) {
-      return (
-        allowedFacilities.indexOf(
-          normalizeFacility_(record.row[facilityColumn])
-        ) !== -1
-      );
-    });
+
+    if (!rowsRead) {
+      return { status: "EMPTY", rowsRead: 0, rowsWritten: 0 };
+    }
     logExecution_(
       runId,
       "GOODS_INWARD_FILTER",
       "COMPLETED",
       "Filtered Goods Inward to SL Mother Hub and SL Ambient only.",
       {
-        rowsRead: allRecords.length,
-        rowsImported: records.length,
-        rowsSkipped: allRecords.length - records.length,
+        rowsRead: rowsRead,
+        rowsImported: output.length,
+        rowsSkipped: rowsSkipped,
       }
     );
-    const target = getSheet_(INWARD_TAT.SHEETS.RAW_GOODS);
     clearDataRows_(target);
-    const targetHeaders = readHeaders_(target);
-    const output = records.map(function (record) {
-      const metadata = {
-        "Import Id": importId,
-        "Source Spreadsheet Id": sourceId,
-        "Source Sheet": sourceSheetName,
-        "Source Row": record.sourceRow,
-        "Imported At": new Date(),
-      };
-      return targetHeaders.map(function (targetHeader) {
-        if (Object.prototype.hasOwnProperty.call(metadata, targetHeader)) {
-          return metadata[targetHeader];
-        }
-        const index = sourceHeaderIndex[normalizeHeader_(targetHeader)];
-        return index === undefined ? "" : record.row[index];
-      });
-    });
-
     writeRowsInBatches_(target, output, Number(config.PIPELINE_BATCH_SIZE || 500));
     appendImportLog_({
       importId: importId,
@@ -492,9 +510,9 @@ function syncGoodsInward_(config, runId) {
       completedAt: new Date(),
       sourceType: "GOODS_INWARD",
       sourceName: source.getName() + " / " + sourceSheetName,
-      rowsRead: allRecords.length,
+      rowsRead: rowsRead,
       rowsAdded: output.length,
-      rowsSkipped: allRecords.length - output.length,
+      rowsSkipped: rowsSkipped,
       status: "SUCCESS",
     });
     logExecution_(
@@ -503,13 +521,13 @@ function syncGoodsInward_(config, runId) {
       "COMPLETED",
       output.length + " Goods Inward row(s) imported.",
       {
-        rowsRead: allRecords.length,
+        rowsRead: rowsRead,
         rowsImported: output.length,
-        rowsSkipped: allRecords.length - output.length,
+        rowsSkipped: rowsSkipped,
         durationSeconds: (new Date().getTime() - startedAt.getTime()) / 1000,
       }
     );
-    return { status: "SUCCESS", rowsRead: allRecords.length, rowsWritten: output.length };
+    return { status: "SUCCESS", rowsRead: rowsRead, rowsWritten: output.length };
   } catch (error) {
     appendImportLog_({
       importId: importId,
@@ -531,7 +549,7 @@ function syncGoodsInward_(config, runId) {
   }
 }
 
-function resolveGoodsSourceSheet_(spreadsheet, config) {
+function resolveGoodsSourceSheets_(spreadsheet, config) {
   const configuredName = String(config.GOODS_SOURCE_SHEET_NAME || "").trim();
   const mode = String(config.GOODS_SOURCE_TAB_MODE || "AUTO_MONTHLY").trim().toUpperCase();
   if (mode !== "AUTO_MONTHLY") {
@@ -539,48 +557,52 @@ function resolveGoodsSourceSheet_(spreadsheet, config) {
     if (!configuredSheet) {
       throw new Error("Goods Inward source tab not found: " + (configuredName || "(blank)"));
     }
-    return configuredSheet;
+    return [configuredSheet];
   }
 
   const timeZone = String(config.TIME_ZONE || Session.getScriptTimeZone() || "Asia/Calcutta");
   const prefix = String(config.GOODS_SOURCE_SHEET_PREFIX || "FG-").trim();
-  const now = new Date();
-  const monthLong = Utilities.formatDate(now, timeZone, "MMMM");
-  const monthShort = Utilities.formatDate(now, timeZone, "MMM");
-  const yearShort = Utilities.formatDate(now, timeZone, "yy");
-  const yearLong = Utilities.formatDate(now, timeZone, "yyyy");
-  const candidates = [
-    prefix + monthLong + "-" + yearShort,
-    prefix + monthShort + "-" + yearShort,
-    prefix + monthLong + "-" + yearLong,
-    prefix + monthShort + "-" + yearLong,
-  ].map(normalizeTabName_);
-
   const sheetsByNormalizedName = {};
   spreadsheet.getSheets().forEach(function (sheet) {
     sheetsByNormalizedName[normalizeTabName_(sheet.getName())] = sheet;
   });
 
-  for (let index = 0; index < candidates.length; index += 1) {
-    if (sheetsByNormalizedName[candidates[index]]) {
-      return sheetsByNormalizedName[candidates[index]];
+  const now = new Date();
+  const resolved = [];
+  [new Date(now.getFullYear(), now.getMonth() - 1, 1), now].forEach(
+    function (monthDate) {
+      const monthLong = Utilities.formatDate(monthDate, timeZone, "MMMM");
+      const monthShort = Utilities.formatDate(monthDate, timeZone, "MMM");
+      const yearShort = Utilities.formatDate(monthDate, timeZone, "yy");
+      const yearLong = Utilities.formatDate(monthDate, timeZone, "yyyy");
+      const candidates = [
+        prefix + monthLong + "-" + yearShort,
+        prefix + monthShort + "-" + yearShort,
+        prefix + monthLong + "-" + yearLong,
+        prefix + monthShort + "-" + yearLong,
+      ].map(normalizeTabName_);
+      for (let index = 0; index < candidates.length; index += 1) {
+        const sheet = sheetsByNormalizedName[candidates[index]];
+        if (sheet && resolved.indexOf(sheet) === -1) {
+          resolved.push(sheet);
+          break;
+        }
+      }
     }
-  }
+  );
+
+  if (resolved.length) return resolved;
 
   if (configuredName) {
     const fallback =
       spreadsheet.getSheetByName(configuredName) ||
       sheetsByNormalizedName[normalizeTabName_(configuredName)];
-    if (fallback) return fallback;
+    if (fallback) return [fallback];
   }
 
   throw new Error(
-    "Current Goods Inward monthly tab not found. Expected " +
-      prefix +
-      monthLong +
-      "-" +
-      yearShort +
-      (configuredName ? " or fallback " + configuredName : "")
+    "Current or previous Goods Inward monthly tab was not found." +
+      (configuredName ? " Fallback was " + configuredName + "." : "")
   );
 }
 
