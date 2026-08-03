@@ -740,10 +740,11 @@ function LoadingScreen() {
 function summarizeFacts(rows) {
   const average = (values) =>
     values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
-  const values = (key) => rows.map((row) => row[key]).filter((value) => Number.isFinite(value));
+  const completeRows = rows.filter((row) => row.status === "COMPLETE");
+  const values = (key) => completeRows.map((row) => row[key]).filter((value) => Number.isFinite(value));
   return {
     records: rows.length,
-    completeRecords: rows.filter((row) => row.status === "COMPLETE").length,
+    completeRecords: completeRows.length,
     exceptionRecords: rows.filter((row) => row.status !== "COMPLETE").length,
     kpi1Hours: average(values("kpi1Hours")),
     kpi2Hours: average(values("kpi2Hours")),

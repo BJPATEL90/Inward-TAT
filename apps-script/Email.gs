@@ -232,8 +232,11 @@ function buildInwardTatEmailPayload_(config) {
 }
 
 function summarizeEmailFacts_(facts) {
+  const completeFacts = facts.filter(function (row) {
+    return String(row["Record Status"]).toUpperCase() === "COMPLETE";
+  });
   function average(field) {
-    const values = facts
+    const values = completeFacts
       .map(function (row) {
         const raw = row[field];
         return raw === "" || raw === null || raw === undefined
@@ -259,9 +262,7 @@ function summarizeEmailFacts_(facts) {
     kpi2Hours: average("KPI2 GRN to Putaway Hours"),
     kpi3Hours: average("KPI3 Unloading to GRN Hours"),
     records: facts.length,
-    completeRecords: facts.filter(function (row) {
-      return String(row["Record Status"]).toUpperCase() === "COMPLETE";
-    }).length,
+    completeRecords: completeFacts.length,
   };
 }
 

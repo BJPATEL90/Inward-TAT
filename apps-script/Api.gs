@@ -218,17 +218,20 @@ function buildDashboardSnapshot_() {
 }
 
 function summarizeApiFacts_(facts) {
-  const kpi1 = facts
+  const completeFacts = facts.filter(function (row) {
+    return row.status === "COMPLETE";
+  });
+  const kpi1 = completeFacts
     .map(function (row) {
       return row.kpi1Hours;
     })
     .filter(isApiNumber_);
-  const kpi2 = facts
+  const kpi2 = completeFacts
     .map(function (row) {
       return row.kpi2Hours;
     })
     .filter(isApiNumber_);
-  const kpi3 = facts
+  const kpi3 = completeFacts
     .map(function (row) {
       return row.kpi3Hours;
     })
@@ -238,9 +241,7 @@ function summarizeApiFacts_(facts) {
     kpi2Hours: apiAverage_(kpi2),
     kpi3Hours: apiAverage_(kpi3),
     records: facts.length,
-    completeRecords: facts.filter(function (row) {
-      return row.status === "COMPLETE";
-    }).length,
+    completeRecords: completeFacts.length,
     exceptionRecords: facts.filter(function (row) {
       return row.status !== "COMPLETE";
     }).length,
