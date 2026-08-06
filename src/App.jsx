@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
+  ArrowRight,
+  BookOpen,
   CalendarRange,
   CheckCircle2,
   ChevronRight,
@@ -12,6 +14,7 @@ import {
   Menu,
   RefreshCw,
   Search,
+  ShieldCheck,
   TableProperties,
   X,
 } from "lucide-react";
@@ -304,7 +307,7 @@ function DashboardApp({ authUser, onSignOut }) {
             selectedSummary={selectedSummary}
             openDetails={() => setPage("details")}
           />
-        ) : (
+        ) : page === "details" ? (
           <Details
             rows={filteredFacts}
             fromDate={fromDate}
@@ -318,6 +321,8 @@ function DashboardApp({ authUser, onSignOut }) {
             query={query}
             setQuery={setQuery}
           />
+        ) : (
+          <CalculationLogic />
         )}
       </main>
     </div>
@@ -328,6 +333,7 @@ function Sidebar({ page, setPage, open }) {
   const items = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "details", label: "Detailed Records", icon: TableProperties },
+    { id: "logic", label: "Calculation Logic", icon: BookOpen },
   ];
   return (
     <aside className={`sidebar ${open ? "open" : ""}`}>
@@ -360,6 +366,18 @@ function Sidebar({ page, setPage, open }) {
 }
 
 function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, source, authUser, onSignOut }) {
+  const pageTitle =
+    page === "dashboard"
+      ? "Vehicle Arrival to Putaway TAT"
+      : page === "details"
+        ? "Detailed TAT Records"
+        : "Calculation & Publication Logic";
+  const pageSubtitle =
+    page === "dashboard"
+      ? "Mother-facility inbound performance"
+      : page === "details"
+        ? "Resolved ERP Facility + GRN + SKU level review"
+        : "How records are matched, calculated, excluded, and published";
   return (
     <header className="topbar">
       <div className="topbar-title">
@@ -367,8 +385,8 @@ function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, s
           <Menu size={21} />
         </button>
         <div>
-          <h1>{page === "dashboard" ? "Vehicle Arrival to Putaway TAT" : "Detailed TAT Records"}</h1>
-          <p>{page === "dashboard" ? "Mother-facility inbound performance" : "Facility + GRN + SKU level review"}</p>
+          <h1>{pageTitle}</h1>
+          <p>{pageSubtitle}</p>
         </div>
       </div>
       <div className="topbar-actions">
@@ -392,6 +410,134 @@ function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, s
         </button>
       </div>
     </header>
+  );
+}
+
+function CalculationLogic() {
+  const stages = [
+    {
+      step: "01",
+      title: "Vehicle unloading",
+      text: "Goods Inward provides the unloading date and time, SKU, invoice number, GRN number, and physical receiving facility.",
+    },
+    {
+      step: "02",
+      title: "GRN resolution",
+      text: "The system first matches SKU + Invoice Number + GRN across all ERP facilities to identify the correct ERP facility.",
+    },
+    {
+      step: "03",
+      title: "Controlled fallback",
+      text: "If the invoice key is blank or mismatched, Facility + SKU + GRN is used, including the approved SL Ambient-to-SL Rx bridge.",
+    },
+    {
+      step: "04",
+      title: "Putaway completion",
+      text: "Completed shelf rows are consolidated by resolved ERP Facility + SKU + GRN. The latest Last Updated timestamp is retained.",
+    },
+  ];
+
+  const remarks = [
+    ["PRIMARY_MATCH", "Exact SKU + Invoice + GRN match in the same facility."],
+    ["CROSS_FACILITY_MATCH", "The primary key identified a different ERP facility."],
+    ["FALLBACK_BLANK_INVOICE", "Invoice was blank; the controlled facility key was used."],
+    ["FALLBACK_INVOICE_MISMATCH", "Invoice did not match exactly; the controlled facility key was used."],
+    ["AMBIGUOUS_MATCH", "More than one facility matched; the record is excluded until resolved."],
+    ["NO_GRN_MATCH / NO_PUTAWAY_MATCH", "A required milestone is missing; the record remains incomplete."],
+  ];
+
+  return (
+    <div className="page-content logic-page">
+      <section className="logic-hero">
+        <div>
+          <span className="section-eyebrow">Governed calculation method</span>
+          <h2>One continuous timeline, one complete cohort</h2>
+          <p>
+            Every published KPI uses continuous elapsed time, a simple arithmetic average,
+            and the same set of complete records. Nights, Sundays, and holidays are included.
+          </p>
+        </div>
+        <div className="logic-principle">
+          <ShieldCheck size={24} />
+          <div>
+            <strong>No assumed matches</strong>
+            <span>Ambiguous and incomplete records never contribute a false zero.</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="logic-flow" aria-label="Calculation flow">
+        {stages.map((stage, index) => (
+          <React.Fragment key={stage.step}>
+            <article className="logic-stage">
+              <span>{stage.step}</span>
+              <h3>{stage.title}</h3>
+              <p>{stage.text}</p>
+            </article>
+            {index < stages.length - 1 && <ArrowRight className="logic-arrow" size={20} />}
+          </React.Fragment>
+        ))}
+      </section>
+
+      <section className="logic-grid">
+        <article className="logic-panel formula-panel">
+          <div className="logic-panel-heading">
+            <span>01</span>
+            <div><h3>KPI formulas</h3><p>Displayed as hours and minutes, with decimal hours for reconciliation.</p></div>
+          </div>
+          <div className="formula-list">
+            <div><b>KPI1</b><span>Unloading to Putaway</span><strong>Putaway Completed − Vehicle Unloading</strong></div>
+            <div><b>KPI2</b><span>GRN to Putaway</span><strong>Putaway Completed − GRN Received</strong></div>
+            <div><b>KPI3</b><span>Unloading to GRN</span><strong>GRN Received − Vehicle Unloading</strong></div>
+          </div>
+          <div className="formula-proof">For the same complete cohort: <strong>KPI1 = KPI2 + KPI3</strong></div>
+        </article>
+
+        <article className="logic-panel publication-panel">
+          <div className="logic-panel-heading">
+            <span>02</span>
+            <div><h3>Publication rules</h3><p>What changes automatically and what remains governed.</p></div>
+          </div>
+          <div className="publication-table">
+            <div className="publication-head"><span>View</span><span>Source</span><span>Behaviour</span></div>
+            <div><strong>Last Quarter</strong><span>Config</span><em>Published static value</em></div>
+            <div><strong>Last Month</strong><span>Config</span><em>Published static value</em></div>
+            <div><strong>Month to Date</strong><span>Fact data</span><em>Recalculated after refresh</em></div>
+            <div><strong>Yesterday</strong><span>Fact data</span><em>Shows pending until milestones arrive</em></div>
+            <div><strong>Selected range</strong><span>Fact data</span><em>Recalculated by unloading date</em></div>
+          </div>
+        </article>
+      </section>
+
+      <section className="logic-grid lower">
+        <article className="logic-panel">
+          <div className="logic-panel-heading">
+            <span>03</span>
+            <div><h3>Match remarks</h3><p>Visible in the Fact sheet and downloadable operational data.</p></div>
+          </div>
+          <div className="remark-list">
+            {remarks.map(([code, meaning]) => (
+              <div key={code}><code>{code}</code><span>{meaning}</span></div>
+            ))}
+          </div>
+        </article>
+
+        <article className="logic-panel rules-panel">
+          <div className="logic-panel-heading">
+            <span>04</span>
+            <div><h3>Inclusion controls</h3><p>Rules applied before a record enters any KPI average.</p></div>
+          </div>
+          <ul>
+            <li><CheckCircle2 size={17} /> Facility must resolve to SL Ambient, SL Mother Hub, or SL Rx.</li>
+            <li><CheckCircle2 size={17} /> GRN Received Timestamp and completed Putaway Last Updated must exist.</li>
+            <li><CheckCircle2 size={17} /> Putaway type must be PUTAWAY_GRN_ITEM and all consolidated shelf rows must be complete.</li>
+            <li><CheckCircle2 size={17} /> Negative timestamp sequences are excluded and sent to exceptions.</li>
+            <li><CheckCircle2 size={17} /> Date selection is based on Vehicle Unloading Date.</li>
+            <li><CheckCircle2 size={17} /> A simple average is calculated only across COMPLETE records.</li>
+          </ul>
+        </article>
+      </section>
+    </div>
   );
 }
 

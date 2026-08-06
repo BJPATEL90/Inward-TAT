@@ -101,6 +101,60 @@ function runInwardTatPipeline() {
   }
 }
 
+/**
+ * Rebuilds all historical facts, MTD summaries, and exceptions from the raw
+ * sheets already stored in the backend workbook. It does not search Gmail,
+ * download exports, or modify any Raw_* sheet.
+ */
+function rebuildHistoricalInwardTatFacts() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  const startedAt = new Date();
+  const runId = Utilities.getUuid();
+  try {
+    logExecution_(
+      runId,
+      "HISTORICAL_REBUILD",
+      "STARTED",
+      "Historical hybrid-matching rebuild started from existing raw sheets.",
+      {}
+    );
+    seedConfig_(getSheet_(INWARD_TAT.SHEETS.CONFIG));
+    const config = getConfig_();
+    const processing = rebuildTatFacts_(config, runId);
+    updateConfigValue_("LAST_SUCCESSFUL_REFRESH", new Date());
+    CacheService.getScriptCache().remove("INWARD_TAT_DASHBOARD_V1");
+    logExecution_(
+      runId,
+      "HISTORICAL_REBUILD",
+      "COMPLETED",
+      "Historical facts, MTD summary, and exceptions rebuilt successfully.",
+      {
+        rowsRead: processing.factRows,
+        rowsImported: processing.completeRows,
+        rowsSkipped: processing.exceptionRows,
+        durationSeconds: (new Date().getTime() - startedAt.getTime()) / 1000,
+      }
+    );
+    return {
+      ok: true,
+      processing: processing,
+      completedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    logExecution_(
+      runId,
+      "HISTORICAL_REBUILD",
+      "FAILED",
+      error.message || String(error),
+      { durationSeconds: (new Date().getTime() - startedAt.getTime()) / 1000 }
+    );
+    throw error;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function clearWronglyPulledPutawayData() {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
