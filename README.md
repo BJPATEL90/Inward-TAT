@@ -8,7 +8,7 @@ Access is restricted to verified `@mosaicwellness.in` Google Workspace accounts.
 
 ## KPI definitions
 
-All calculations use continuous elapsed time, including nights, Sundays, and holidays. Results use a simple average across unique `Facility + GRN Number + SKU` records. KPI cards show an unambiguous hours-and-minutes value such as `29h 50m`, with `29.84 decimal hrs` underneath for reconciliation.
+All calculations use continuous elapsed time, including nights, Sundays, and holidays. Goods-to-GRN matching uses `SKU + Invoice Number + GRN Number` first and the existing facility key as a controlled fallback. Results use a simple average across unique resolved ERP `Facility + GRN Number + SKU` records. KPI cards show an unambiguous hours-and-minutes value such as `29h 50m`, with `29.84 decimal hrs` underneath for reconciliation.
 
 | KPI | Definition | Start | End |
 |---|---|---|---|
@@ -26,7 +26,7 @@ The dashboard covers:
 - SL Mother Hub
 - SL Rx
 
-`Raw_Goods_Inward` imports only SL Mother Hub and SL Ambient unloading rows. Some SL Rx transactions are physically received at SL Ambient; these are reclassified using the SL Rx GRN dump and the `GRN Number + SKU` bridge.
+`Raw_Goods_Inward` imports only SL Mother Hub and SL Ambient unloading rows. The primary invoice key resolves the ERP facility across all three facilities. When the primary key is unavailable, the existing SL Rx `GRN Number + SKU` bridge remains part of the controlled fallback.
 
 ## Data sources
 
@@ -48,7 +48,7 @@ The monthly source tab is selected automatically using the `FG-` prefix, with th
 - Subject: `Export Job Complete - GRN`
 - Timestamp: `GRN Received Timestamp`
 
-Only the configured mother facilities are processed. Duplicate rows are normalized to the unique `Facility + GRN Number + SKU` record.
+Only the configured mother facilities are processed. Exact `SKU + Invoice Number + GRN Number` matching is attempted first across facilities. Unresolved rows use `Facility + GRN Number + SKU`; ambiguous matches are excluded and logged. Final facts remain unique by resolved ERP `Facility + GRN Number + SKU`.
 
 ### Putaway reports
 

@@ -6,7 +6,8 @@
  * 2. Locate GRN and named facility Putaway exports in Gmail.
  * 3. Download and normalize the CSV data.
  * 4. Deduplicate by stable source keys.
- * 5. Rebuild Facility + SKU + GRN facts, exceptions and MTD summaries.
+ * 5. Rebuild facts using SKU + Invoice + GRN first, with the existing
+ *    Facility + SKU + GRN rule as a controlled fallback.
  *
  * This file expects Code.gs from Phase 1 in the same Apps Script project.
  */
@@ -19,8 +20,15 @@ function runInwardTatPipeline() {
 
   try {
     logExecution_(runId, "PIPELINE", "STARTED", "Inward TAT pipeline started.", {});
+    seedConfig_(getSheet_(INWARD_TAT.SHEETS.CONFIG));
     const config = getConfig_();
-    logExecution_(runId, "CONFIG", "COMPLETED", "Configuration loaded.", {});
+    logExecution_(
+      runId,
+      "CONFIG",
+      "COMPLETED",
+      "Configuration loaded; missing hybrid-matching criteria were added.",
+      {}
+    );
     const results = {
       goods: syncGoodsInward_(config, runId),
       grn: importUnicommerceEmails_("GRN", config, runId),
@@ -634,33 +642,83 @@ function rebuildTatFacts_(config, runId) {
   const goodsSheet = getSheet_(INWARD_TAT.SHEETS.RAW_GOODS);
   const grnSheet = getSheet_(INWARD_TAT.SHEETS.RAW_GRN);
   const putawaySheet = getSheet_(INWARD_TAT.SHEETS.RAW_PUTAWAY);
+  const factSheet = ensureFactMatchingSchema_();
   const goods = sheetObjects_(goodsSheet);
   const grn = sheetObjects_(grnSheet);
   const putaway = sheetObjects_(putawaySheet);
 
   const goodsMap = new Map();
   const grnMap = new Map();
+  const grnPrimaryIndex = new Map();
   const putawayMap = new Map();
   const exceptions = [];
   const rxSkuGrnBridge = new Set();
   const rxBridgeEnabled =
     String(config.RX_BRIDGE_ENABLED || "TRUE").toUpperCase() === "TRUE";
   let rxMappedGoodsRecords = 0;
+  const hybridCounts = {
+    primary: 0,
+    crossFacility: 0,
+    fallbackBlankInvoice: 0,
+    fallbackInvoiceMismatch: 0,
+    ambiguous: 0,
+    unresolved: 0,
+  };
 
-  if (rxBridgeEnabled) {
-    grn.forEach(function (row) {
-      const facility = normalizeFacility_(row.Facility);
-      const sku = normalizeSku_(row["Item SkuCode"]);
-      const grnNumber = normalizeGrn_(row["GRN Code"]);
-      if (facility === "SL Rx" && sku && grnNumber) {
-        rxSkuGrnBridge.add(grnNumber + "|" + sku);
+  grn.forEach(function (row) {
+    const facility = normalizeFacility_(row.Facility);
+    const sku = normalizeSku_(row["Item SkuCode"]);
+    const invoice = normalizeInvoice_(row["GRN Invoice No"]);
+    const grnNumber = normalizeGrn_(row["GRN Code"]);
+    const timestamp = parseDateTime_(row["GRN Received Timestamp"]);
+    const key = makeRecordKey_(facility, sku, grnNumber);
+    if (!facility || !sku || !grnNumber || !timestamp) return;
+    const existing = grnMap.get(key);
+    if (!existing || timestamp > existing.timestamp) {
+      grnMap.set(key, {
+        timestamp: timestamp,
+        row: row.__row,
+        facility: facility,
+        sku: sku,
+        invoice: invoice,
+        grn: grnNumber,
+      });
+    }
+    if (invoice) {
+      const primaryKey = makePrimaryMatchKey_(sku, invoice, grnNumber);
+      if (!grnPrimaryIndex.has(primaryKey)) {
+        grnPrimaryIndex.set(primaryKey, []);
       }
-    });
-  }
+      const candidates = grnPrimaryIndex.get(primaryKey);
+      const candidateIndex = candidates.findIndex(function (candidate) {
+        return candidate.facility === facility;
+      });
+      const primaryEntry = {
+        timestamp: timestamp,
+        row: row.__row,
+        facility: facility,
+        sku: sku,
+        invoice: invoice,
+        grn: grnNumber,
+      };
+      if (candidateIndex === -1) {
+        candidates.push(primaryEntry);
+      } else if (timestamp > candidates[candidateIndex].timestamp) {
+        candidates[candidateIndex] = primaryEntry;
+      }
+    }
+  });
+
+  grnMap.forEach(function (entry) {
+    if (entry.facility === "SL Rx") {
+      rxSkuGrnBridge.add(entry.grn + "|" + entry.sku);
+    }
+  });
 
   goods.forEach(function (row) {
     const warehouseFacility = normalizeFacility_(row["Received at"]);
     const sku = normalizeSku_(row.SKU);
+    const invoice = normalizeInvoice_(row["Invoice number"]);
     const grnNumbers = splitGrnNumbers_(row["GRN no."]);
     const unloadingTimestamp = combineDateAndTime_(
       row["Unloading Date"],
@@ -689,16 +747,21 @@ function rebuildTatFacts_(config, runId) {
     }
 
     grnNumbers.forEach(function (grnNumber) {
-      const facility =
-        rxBridgeEnabled &&
-        warehouseFacility === "SL Ambient" &&
-        rxSkuGrnBridge.has(grnNumber + "|" + sku)
-          ? "SL Rx"
-          : warehouseFacility;
+      const match = resolveHybridGrnMatch_(
+        warehouseFacility,
+        sku,
+        invoice,
+        grnNumber,
+        grnMap,
+        grnPrimaryIndex,
+        rxSkuGrnBridge,
+        rxBridgeEnabled
+      );
+      const facility = match.facility;
       if (facility === "SL Rx" && warehouseFacility === "SL Ambient") {
         rxMappedGoodsRecords += 1;
       }
-      const key = makeRecordKey_(facility, sku, grnNumber);
+      const key = match.key;
       const existing = goodsMap.get(key);
       if (!existing || unloadingTimestamp < existing.timestamp) {
         goodsMap.set(key, {
@@ -707,10 +770,59 @@ function rebuildTatFacts_(config, runId) {
           facility: facility,
           sku: sku,
           grn: grnNumber,
+          invoice: invoice,
+          matchMethod: match.method,
+          matchDetail: match.detail,
+          blockGrnJoin: match.blockGrnJoin,
+          resolvedGrnRow: match.grnRow || null,
         });
       }
     });
   });
+  goodsMap.forEach(function (entry) {
+    if (entry.matchMethod === "PRIMARY_MATCH") hybridCounts.primary += 1;
+    if (entry.matchMethod === "CROSS_FACILITY_MATCH") {
+      hybridCounts.crossFacility += 1;
+    }
+    if (entry.matchMethod === "FALLBACK_BLANK_INVOICE") {
+      hybridCounts.fallbackBlankInvoice += 1;
+    }
+    if (entry.matchMethod === "FALLBACK_INVOICE_MISMATCH") {
+      hybridCounts.fallbackInvoiceMismatch += 1;
+    }
+    if (entry.matchMethod === "AMBIGUOUS_MATCH") hybridCounts.ambiguous += 1;
+    if (entry.matchMethod === "NO_GRN_MATCH") hybridCounts.unresolved += 1;
+  });
+  logExecution_(
+    runId,
+    "HYBRID_MATCHING",
+    "COMPLETED",
+    "Logic 2 primary matching completed with Logic 1 controlled fallback.",
+    {
+      reportType: "FACT_JOIN",
+      rowsRead: goodsMap.size,
+      rowsImported:
+        hybridCounts.primary +
+        hybridCounts.crossFacility +
+        hybridCounts.fallbackBlankInvoice +
+        hybridCounts.fallbackInvoiceMismatch,
+      rowsSkipped: hybridCounts.ambiguous + hybridCounts.unresolved,
+    }
+  );
+  logExecution_(
+    runId,
+    "HYBRID_MATCH_DETAIL",
+    "COMPLETED",
+    [
+      "PRIMARY_MATCH=" + hybridCounts.primary,
+      "CROSS_FACILITY_MATCH=" + hybridCounts.crossFacility,
+      "FALLBACK_BLANK_INVOICE=" + hybridCounts.fallbackBlankInvoice,
+      "FALLBACK_INVOICE_MISMATCH=" + hybridCounts.fallbackInvoiceMismatch,
+      "AMBIGUOUS_MATCH=" + hybridCounts.ambiguous,
+      "NO_GRN_MATCH=" + hybridCounts.unresolved,
+    ].join(" | "),
+    { reportType: "FACT_JOIN" }
+  );
   logExecution_(
     runId,
     "RX_FACILITY_BRIDGE",
@@ -723,19 +835,6 @@ function rebuildTatFacts_(config, runId) {
       rowsImported: rxMappedGoodsRecords,
     }
   );
-
-  grn.forEach(function (row) {
-    const facility = normalizeFacility_(row.Facility);
-    const sku = normalizeSku_(row["Item SkuCode"]);
-    const grnNumber = normalizeGrn_(row["GRN Code"]);
-    const timestamp = parseDateTime_(row["GRN Received Timestamp"]);
-    const key = makeRecordKey_(facility, sku, grnNumber);
-    if (!facility || !sku || !grnNumber || !timestamp) return;
-    const existing = grnMap.get(key);
-    if (!existing || timestamp > existing.timestamp) {
-      grnMap.set(key, { timestamp: timestamp, row: row.__row });
-    }
-  });
 
   putaway.forEach(function (row) {
     const facility = normalizeFacility_(row.Facility);
@@ -775,8 +874,13 @@ function rebuildTatFacts_(config, runId) {
 
   allSourceKeys.forEach(function (key) {
     const goodsRow = goodsMap.get(key);
-    const grnRow = grnMap.get(key);
-    const putawayRow = putawayMap.get(key);
+    const joinBlocked = Boolean(goodsRow && goodsRow.blockGrnJoin);
+    const grnRow = joinBlocked
+      ? null
+      : goodsRow && goodsRow.resolvedGrnRow
+        ? goodsRow.resolvedGrnRow
+        : grnMap.get(key);
+    const putawayRow = joinBlocked ? null : putawayMap.get(key);
     const parts = key.split("|");
     const facility = parts[0];
     const grnNumber = parts[1];
@@ -784,8 +888,12 @@ function rebuildTatFacts_(config, runId) {
     const issueCodes = [];
 
     if (!goodsRow) issueCodes.push("NO_GOODS_MATCH");
-    if (!grnRow) issueCodes.push("NO_GRN_MATCH");
-    if (!putawayRow) issueCodes.push("NO_PUTAWAY_MATCH");
+    if (joinBlocked) {
+      issueCodes.push("AMBIGUOUS_MATCH");
+    } else {
+      if (!grnRow) issueCodes.push("NO_GRN_MATCH");
+      if (!putawayRow) issueCodes.push("NO_PUTAWAY_MATCH");
+    }
     if (
       putawayRow &&
       !putawayRow.allShelvesComplete
@@ -830,6 +938,8 @@ function rebuildTatFacts_(config, runId) {
       grnRow ? grnRow.row : "",
       putawayRow ? putawayRow.row : "",
       new Date(),
+      goodsRow ? goodsRow.matchMethod : "NO_GOODS_MATCH",
+      goodsRow ? goodsRow.matchDetail : "No Goods Inward row resolved to this ERP key.",
     ]);
 
     issueCodes.forEach(function (code) {
@@ -841,13 +951,16 @@ function rebuildTatFacts_(config, runId) {
           sku,
           grnNumber,
           code,
-          "Unable to produce a complete continuous TAT record for " + key + "."
+          goodsRow &&
+          ["AMBIGUOUS_MATCH", "NO_GRN_MATCH"].indexOf(code) !== -1
+            ? goodsRow.matchDetail
+            : "Unable to produce a complete continuous TAT record for " + key + "."
         )
       );
     });
   });
 
-  replaceDataRows_(getSheet_(INWARD_TAT.SHEETS.FACT), factRows);
+  replaceDataRows_(factSheet, factRows);
   replaceExceptions_(exceptions);
   const mtdRows = rebuildMtdSummary_(factRows);
   replaceDataRows_(getSheet_(INWARD_TAT.SHEETS.MTD), mtdRows);
@@ -860,7 +973,24 @@ function rebuildTatFacts_(config, runId) {
     exceptionRows: exceptions.length,
     mtdSummaryRows: mtdRows.length,
     rxMappedGoodsRecords: rxMappedGoodsRecords,
+    hybridMatching: hybridCounts,
   };
+}
+
+function ensureFactMatchingSchema_() {
+  const sheet = getSheet_(INWARD_TAT.SHEETS.FACT);
+  const definition = SHEET_DEFINITIONS.filter(function (entry) {
+    return entry.name === INWARD_TAT.SHEETS.FACT;
+  })[0];
+  if (!definition) throw new Error("Fact sheet definition was not found.");
+  ensureHeaders_(sheet, definition.headers);
+  sheet
+    .getRange(1, 1, 1, definition.headers.length)
+    .setBackground(INWARD_TAT.COLORS.NAVY)
+    .setFontColor(INWARD_TAT.COLORS.WHITE)
+    .setFontWeight("bold")
+    .setWrap(true);
+  return sheet;
 }
 
 function rebuildMtdSummary_(factRows) {
@@ -1333,6 +1463,13 @@ function normalizeSku_(value) {
   return String(value || "").trim().toUpperCase();
 }
 
+function normalizeInvoice_(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, " ");
+}
+
 function normalizeGrn_(value) {
   return String(value || "").trim().toUpperCase().replace(/\s+/g, "");
 }
@@ -1351,6 +1488,116 @@ function splitGrnNumbers_(value) {
 function makeRecordKey_(facility, sku, grnNumber) {
   if (!facility || !sku || !grnNumber) return "";
   return facility + "|" + grnNumber + "|" + sku;
+}
+
+function makePrimaryMatchKey_(sku, invoice, grnNumber) {
+  if (!sku || !invoice || !grnNumber) return "";
+  return sku + "|" + invoice + "|" + grnNumber;
+}
+
+function resolveHybridGrnMatch_(
+  warehouseFacility,
+  sku,
+  invoice,
+  grnNumber,
+  grnMap,
+  grnPrimaryIndex,
+  rxSkuGrnBridge,
+  rxBridgeEnabled
+) {
+  const primaryKey = makePrimaryMatchKey_(sku, invoice, grnNumber);
+  const primaryCandidates = primaryKey
+    ? grnPrimaryIndex.get(primaryKey) || []
+    : [];
+
+  if (primaryCandidates.length === 1) {
+    const candidate = primaryCandidates[0];
+    const crossFacility = candidate.facility !== warehouseFacility;
+    return {
+      facility: candidate.facility,
+      key: makeRecordKey_(candidate.facility, sku, grnNumber),
+      method: crossFacility ? "CROSS_FACILITY_MATCH" : "PRIMARY_MATCH",
+      detail: crossFacility
+        ? "SKU + Invoice + GRN resolved ERP facility " +
+          candidate.facility +
+          " instead of Goods facility " +
+          warehouseFacility +
+          "."
+        : "Matched by SKU + Invoice + GRN in " + candidate.facility + ".",
+      blockGrnJoin: false,
+      grnRow: candidate,
+    };
+  }
+
+  if (primaryCandidates.length > 1) {
+    const candidateFacilities = Array.from(
+      new Set(
+        primaryCandidates.map(function (candidate) {
+          return candidate.facility;
+        })
+      )
+    ).sort();
+    return {
+      facility: warehouseFacility,
+      key: makeRecordKey_(warehouseFacility, sku, grnNumber),
+      method: "AMBIGUOUS_MATCH",
+      detail:
+        "SKU + Invoice + GRN matched multiple ERP facilities: " +
+        candidateFacilities.join(", ") +
+        ". Record excluded until resolved.",
+      blockGrnJoin: true,
+      grnRow: null,
+    };
+  }
+
+  const fallbackFacility =
+    rxBridgeEnabled &&
+    warehouseFacility === "SL Ambient" &&
+    rxSkuGrnBridge.has(grnNumber + "|" + sku)
+      ? "SL Rx"
+      : warehouseFacility;
+  const fallbackKey = makeRecordKey_(fallbackFacility, sku, grnNumber);
+  const fallbackGrn = grnMap.get(fallbackKey);
+
+  if (fallbackGrn) {
+    if (!invoice) {
+      return {
+        facility: fallbackFacility,
+        key: fallbackKey,
+        method: "FALLBACK_BLANK_INVOICE",
+        detail:
+          "Goods Invoice Number is blank; matched by Facility + SKU + GRN" +
+          (fallbackFacility !== warehouseFacility
+            ? " using the SL Ambient-to-SL Rx bridge."
+            : "."),
+        blockGrnJoin: false,
+        grnRow: fallbackGrn,
+      };
+    }
+    return {
+      facility: fallbackFacility,
+      key: fallbackKey,
+      method: "FALLBACK_INVOICE_MISMATCH",
+      detail:
+        "SKU + Invoice + GRN did not match exactly; controlled Facility + SKU + GRN fallback used. Goods invoice: " +
+        invoice +
+        "; GRN invoice: " +
+        (fallbackGrn.invoice || "blank") +
+        ".",
+      blockGrnJoin: false,
+      grnRow: fallbackGrn,
+    };
+  }
+
+  return {
+    facility: fallbackFacility,
+    key: fallbackKey,
+    method: "NO_GRN_MATCH",
+    detail:
+      "Neither SKU + Invoice + GRN nor controlled Facility + SKU + GRN resolved a GRN row.",
+    blockGrnJoin: false,
+    grnRow: null,
+  };
 }
 
 function getEmailBodyText_(message) {

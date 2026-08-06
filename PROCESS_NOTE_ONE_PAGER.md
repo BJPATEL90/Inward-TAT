@@ -28,9 +28,9 @@ ERP reports received on a date contain activity through the previous day. For ex
 
 1. The daily Apps Script trigger reads Goods Inward and finds the latest cumulative ERP emails.
 2. Source rows are normalized and deduplicated.
-3. SL Ambient records belonging to ERP facility SL Rx are bridged using GRN Number + SKU.
-4. Putaway shelf rows are pivoted; the latest completed timestamp is retained.
-5. Records are matched using Facility + GRN Number + SKU.
+3. Goods records are matched to GRN using SKU + Invoice Number + GRN Number across all facilities.
+4. If the primary key is unavailable, Facility + GRN Number + SKU is used as a controlled fallback, including the existing SL Ambient-to-SL Rx bridge.
+5. Ambiguous primary matches are excluded and logged; Putaway shelf rows are pivoted using the resolved ERP facility + GRN Number + SKU, with the latest completed timestamp retained.
 6. Complete records are used for all KPI averages; missing or negative records move to exceptions.
 7. The dashboard and MTD summary are refreshed.
 8. Stakeholders receive the KPI email, MTD trend, dashboard link, and CSV attachment.
@@ -62,4 +62,3 @@ ERP reports received on a date contain activity through the previous day. For ex
 - Operational settings and stakeholder recipients are maintained in the workbook `Config` tab.
 
 Manual recovery functions: `runInwardTatPipeline` for a full refresh and `sendDailyInwardTatEmail` for an on-demand email.
-

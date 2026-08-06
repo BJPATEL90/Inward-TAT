@@ -111,7 +111,8 @@ const SHEET_DEFINITIONS = Object.freeze([
       "KPI3 Unloading to GRN Hours", "KPI2 GRN to Putaway Hours",
       "KPI1 Unloading to Putaway Hours", "Unloading Date", "GRN Date", "Putaway Date",
       "Record Status", "Exception Code", "Exception Detail", "Goods Source Row",
-      "GRN Source Row", "Putaway Source Row", "Calculated At",
+      "GRN Source Row", "Putaway Source Row", "Calculated At", "Match Method",
+      "Match Detail",
     ],
   },
   {
@@ -168,6 +169,9 @@ const CONFIG_DEFAULTS = Object.freeze([
   ["TAT_CALCULATION_MODE", "CONTINUOUS", "TEXT", "Continuous elapsed time; includes nights, Sundays and holidays."],
   ["AVERAGE_METHOD", "SIMPLE", "TEXT", "Simple average across unique Facility + SKU + GRN records."],
   ["UNIQUE_KEY_FIELDS", "FACILITY|GRN_NUMBER|SKU", "TEXT", "Fields used to deduplicate and join source reports."],
+  ["PRIMARY_MATCH_FIELDS", "SKU|INVOICE_NUMBER|GRN_NUMBER", "TEXT", "Primary Goods-to-GRN match across all facilities."],
+  ["FALLBACK_MATCH_FIELDS", "FACILITY|GRN_NUMBER|SKU", "TEXT", "Controlled fallback when the primary invoice key cannot resolve a unique GRN."],
+  ["MATCHING_STRATEGY", "INVOICE_PRIMARY_FACILITY_FALLBACK", "TEXT", "Logic 2 first; existing facility logic is used only as a controlled fallback."],
   ["GOODS_START_FIELDS", "UNLOADING_DATE|UNLOADING_TIME", "TEXT", "Start timestamp for the TAT calculation."],
   ["GRN_TIMESTAMP_FIELD", "GRN_RECEIVED_TIMESTAMP", "TEXT", "GRN milestone timestamp."],
   ["PUTAWAY_TIMESTAMP_FIELD", "LAST_UPDATED", "TEXT", "Putaway completion timestamp; latest value wins for partial putaway."],
@@ -350,6 +354,32 @@ function ensureHeaders_(sheet, headers) {
 
   if (isBlank) {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    return;
+  }
+
+  const firstBlankIndex = existing.findIndex(function (value) {
+    return value === "";
+  });
+  const populatedLength = firstBlankIndex === -1 ? existing.length : firstBlankIndex;
+  const existingPrefixMatches = existing
+    .slice(0, populatedLength)
+    .every(function (header, index) {
+      return header === headers[index];
+    });
+  const trailingCellsAreBlank = existing
+    .slice(populatedLength)
+    .every(function (value) {
+      return value === "";
+    });
+
+  if (
+    existingPrefixMatches &&
+    trailingCellsAreBlank &&
+    populatedLength < headers.length
+  ) {
+    sheet
+      .getRange(1, populatedLength + 1, 1, headers.length - populatedLength)
+      .setValues([headers.slice(populatedLength)]);
     return;
   }
 

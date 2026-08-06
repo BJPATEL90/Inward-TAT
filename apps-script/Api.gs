@@ -148,6 +148,8 @@ function buildDashboardSnapshot_() {
         status: textOrBlank_(row["Record Status"]),
         exceptionCode: textOrBlank_(row["Exception Code"]),
         exceptionDetail: textOrBlank_(row["Exception Detail"]),
+        matchMethod: textOrBlank_(row["Match Method"]),
+        matchDetail: textOrBlank_(row["Match Detail"]),
       };
     });
 

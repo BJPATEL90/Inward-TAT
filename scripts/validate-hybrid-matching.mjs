@@ -1,0 +1,87 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import vm from "node:vm";
+
+const pipelineSource = fs.readFileSync(
+  new URL("../apps-script/Pipeline.gs", import.meta.url),
+  "utf8",
+);
+const context = vm.createContext({ Map, Set, Date, Array, String, Boolean, Number, Math });
+new vm.Script(pipelineSource, { filename: "Pipeline.gs" }).runInContext(context);
+
+const resolve = context.resolveHybridGrnMatch_;
+const recordKey = context.makeRecordKey_;
+const primaryKey = context.makePrimaryMatchKey_;
+
+function entry(facility, sku, invoice, grn) {
+  return { facility, sku, invoice, grn, timestamp: new Date("2026-07-01T10:00:00Z"), row: 2 };
+}
+
+function indexes(entries) {
+  const grnMap = new Map();
+  const primary = new Map();
+  const rx = new Set();
+  entries.forEach((item) => {
+    grnMap.set(recordKey(item.facility, item.sku, item.grn), item);
+    if (item.invoice) {
+      const key = primaryKey(item.sku, item.invoice, item.grn);
+      if (!primary.has(key)) primary.set(key, []);
+      primary.get(key).push(item);
+    }
+    if (item.facility === "SL Rx") rx.add(`${item.grn}|${item.sku}`);
+  });
+  return { grnMap, primary, rx };
+}
+
+const sku = "SKU-1";
+const grn = "G100";
+const invoice = "INV/100";
+
+{
+  const idx = indexes([entry("SL Mother Hub", sku, invoice, grn)]);
+  const result = resolve("SL Mother Hub", sku, invoice, grn, idx.grnMap, idx.primary, idx.rx, true);
+  assert.equal(result.method, "PRIMARY_MATCH");
+  assert.equal(result.facility, "SL Mother Hub");
+}
+
+{
+  const idx = indexes([entry("SL Ambient", sku, invoice, grn)]);
+  const result = resolve("SL Mother Hub", sku, invoice, grn, idx.grnMap, idx.primary, idx.rx, true);
+  assert.equal(result.method, "CROSS_FACILITY_MATCH");
+  assert.equal(result.facility, "SL Ambient");
+}
+
+{
+  const idx = indexes([entry("SL Mother Hub", sku, "INV/ERP", grn)]);
+  const blank = resolve("SL Mother Hub", sku, "", grn, idx.grnMap, idx.primary, idx.rx, true);
+  const mismatch = resolve("SL Mother Hub", sku, "INV/GOODS", grn, idx.grnMap, idx.primary, idx.rx, true);
+  assert.equal(blank.method, "FALLBACK_BLANK_INVOICE");
+  assert.equal(mismatch.method, "FALLBACK_INVOICE_MISMATCH");
+}
+
+{
+  const idx = indexes([
+    entry("SL Ambient", sku, invoice, grn),
+    entry("SL Mother Hub", sku, invoice, grn),
+  ]);
+  const result = resolve("SL Mother Hub", sku, invoice, grn, idx.grnMap, idx.primary, idx.rx, true);
+  assert.equal(result.method, "AMBIGUOUS_MATCH");
+  assert.equal(result.blockGrnJoin, true);
+}
+
+{
+  const idx = indexes([]);
+  const result = resolve("SL Mother Hub", sku, invoice, grn, idx.grnMap, idx.primary, idx.rx, true);
+  assert.equal(result.method, "NO_GRN_MATCH");
+}
+
+{
+  const rxEntry = entry("SL Rx", sku, "INV/ERP", grn);
+  const idx = indexes([rxEntry]);
+  const result = resolve("SL Ambient", sku, "INV/GOODS", grn, idx.grnMap, idx.primary, idx.rx, true);
+  assert.equal(result.method, "FALLBACK_INVOICE_MISMATCH");
+  assert.equal(result.facility, "SL Rx");
+}
+
+assert.equal(context.normalizeInvoice_("  inv/100  "), "INV/100");
+console.log("Hybrid matching scenarios validated");

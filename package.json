@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build && node scripts/prepare-sites.mjs",
     "preview": "vite preview",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:hybrid": "node scripts/validate-hybrid-matching.mjs",
+    "test:apps-script": "node scripts/validate-apps-script-syntax.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

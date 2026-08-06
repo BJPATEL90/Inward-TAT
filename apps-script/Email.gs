@@ -332,6 +332,8 @@ function monthlyWorkbookHeaders_() {
     "Record Status",
     "Exception Code",
     "Exception Detail",
+    "Match Method",
+    "Match Detail",
   ];
 }
 
@@ -453,6 +455,8 @@ function buildMtdCsv_(facts, periodStart, periodEnd, timeZone) {
     "Record Status",
     "Exception Code",
     "Exception Detail",
+    "Match Method",
+    "Match Detail",
   ];
   const lines = [headers.map(csvEscape_).join(",")];
   facts.forEach(function (row) {

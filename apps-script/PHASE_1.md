@@ -2,7 +2,9 @@
 
 ## Confirmed calculation contract
 
-- Grain: one unique record per normalized `Facility + SKU + GRN Number`.
+- Fact grain: one unique record per resolved ERP `Facility + SKU + GRN Number`.
+- Matching: `SKU + Invoice Number + GRN Number` is attempted first across facilities; `Facility + SKU + GRN Number` is a controlled fallback.
+- Ambiguous primary matches are excluded until resolved rather than guessed.
 - Average: simple arithmetic average across unique completed records.
 - Start: `Unloading Date + Unloading Time` from Goods Inward.
 - GRN milestone: `GRN Received Timestamp`.

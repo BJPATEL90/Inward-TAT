@@ -25,7 +25,9 @@ Calculation rules:
 
 - Time is continuous and includes nights, Sundays, and holidays.
 - Date-range selection is based on Vehicle Unloading Date.
-- The unique record key is `Facility + GRN Number + SKU`.
+- The final fact key is resolved ERP `Facility + GRN Number + SKU`.
+- Goods-to-GRN matching first uses `SKU + Invoice Number + GRN Number` across facilities. When that exact key is unavailable, the existing `Facility + GRN Number + SKU` rule is used as a controlled fallback.
+- Primary keys resolving to multiple ERP facilities are marked `AMBIGUOUS_MATCH` and excluded from KPI averages.
 - Putaway shelf rows are consolidated to the unique key; the latest `Last Updated` timestamp is used.
 - A simple arithmetic average is calculated only across the same `COMPLETE` record cohort.
 - Therefore, at average level, `KPI1 = KPI2 + KPI3`.
@@ -39,7 +41,7 @@ Calculation rules:
 - SL Mother Hub
 - SL Rx
 
-Goods Inward records are initially filtered to SL Mother Hub and SL Ambient. Transactions physically unloaded at SL Ambient but belonging to ERP facility SL Rx are reclassified using the matching `GRN Number + SKU` in the SL Rx dump.
+Goods Inward records are initially filtered to SL Mother Hub and SL Ambient. The invoice-based primary match resolves the ERP facility across SL Ambient, SL Mother Hub, and SL Rx. The existing SL Ambient-to-SL Rx `GRN Number + SKU` bridge remains available inside the controlled fallback.
 
 ## Source data
 
@@ -129,4 +131,3 @@ If figures appear wrong, check in this order:
 5. Facility mapping, especially SL Ambient versus SL Rx.
 6. Exception status and execution logs.
 7. Whether all KPI averages use only `COMPLETE` records.
-
