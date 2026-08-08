@@ -105,6 +105,8 @@ The React dashboard provides:
 - Interactive MTD KPI1/KPI2/KPI3 daily trend with combined unloaded-box volume bars
 - Capacity benchmark from `DAILY_UNLOADING_CAPACITY_BOXES` in Config (default: 3,500 boxes/day)
 - Hover detail showing daily boxes, utilisation, and percentage above or below capacity
+
+ERP facility aliases include `Aramex` → `EXPORT`; these GRN rows bridge back to SL Mother Hub Goods Inward records using GRN Number + SKU and wait for the `GRN/Putaway-EXPORT` milestone.
 - Facility comparison
 - Record-level review by Facility + GRN + SKU
 - MTD and filtered CSV download

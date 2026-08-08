@@ -1688,7 +1688,9 @@ function normalizeFacility_(value) {
   }
   if (["slrx"].indexOf(compact) !== -1) return "SL Rx";
   if (["own"].indexOf(compact) !== -1) return "OWN";
-  if (["export"].indexOf(compact) !== -1) return "EXPORT";
+  // Unicommerce uses Aramex as the GRN facility for export/UAE receipts,
+  // while the corresponding Putaway export job is GRN/Putaway-EXPORT.
+  if (["export", "aramex"].indexOf(compact) !== -1) return "EXPORT";
   return "";
 }
 
@@ -1702,12 +1704,12 @@ function rawReportHasFacility_(sheetName, facility) {
   const headers = readHeaders_(sheet);
   const facilityColumn = headers.indexOf("Facility") + 1;
   if (!facilityColumn) return false;
-  const target = String(facility || "").trim().toUpperCase();
+  const target = normalizeFacility_(facility);
   return sheet
     .getRange(2, facilityColumn, sheet.getLastRow() - 1, 1)
     .getDisplayValues()
     .some(function (row) {
-      return String(row[0] || "").trim().toUpperCase() === target;
+      return normalizeFacility_(row[0]) === target;
     });
 }
 

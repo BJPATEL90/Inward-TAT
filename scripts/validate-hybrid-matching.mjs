@@ -12,6 +12,10 @@ new vm.Script(pipelineSource, { filename: "Pipeline.gs" }).runInContext(context)
 const resolve = context.resolveHybridGrnMatch_;
 const recordKey = context.makeRecordKey_;
 const primaryKey = context.makePrimaryMatchKey_;
+const normalizeFacility = context.normalizeFacility_;
+
+assert.equal(normalizeFacility("Aramex"), "EXPORT");
+assert.equal(normalizeFacility("EXPORT"), "EXPORT");
 
 function entry(facility, sku, invoice, grn) {
   return { facility, sku, invoice, grn, timestamp: new Date("2026-07-01T10:00:00Z"), row: 2 };
