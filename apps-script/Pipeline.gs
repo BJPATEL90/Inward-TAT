@@ -295,10 +295,14 @@ function importUnicommerceEmails_(reportType, config, runId) {
         Utilities.formatDate(message.getDate(), "Asia/Kolkata", "yyyy-MM-dd HH:mm:ss"),
       emailDetails
     );
-    if (
+    const alreadyProcessed =
       hasProcessedImport_(message.getId(), sourceType) ||
-      hasProcessedCsvUrl_(fileUrl, sourceType)
-    ) {
+      hasProcessedCsvUrl_(fileUrl, sourceType);
+    const requiresOwnGrnBackfill =
+      isGrn &&
+      alreadyProcessed &&
+      !rawReportHasFacility_(INWARD_TAT.SHEETS.RAW_GRN, "OWN");
+    if (alreadyProcessed && !requiresOwnGrnBackfill) {
       logExecution_(
         runId,
         reportType + "_CSV",
@@ -308,6 +312,15 @@ function importUnicommerceEmails_(reportType, config, runId) {
       );
       summary.skipped += 1;
       return;
+    }
+    if (requiresOwnGrnBackfill) {
+      logExecution_(
+        runId,
+        "GRN_OWN_BACKFILL",
+        "STARTED",
+        "Previously processed GRN CSV is being re-imported once to backfill OWN facility rows.",
+        emailDetails
+      );
     }
 
     const startedAt = new Date();
@@ -1522,6 +1535,21 @@ function normalizeFacility_(value) {
 
 function normalizeSku_(value) {
   return String(value || "").trim().toUpperCase();
+}
+
+function rawReportHasFacility_(sheetName, facility) {
+  const sheet = getSheet_(sheetName);
+  if (sheet.getLastRow() < 2) return false;
+  const headers = readHeaders_(sheet);
+  const facilityColumn = headers.indexOf("Facility") + 1;
+  if (!facilityColumn) return false;
+  const target = String(facility || "").trim().toUpperCase();
+  return sheet
+    .getRange(2, facilityColumn, sheet.getLastRow() - 1, 1)
+    .getDisplayValues()
+    .some(function (row) {
+      return String(row[0] || "").trim().toUpperCase() === target;
+    });
 }
 
 function normalizeInvoice_(value) {
