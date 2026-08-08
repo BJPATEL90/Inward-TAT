@@ -1727,6 +1727,16 @@ tbody tr:hover {
   text-align: right;
 }
 
+.pending-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pending-download {
+  white-space: nowrap;
+}
+
 .pending-total strong,
 .pending-total span {
   display: block;
@@ -2206,6 +2216,21 @@ tbody tr:hover {
 
   .pending-total {
     text-align: left;
+  }
+
+  .pending-hero-actions {
+    width: 100%;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .download-button.pending-download {
+    width: auto;
+    padding: 0 13px;
+  }
+
+  .pending-download span {
+    display: inline;
   }
 
   .pending-metrics {

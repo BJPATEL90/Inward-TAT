@@ -360,6 +360,7 @@ function DashboardApp({ authUser, onSignOut }) {
             query={query}
             setQuery={setQuery}
             generatedAt={snapshot?.generatedAt}
+            onExport={exportCsv}
           />
         ) : (
           <CalculationLogic />
@@ -922,6 +923,7 @@ function PendingTasks({
   query,
   setQuery,
   generatedAt,
+  onExport,
 }) {
   const facilityCounts = FACILITIES.slice(1).map((name) => ({
     facility: name,
@@ -942,9 +944,15 @@ function PendingTasks({
             after the required timestamps and completed Putaway shelves are available.
           </p>
         </div>
-        <div className="pending-total">
-          <strong>{rows.length}</strong>
-          <span>open tasks</span>
+        <div className="pending-hero-actions">
+          <div className="pending-total">
+            <strong>{rows.length}</strong>
+            <span>open tasks</span>
+          </div>
+          <button type="button" className="download-button pending-download" onClick={onExport}>
+            <Download size={16} />
+            <span>Download pending CSV</span>
+          </button>
         </div>
       </section>
 
