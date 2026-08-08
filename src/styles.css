@@ -1251,6 +1251,11 @@ tbody tr:hover {
   background: #e3f8f4;
 }
 
+.facility-pill.export {
+  color: #8b3f00;
+  background: #fff0df;
+}
+
 .status-pill {
   gap: 4px;
   padding: 5px 8px;

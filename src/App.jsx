@@ -29,7 +29,7 @@ import {
   verifyGoogleCredential,
 } from "./auth";
 
-const FACILITIES = ["All facilities", "SL Ambient", "SL Mother Hub", "SL Rx", "OWN"];
+const FACILITIES = ["All facilities", "SL Ambient", "SL Mother Hub", "SL Rx", "OWN", "EXPORT"];
 
 function App() {
   const [session, setSession] = useState(null);
@@ -473,7 +473,7 @@ function CalculationLogic() {
     {
       step: "03",
       title: "Controlled fallback",
-      text: "If the invoice key is blank or mismatched, Facility + SKU + GRN is used, including the approved SL Ambient-to-SL Rx and SL Mother Hub-to-OWN bridges.",
+      text: "If the invoice key is blank or mismatched, Facility + SKU + GRN is used, including the approved SL Ambient-to-SL Rx and SL Mother Hub-to-OWN/EXPORT bridges.",
     },
     {
       step: "04",
@@ -573,7 +573,7 @@ function CalculationLogic() {
             <div><h3>Inclusion controls</h3><p>Rules applied before a record enters any KPI average.</p></div>
           </div>
           <ul>
-            <li><CheckCircle2 size={17} /> Facility must resolve to SL Ambient, SL Mother Hub, SL Rx, or OWN.</li>
+            <li><CheckCircle2 size={17} /> Facility must resolve to SL Ambient, SL Mother Hub, SL Rx, OWN, or EXPORT.</li>
             <li><CheckCircle2 size={17} /> GRN Received Timestamp and completed Putaway Last Updated must exist.</li>
             <li><CheckCircle2 size={17} /> Putaway type must be PUTAWAY_GRN_ITEM and all consolidated shelf rows must be complete.</li>
             <li><CheckCircle2 size={17} /> Negative timestamp sequences are excluded and sent to exceptions.</li>
@@ -873,7 +873,7 @@ function FacilityPanel({ facilities }) {
       </div>
       <div className="facility-note">
         <Clock3 size={17} />
-        <span>ERP bridges: SL Ambient → SL Rx and SL Mother Hub → OWN using GRN Number + SKU.</span>
+        <span>ERP bridges: SL Ambient → SL Rx and SL Mother Hub → OWN/EXPORT using GRN Number + SKU.</span>
       </div>
     </article>
   );
@@ -1236,21 +1236,24 @@ function facilityInitials(facility) {
   if (facility === "SL Mother Hub") return "MH";
   if (facility === "SL Ambient") return "AM";
   if (facility === "SL Rx") return "RX";
-  return "OWN";
+  if (facility === "OWN") return "OWN";
+  return "EX";
 }
 
 function facilityClass(facility) {
   if (facility === "SL Mother Hub") return "mother";
   if (facility === "SL Ambient") return "ambient";
   if (facility === "SL Rx") return "rx";
-  return "own";
+  if (facility === "OWN") return "own";
+  return "export";
 }
 
 function shortFacility(facility) {
   if (facility === "SL Mother Hub") return "Mother Hub";
   if (facility === "SL Ambient") return "Ambient";
   if (facility === "SL Rx") return "Rx";
-  return "OWN";
+  if (facility === "OWN") return "OWN";
+  return "EXPORT";
 }
 
 function pendingStage(exceptionCode = "") {

@@ -298,11 +298,16 @@ function importUnicommerceEmails_(reportType, config, runId) {
     const alreadyProcessed =
       hasProcessedImport_(message.getId(), sourceType) ||
       hasProcessedCsvUrl_(fileUrl, sourceType);
-    const requiresOwnGrnBackfill =
-      isGrn &&
-      alreadyProcessed &&
-      !rawReportHasFacility_(INWARD_TAT.SHEETS.RAW_GRN, "OWN");
-    if (alreadyProcessed && !requiresOwnGrnBackfill) {
+    const missingGrnFacilities = isGrn && alreadyProcessed
+      ? ["OWN", "EXPORT"].filter(function (candidateFacility) {
+          return !rawReportHasFacility_(
+            INWARD_TAT.SHEETS.RAW_GRN,
+            candidateFacility
+          );
+        })
+      : [];
+    const requiresGrnFacilityBackfill = missingGrnFacilities.length > 0;
+    if (alreadyProcessed && !requiresGrnFacilityBackfill) {
       logExecution_(
         runId,
         reportType + "_CSV",
@@ -313,12 +318,14 @@ function importUnicommerceEmails_(reportType, config, runId) {
       summary.skipped += 1;
       return;
     }
-    if (requiresOwnGrnBackfill) {
+    if (requiresGrnFacilityBackfill) {
       logExecution_(
         runId,
-        "GRN_OWN_BACKFILL",
+        "GRN_FACILITY_BACKFILL",
         "STARTED",
-        "Previously processed GRN CSV is being re-imported once to backfill OWN facility rows.",
+        "Previously processed GRN CSV is being re-imported to backfill missing ERP facility rows: " +
+          missingGrnFacilities.join(", ") +
+          ".",
         emailDetails
       );
     }
@@ -343,7 +350,7 @@ function importUnicommerceEmails_(reportType, config, runId) {
             emailMessageId: message.getId(),
             status: "SKIPPED_TERMINAL",
             errorDetail:
-              "Putaway export name does not identify SLAMB, SLMH, SLRX or OWN: " +
+              "Putaway export name does not identify SLAMB, SLMH, SLRX, OWN or EXPORT: " +
               exportJob,
           });
           logExecution_(
@@ -721,12 +728,16 @@ function rebuildTatFacts_(config, runId) {
   const exceptions = [];
   const rxSkuGrnBridge = new Set();
   const ownSkuGrnBridge = new Set();
+  const exportSkuGrnBridge = new Set();
   const rxBridgeEnabled =
     String(config.RX_BRIDGE_ENABLED || "TRUE").toUpperCase() === "TRUE";
   const ownBridgeEnabled =
     String(config.OWN_BRIDGE_ENABLED || "TRUE").toUpperCase() === "TRUE";
+  const exportBridgeEnabled =
+    String(config.EXPORT_BRIDGE_ENABLED || "TRUE").toUpperCase() === "TRUE";
   let rxMappedGoodsRecords = 0;
   let ownMappedGoodsRecords = 0;
+  let exportMappedGoodsRecords = 0;
   const hybridCounts = {
     primary: 0,
     crossFacility: 0,
@@ -787,6 +798,9 @@ function rebuildTatFacts_(config, runId) {
     if (entry.facility === "OWN") {
       ownSkuGrnBridge.add(entry.grn + "|" + entry.sku);
     }
+    if (entry.facility === "EXPORT") {
+      exportSkuGrnBridge.add(entry.grn + "|" + entry.sku);
+    }
   });
 
   goods.forEach(function (row) {
@@ -831,7 +845,9 @@ function rebuildTatFacts_(config, runId) {
         rxSkuGrnBridge,
         rxBridgeEnabled,
         ownSkuGrnBridge,
-        ownBridgeEnabled
+        ownBridgeEnabled,
+        exportSkuGrnBridge,
+        exportBridgeEnabled
       );
       const facility = match.facility;
       if (facility === "SL Rx" && warehouseFacility === "SL Ambient") {
@@ -839,6 +855,9 @@ function rebuildTatFacts_(config, runId) {
       }
       if (facility === "OWN" && warehouseFacility === "SL Mother Hub") {
         ownMappedGoodsRecords += 1;
+      }
+      if (facility === "EXPORT" && warehouseFacility === "SL Mother Hub") {
+        exportMappedGoodsRecords += 1;
       }
       const key = match.key;
       const existing = goodsMap.get(key);
@@ -898,6 +917,18 @@ function rebuildTatFacts_(config, runId) {
       reportType: "GOODS_INWARD",
       facility: "OWN",
       rowsImported: ownMappedGoodsRecords,
+    }
+  );
+  logExecution_(
+    runId,
+    "EXPORT_FACILITY_BRIDGE",
+    "COMPLETED",
+    exportMappedGoodsRecords +
+      " SL Mother Hub unloading record(s) mapped to ERP facility EXPORT using GRN Number + SKU.",
+    {
+      reportType: "GOODS_INWARD",
+      facility: "EXPORT",
+      rowsImported: exportMappedGoodsRecords,
     }
   );
   logExecution_(
@@ -1445,7 +1476,7 @@ function selectExportMessages_(messages, isGrn, config) {
     const facility = facilityFromPutawayExport_(exportJob, config);
     if (facility) latestByFacility[facility] = message;
   });
-  return ["SL Rx", "SL Ambient", "SL Mother Hub", "OWN"]
+  return ["SL Rx", "SL Ambient", "SL Mother Hub", "OWN", "EXPORT"]
     .map(function (facility) {
       return latestByFacility[facility];
     })
@@ -1540,6 +1571,12 @@ function facilityFromPutawayExport_(exportJob, config) {
   ) {
     return "OWN";
   }
+  if (
+    value.indexOf("PUTAWAY-EXPORT") !== -1 ||
+    value.indexOf(String(config.PUTAWAY_EXPORT_EXPORT || "GRN/Putaway-EXPORT").toUpperCase().replace(/\s+/g, "")) !== -1
+  ) {
+    return "EXPORT";
+  }
   return "";
 }
 
@@ -1554,6 +1591,7 @@ function normalizeFacility_(value) {
   }
   if (["slrx"].indexOf(compact) !== -1) return "SL Rx";
   if (["own"].indexOf(compact) !== -1) return "OWN";
+  if (["export"].indexOf(compact) !== -1) return "EXPORT";
   return "";
 }
 
@@ -1618,7 +1656,9 @@ function resolveHybridGrnMatch_(
   rxSkuGrnBridge,
   rxBridgeEnabled,
   ownSkuGrnBridge,
-  ownBridgeEnabled
+  ownBridgeEnabled,
+  exportSkuGrnBridge,
+  exportBridgeEnabled
 ) {
   const primaryKey = makePrimaryMatchKey_(sku, invoice, grnNumber);
   const primaryCandidates = primaryKey
@@ -1674,13 +1714,35 @@ function resolveHybridGrnMatch_(
   ) {
     fallbackFacility = "SL Rx";
     bridgeDescription = " using the SL Ambient-to-SL Rx bridge.";
-  } else if (
-    ownBridgeEnabled &&
-    warehouseFacility === "SL Mother Hub" &&
-    ownSkuGrnBridge.has(grnNumber + "|" + sku)
-  ) {
-    fallbackFacility = "OWN";
-    bridgeDescription = " using the SL Mother Hub-to-OWN bridge.";
+  } else if (warehouseFacility === "SL Mother Hub") {
+    const motherHubBridgeFacilities = [];
+    if (ownBridgeEnabled && ownSkuGrnBridge.has(grnNumber + "|" + sku)) {
+      motherHubBridgeFacilities.push("OWN");
+    }
+    if (
+      exportBridgeEnabled &&
+      exportSkuGrnBridge.has(grnNumber + "|" + sku)
+    ) {
+      motherHubBridgeFacilities.push("EXPORT");
+    }
+    if (motherHubBridgeFacilities.length > 1) {
+      return {
+        facility: warehouseFacility,
+        key: makeRecordKey_(warehouseFacility, sku, grnNumber),
+        method: "AMBIGUOUS_MATCH",
+        detail:
+          "GRN Number + SKU matched multiple SL Mother Hub ERP bridges: " +
+          motherHubBridgeFacilities.join(", ") +
+          ". Record excluded until resolved.",
+        blockGrnJoin: true,
+        grnRow: null,
+      };
+    }
+    if (motherHubBridgeFacilities.length === 1) {
+      fallbackFacility = motherHubBridgeFacilities[0];
+      bridgeDescription =
+        " using the SL Mother Hub-to-" + fallbackFacility + " bridge.";
+    }
   }
   const fallbackKey = makeRecordKey_(fallbackFacility, sku, grnNumber);
   const fallbackGrn = grnMap.get(fallbackKey);
@@ -1703,7 +1765,9 @@ function resolveHybridGrnMatch_(
       key: fallbackKey,
       method: "FALLBACK_INVOICE_MISMATCH",
       detail:
-        "SKU + Invoice + GRN did not match exactly; controlled Facility + SKU + GRN fallback used. Goods invoice: " +
+        "SKU + Invoice + GRN did not match exactly; controlled Facility + SKU + GRN fallback used" +
+        (bridgeDescription || ".") +
+        " Goods invoice: " +
         invoice +
         "; GRN invoice: " +
         (fallbackGrn.invoice || "blank") +

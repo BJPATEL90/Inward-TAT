@@ -2,7 +2,7 @@
 
 ## Objective
 
-Measure and communicate inbound turnaround time from vehicle unloading through GRN and final Putaway for SL Ambient, SL Mother Hub, SL Rx, and OWN.
+Measure and communicate inbound turnaround time from vehicle unloading through GRN and final Putaway for SL Ambient, SL Mother Hub, SL Rx, OWN, and EXPORT.
 
 ## KPI framework
 
@@ -20,7 +20,7 @@ All KPIs use continuous elapsed time and a simple average across the same comple
 |---|---|---|
 | Goods Inward | Monthly Google Sheet tab | Unloading date/time, facility, GRN, and SKU |
 | GRN | Unicommerce email | Latest cumulative MTD report with `GRN Received Timestamp` |
-| Putaway | Four Unicommerce emails | Cumulative SLAMB, SLMH, SLRX, and OWN reports with `Last Updated` |
+| Putaway | Five Unicommerce emails | Cumulative SLAMB, SLMH, SLRX, OWN, and EXPORT reports with `Last Updated` |
 
 ERP reports received on a date contain activity through the previous day. For example, the 1–10 report is received on the 11th.
 
@@ -29,7 +29,7 @@ ERP reports received on a date contain activity through the previous day. For ex
 1. The daily Apps Script trigger reads Goods Inward and finds the latest cumulative ERP emails.
 2. Source rows are normalized and deduplicated.
 3. Goods records are matched to GRN using SKU + Invoice Number + GRN Number across all facilities.
-4. If the primary key is unavailable, Facility + GRN Number + SKU is used as a controlled fallback, including SL Ambient-to-SL Rx and SL Mother Hub-to-OWN bridges.
+4. If the primary key is unavailable, Facility + GRN Number + SKU is used as a controlled fallback, including SL Ambient-to-SL Rx and SL Mother Hub-to-OWN/EXPORT bridges.
 5. Ambiguous primary matches are excluded and logged; Putaway shelf rows are pivoted using the resolved ERP facility + GRN Number + SKU, with the latest completed timestamp retained.
 6. Complete records are used for all KPI averages; missing or negative records move to exceptions.
 7. The dashboard and MTD summary are refreshed.
@@ -38,7 +38,7 @@ ERP reports received on a date contain activity through the previous day. For ex
 ## Daily validation
 
 - `Execution_Log` shows `PIPELINE | COMPLETED`.
-- One GRN and all four Putaway exports were processed.
+- One GRN and all five Putaway exports were processed.
 - Yesterday is not treated as zero when data is still pending.
 - No unexplained `NO_GRN_MATCH`, `NO_PUTAWAY_MATCH`, or negative timestamp exception remains.
 - KPI1 equals KPI2 plus KPI3 for the same complete cohort.

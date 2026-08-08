@@ -22,6 +22,7 @@ function indexes(entries) {
   const primary = new Map();
   const rx = new Set();
   const own = new Set();
+  const exportFacility = new Set();
   entries.forEach((item) => {
     grnMap.set(recordKey(item.facility, item.sku, item.grn), item);
     if (item.invoice) {
@@ -31,8 +32,9 @@ function indexes(entries) {
     }
     if (item.facility === "SL Rx") rx.add(`${item.grn}|${item.sku}`);
     if (item.facility === "OWN") own.add(`${item.grn}|${item.sku}`);
+    if (item.facility === "EXPORT") exportFacility.add(`${item.grn}|${item.sku}`);
   });
-  return { grnMap, primary, rx, own };
+  return { grnMap, primary, rx, own, exportFacility };
 }
 
 function resolveWithBridges(goodsFacility, sku, invoice, grn, idx) {
@@ -46,6 +48,8 @@ function resolveWithBridges(goodsFacility, sku, invoice, grn, idx) {
     idx.rx,
     true,
     idx.own,
+    true,
+    idx.exportFacility,
     true,
   );
 }
@@ -107,6 +111,26 @@ const invoice = "INV/100";
   assert.equal(result.method, "FALLBACK_INVOICE_MISMATCH");
   assert.equal(result.facility, "OWN");
   assert.match(result.detail, /controlled Facility \+ SKU \+ GRN fallback/);
+}
+
+{
+  const exportEntry = entry("EXPORT", sku, "INV/ERP", grn);
+  const idx = indexes([exportEntry]);
+  const result = resolveWithBridges("SL Mother Hub", sku, "INV/GOODS", grn, idx);
+  assert.equal(result.method, "FALLBACK_INVOICE_MISMATCH");
+  assert.equal(result.facility, "EXPORT");
+  assert.match(result.detail, /SL Mother Hub-to-EXPORT bridge/);
+}
+
+{
+  const idx = indexes([
+    entry("OWN", sku, "INV/OWN", grn),
+    entry("EXPORT", sku, "INV/EXPORT", grn),
+  ]);
+  const result = resolveWithBridges("SL Mother Hub", sku, "INV/GOODS", grn, idx);
+  assert.equal(result.method, "AMBIGUOUS_MATCH");
+  assert.equal(result.blockGrnJoin, true);
+  assert.match(result.detail, /OWN, EXPORT/);
 }
 
 assert.equal(context.normalizeInvoice_("  inv/100  "), "INV/100");

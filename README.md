@@ -26,8 +26,9 @@ The dashboard covers:
 - SL Mother Hub
 - SL Rx
 - OWN
+- EXPORT
 
-`Raw_Goods_Inward` imports only SL Mother Hub and SL Ambient unloading rows. The primary invoice key resolves the ERP facility across SL Ambient, SL Mother Hub, SL Rx, and OWN. When the primary key is unavailable, controlled `GRN Number + SKU` bridges map SL Ambient to SL Rx and SL Mother Hub to OWN.
+`Raw_Goods_Inward` imports only SL Mother Hub and SL Ambient unloading rows. The primary invoice key resolves the ERP facility across SL Ambient, SL Mother Hub, SL Rx, OWN, and EXPORT. When the primary key is unavailable, controlled `GRN Number + SKU` bridges map SL Ambient to SL Rx and SL Mother Hub to OWN or EXPORT. If the same fallback key appears in both OWN and EXPORT, the record is held as ambiguous instead of being assigned arbitrarily.
 
 ## Data sources
 
@@ -60,6 +61,7 @@ Only the configured mother facilities are processed. Exact `SKU + Invoice Number
   - `GRN/Putaway-SLMH`
   - `GRN/Putaway-SLRX`
   - `GRN/Putaway-OWN`
+  - `GRN/Putaway-EXPORT`
 
 Only `PUTAWAY_GRN_ITEM` rows with `COMPLETE` status are used. Because one GRN item may occupy multiple shelves, shelf-level rows are consolidated by `Facility + GRN Number + SKU`; the latest `Last Updated` value becomes the putaway completion timestamp.
 
@@ -70,7 +72,7 @@ ERP exports are expected to be cumulative MTD reports. For example, data from 1â
 1. Find the latest valid GRN and facility-specific putaway emails.
 2. Download and normalize cumulative CSV files.
 3. Import the current monthly Goods Inward tracker.
-4. Apply the SL Rx bridge.
+4. Apply the SL Rx, OWN, and EXPORT bridges.
 5. Deduplicate source data.
 6. Rebuild `Fact_Inward_TAT`.
 7. Rebuild `MTD_Summary` for faster dashboard loading.

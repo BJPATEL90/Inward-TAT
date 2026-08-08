@@ -457,6 +457,7 @@ function summarizePendingEmailFacts_(facts) {
       "SL Mother Hub": 0,
       "SL Rx": 0,
       "OWN": 0,
+      "EXPORT": 0,
     },
   };
 
@@ -650,6 +651,7 @@ function buildPendingEmailSummary_(summary) {
     ["SL Mother Hub", summary.facilities["SL Mother Hub"] || 0],
     ["SL Rx", summary.facilities["SL Rx"] || 0],
     ["OWN", summary.facilities["OWN"] || 0],
+    ["EXPORT", summary.facilities["EXPORT"] || 0],
   ].map(function (item) {
     return '<span style="display:inline-block;margin-right:18px"><strong style="color:#172b59">' +
       item[1] +

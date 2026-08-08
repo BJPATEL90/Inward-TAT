@@ -203,7 +203,7 @@ function buildDashboardSnapshot_() {
           return row.unloadingDate === yesterdayKey;
         })
       ),
-      facilities: ["SL Ambient", "SL Mother Hub", "SL Rx", "OWN"].map(function (facility) {
+      facilities: ["SL Ambient", "SL Mother Hub", "SL Rx", "OWN", "EXPORT"].map(function (facility) {
         return Object.assign(
           { facility: facility },
           summarizeApiFacts_(
