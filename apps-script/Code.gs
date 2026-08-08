@@ -29,6 +29,7 @@ const INWARD_TAT = Object.freeze({
     RAW_PUTAWAY: "Raw_Putaway",
     FACT: "Fact_Inward_TAT",
     MTD: "MTD_Summary",
+    VOLUME: "Volume_Summary",
     EXCEPTIONS: "Data_Exceptions",
     IMPORT_LOG: "Import_Log",
     EXECUTION_LOG: "Execution_Log",
@@ -164,6 +165,16 @@ const SHEET_DEFINITIONS = Object.freeze([
       "Email Run Id", "Generated At", "Period Start", "Period End", "Recipients",
       "KPI1 Hours", "KPI2 Hours", "KPI3 Hours", "CSV File Id", "Status", "Error Detail",
     ],
+  },
+  {
+    name: INWARD_TAT.SHEETS.VOLUME,
+    tabColor: INWARD_TAT.COLORS.BLUE,
+    headers: [
+      "Period Key", "Period Label", "Period Start", "Period End",
+      "Total Boxes", "Reporting Days", "Average Boxes Per Day", "Peak Boxes",
+      "Peak Date", "Daily Capacity Boxes", "Peak Utilization %", "Last Refreshed At",
+    ],
+    widths: [130, 150, 120, 120, 120, 120, 160, 120, 120, 160, 150, 170],
   },
   {
     name: INWARD_TAT.SHEETS.MANUAL_TASKS,

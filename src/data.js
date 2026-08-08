@@ -18,6 +18,12 @@ export const fallbackSnapshot = {
     dailyCapacityBoxes: 3500,
     scope: "Combined across all facilities",
     sourceField: "No. of Boxes Recd",
+    periods: [
+      { key: "LAST_QUARTER", label: "Last Quarter", periodStart: "2026-04-01", periodEnd: "2026-06-30", totalBoxes: 128400, reportingDays: 63, averageBoxesPerDay: 2038, peakBoxes: 4620, peakDate: "2026-05-18", dailyCapacityBoxes: 3500, peakUtilizationPct: 132 },
+      { key: "LAST_MONTH", label: "Last Month", periodStart: "2026-07-01", periodEnd: "2026-07-31", totalBoxes: 59240, reportingDays: 27, averageBoxesPerDay: 2194, peakBoxes: 4480, peakDate: "2026-07-16", dailyCapacityBoxes: 3500, peakUtilizationPct: 128 },
+      { key: "MTD", label: "Month to Date", periodStart: "2026-08-01", periodEnd: "2026-08-07", totalBoxes: 17510, reportingDays: 6, averageBoxesPerDay: 2918, peakBoxes: 4455, peakDate: "2026-08-03", dailyCapacityBoxes: 3500, peakUtilizationPct: 127 },
+      { key: "YESTERDAY", label: "Yesterday", periodStart: "2026-08-07", periodEnd: "2026-08-07", totalBoxes: 1840, reportingDays: 1, averageBoxesPerDay: 1840, peakBoxes: 1840, peakDate: "2026-08-07", dailyCapacityBoxes: 3500, peakUtilizationPct: 53 },
+    ],
   },
   staticPeriods: {
     lastQuarter: { kpi1Hours: 29.84, kpi2Hours: 13, kpi3Hours: 15.84 },

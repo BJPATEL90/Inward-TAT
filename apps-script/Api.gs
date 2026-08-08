@@ -226,6 +226,24 @@ function buildDashboardSnapshot_() {
   const config = getConfig_();
   const facts = sheetObjects_(getSheet_(INWARD_TAT.SHEETS.FACT));
   const daily = sheetObjects_(getSheet_(INWARD_TAT.SHEETS.MTD));
+  const volumeSheet = openInwardTatSpreadsheet_().getSheetByName(INWARD_TAT.SHEETS.VOLUME);
+  const volumePeriods = volumeSheet
+    ? sheetObjects_(volumeSheet).map(function (row) {
+        return {
+          key: textOrBlank_(row["Period Key"]),
+          label: textOrBlank_(row["Period Label"]),
+          periodStart: apiDate_(row["Period Start"]),
+          periodEnd: apiDate_(row["Period End"]),
+          totalBoxes: apiNumber_(row["Total Boxes"]),
+          reportingDays: apiNumber_(row["Reporting Days"]),
+          averageBoxesPerDay: apiNumber_(row["Average Boxes Per Day"]),
+          peakBoxes: apiNumber_(row["Peak Boxes"]),
+          peakDate: apiDate_(row["Peak Date"]),
+          dailyCapacityBoxes: apiNumber_(row["Daily Capacity Boxes"]),
+          peakUtilizationPct: apiNumber_(row["Peak Utilization %"]),
+        };
+      })
+    : [];
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -303,6 +321,7 @@ function buildDashboardSnapshot_() {
         apiNumber_(config.DAILY_UNLOADING_CAPACITY_BOXES) || 3500,
       scope: "Combined across all facilities",
       sourceField: "No. of Boxes Recd",
+      periods: volumePeriods,
     },
     staticPeriods: {
       lastQuarter: {

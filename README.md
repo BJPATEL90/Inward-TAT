@@ -88,6 +88,7 @@ The workbook contains:
 | `Raw_Putaway` | Normalized facility putaway rows |
 | `Fact_Inward_TAT` | Unique record-level timestamps, KPIs, and status |
 | `MTD_Summary` | Daily and facility-level MTD KPI aggregates plus combined unloaded-box volume and capacity utilisation |
+| `Volume_Summary` | Last Quarter, Last Month, MTD, and Yesterday box-volume summaries calculated from monthly Goods Inward tabs |
 | `Data_Exceptions` | Missing matches, timestamps, and invalid sequences |
 | `Execution_Log` | Detailed pipeline progress and diagnostics |
 | `Import_Log` | Import-level row counts and status |
@@ -105,6 +106,8 @@ The React dashboard provides:
 - Interactive MTD KPI1/KPI2/KPI3 daily trend with combined unloaded-box volume bars
 - Capacity benchmark from `DAILY_UNLOADING_CAPACITY_BOXES` in Config (default: 3,500 boxes/day)
 - Hover detail showing daily boxes, utilisation, and percentage above or below capacity
+- Selected-range volume summary that follows the dashboard date filter
+- Published volume ribbon for Last Quarter, Last Month, MTD, and Yesterday from the corresponding Goods Inward monthly tabs
 
 ERP facility aliases include `Aramex` → `EXPORT`; these GRN rows bridge back to SL Mother Hub Goods Inward records using GRN Number + SKU and wait for the `GRN/Putaway-EXPORT` milestone.
 - Facility comparison

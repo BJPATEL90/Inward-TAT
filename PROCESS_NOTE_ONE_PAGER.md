@@ -42,6 +42,7 @@ ERP reports received on a date contain activity through the previous day. For ex
 - Daily capacity is controlled by `DAILY_UNLOADING_CAPACITY_BOXES` in Config and is currently 3,500 boxes.
 - The dashboard overlays volume bars with KPI1, KPI2, and KPI3 so a TAT spike can be reviewed against that day's workload.
 - Hover detail shows boxes unloaded, utilisation, and the percentage above or below capacity.
+- The selected-range volume strip follows the dashboard date filter. A second ribbon publishes Last Quarter, Last Month, MTD, and Yesterday volume from the corresponding monthly Goods Inward tabs.
 
 ## Daily validation
 

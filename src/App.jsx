@@ -730,6 +730,8 @@ function Dashboard({
         capacity={snapshot?.volume?.dailyCapacityBoxes || 3500}
       />
 
+      <PeriodVolumeSummary periods={snapshot?.volume?.periods || []} />
+
       <section className="dashboard-grid">
         <TrendPanel
           daily={snapshot?.daily || []}
@@ -822,6 +824,38 @@ function VolumeSummary({ daily, fromDate, toDate, capacity }) {
         <span>Peak utilisation</span>
         <strong>{Math.round(peakUtilization)}%</strong>
         <small>{peakUtilization > 100 ? `${Math.round(peakUtilization - 100)}% above capacity` : `${Math.round(100 - peakUtilization)}% spare capacity`}</small>
+      </div>
+    </section>
+  );
+}
+
+function PeriodVolumeSummary({ periods }) {
+  const order = ["LAST_QUARTER", "LAST_MONTH", "MTD", "YESTERDAY"];
+  const byKey = Object.fromEntries(periods.map((period) => [period.key, period]));
+  const cards = order.map((key) => byKey[key] || { key, label: key.replaceAll("_", " ") });
+  return (
+    <section className="period-volume-section" aria-label="Published volume periods">
+      <header>
+        <span className="section-eyebrow">Volume by reporting period</span>
+        <h3>Combined boxes handled</h3>
+        <small>Calculated from monthly Goods Inward tabs</small>
+      </header>
+      <div className="period-volume-grid">
+        {cards.map((period) => {
+          const utilization = Number(period.peakUtilizationPct || 0);
+          return (
+            <article key={period.key} className={`period-volume-card period-${period.key.toLowerCase()}`}>
+              <span>{period.label}</span>
+              <strong>{formatBoxes(period.totalBoxes)}</strong>
+              <em>total boxes</em>
+              <div>
+                <small>Avg/day <b>{formatBoxes(period.averageBoxesPerDay)}</b></small>
+                <small>Peak utilisation <b className={utilization > 100 ? "over" : ""}>{Math.round(utilization)}%</b></small>
+              </div>
+              <footer>{period.periodStart && period.periodEnd ? `${formatShortDate(period.periodStart)} to ${formatShortDate(period.periodEnd)}` : "Awaiting pipeline refresh"}</footer>
+            </article>
+          );
+        })}
       </div>
     </section>
   );

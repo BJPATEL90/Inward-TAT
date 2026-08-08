@@ -586,6 +586,12 @@ function syncGoodsInward_(config, runId) {
     );
     clearDataRows_(target);
     writeRowsInBatches_(target, output, Number(config.PIPELINE_BATCH_SIZE || 500));
+    const volumeSummary = rebuildVolumePeriodSummary_(
+      source,
+      config,
+      allowedFacilities,
+      runId
+    );
     appendImportLog_({
       importId: importId,
       startedAt: startedAt,
@@ -609,7 +615,13 @@ function syncGoodsInward_(config, runId) {
         durationSeconds: (new Date().getTime() - startedAt.getTime()) / 1000,
       }
     );
-    return { status: "SUCCESS", rowsRead: rowsRead, rowsWritten: output.length };
+    return {
+      status: "SUCCESS",
+      rowsRead: rowsRead,
+      rowsWritten: output.length,
+      volumePeriods: volumeSummary.periods,
+      volumeSourceTabs: volumeSummary.sourceTabs,
+    };
   } catch (error) {
     appendImportLog_({
       importId: importId,
@@ -710,6 +722,144 @@ function normalizePutawayRows_(rows, facility, config) {
         String(config.PUTAWAY_TYPE_FILTER || "PUTAWAY_GRN_ITEM").toUpperCase()
     );
   });
+}
+
+function rebuildVolumePeriodSummary_(source, config, allowedFacilities, runId) {
+  const now = new Date();
+  const today = startOfDay_(now);
+  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const previousMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const currentQuarterStartMonth = Math.floor(today.getMonth() / 3) * 3;
+  const currentQuarterStart = new Date(today.getFullYear(), currentQuarterStartMonth, 1);
+  const previousQuarterStart = new Date(today.getFullYear(), currentQuarterStartMonth - 3, 1);
+  const capacity = Math.max(Number(config.DAILY_UNLOADING_CAPACITY_BOXES) || 3500, 0);
+  const periodDefinitions = [
+    { key: "LAST_QUARTER", label: "Last Quarter", start: previousQuarterStart, endExclusive: currentQuarterStart },
+    { key: "LAST_MONTH", label: "Last Month", start: previousMonthStart, endExclusive: currentMonthStart },
+    { key: "MTD", label: "Month to Date", start: currentMonthStart, endExclusive: today },
+    { key: "YESTERDAY", label: "Yesterday", start: yesterday, endExclusive: today },
+  ];
+  const monthStarts = [];
+  let cursor = new Date(previousQuarterStart.getFullYear(), previousQuarterStart.getMonth(), 1);
+  while (cursor <= currentMonthStart) {
+    monthStarts.push(new Date(cursor));
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+  const sourceSheets = monthStarts
+    .map(function (monthDate) {
+      return resolveGoodsSourceSheetForMonth_(source, config, monthDate);
+    })
+    .filter(Boolean)
+    .filter(function (sheet, index, all) {
+      return all.indexOf(sheet) === index;
+    });
+  const boxesByDate = new Map();
+  let rowsRead = 0;
+  let rowsAccepted = 0;
+
+  sourceSheets.forEach(function (sourceSheet) {
+    const values = sourceSheet.getDataRange().getValues();
+    if (values.length < 2) return;
+    const headers = values[0].map(cleanHeader_);
+    const indexes = headerIndex_(headers);
+    const facilityColumn = indexes[normalizeHeader_("Received at")];
+    const dateColumn = indexes[normalizeHeader_("Unloading Date")];
+    const boxesColumn = indexes[normalizeHeader_("No. of Boxes Recd")];
+    if (facilityColumn === undefined || dateColumn === undefined || boxesColumn === undefined) {
+      throw new Error(
+        "Volume summary requires Received at, Unloading Date and No. of Boxes Recd in " +
+          sourceSheet.getName() +
+          "."
+      );
+    }
+    values.slice(1).forEach(function (row) {
+      rowsRead += 1;
+      if (allowedFacilities.indexOf(normalizeFacility_(row[facilityColumn])) === -1) return;
+      const unloadingDate = parseDateTime_(row[dateColumn]);
+      const boxes = Number(String(row[boxesColumn] || "").replace(/,/g, "").trim());
+      if (!unloadingDate || !isFinite(boxes) || boxes < 0) return;
+      const dateKey = Utilities.formatDate(unloadingDate, "Asia/Kolkata", "yyyy-MM-dd");
+      boxesByDate.set(dateKey, (boxesByDate.get(dateKey) || 0) + boxes);
+      rowsAccepted += 1;
+    });
+  });
+
+  const summaryRows = periodDefinitions.map(function (period) {
+    const dailyValues = [];
+    boxesByDate.forEach(function (boxes, dateKey) {
+      const date = parseDateTime_(dateKey);
+      if (date && date >= period.start && date < period.endExclusive) {
+        dailyValues.push({ date: date, boxes: boxes });
+      }
+    });
+    dailyValues.sort(function (a, b) { return a.date - b.date; });
+    const total = dailyValues.reduce(function (sum, row) { return sum + row.boxes; }, 0);
+    const peak = dailyValues.reduce(function (current, row) {
+      return !current || row.boxes > current.boxes ? row : current;
+    }, null);
+    return [
+      period.key,
+      period.label,
+      period.start,
+      new Date(period.endExclusive.getFullYear(), period.endExclusive.getMonth(), period.endExclusive.getDate() - 1),
+      total,
+      dailyValues.length,
+      dailyValues.length ? total / dailyValues.length : "",
+      peak ? peak.boxes : "",
+      peak ? peak.date : "",
+      capacity,
+      peak && capacity ? (peak.boxes / capacity) * 100 : "",
+      new Date(),
+    ];
+  });
+
+  const spreadsheet = openInwardTatSpreadsheet_();
+  const definition = SHEET_DEFINITIONS.filter(function (entry) {
+    return entry.name === INWARD_TAT.SHEETS.VOLUME;
+  })[0];
+  const sheet = getOrCreateSheet_(spreadsheet, INWARD_TAT.SHEETS.VOLUME);
+  ensureHeaders_(sheet, definition.headers);
+  styleSheet_(sheet, definition);
+  replaceDataRows_(sheet, summaryRows);
+  logExecution_(
+    runId,
+    "VOLUME_SUMMARY",
+    "COMPLETED",
+    "Last Quarter, Last Month, MTD and Yesterday volume summaries rebuilt from monthly Goods Inward tabs.",
+    {
+      sourceTabs: sourceSheets.map(function (sheetItem) { return sheetItem.getName(); }).join(" + "),
+      rowsRead: rowsRead,
+      rowsImported: rowsAccepted,
+    }
+  );
+  return {
+    periods: summaryRows.length,
+    sourceTabs: sourceSheets.map(function (sheetItem) { return sheetItem.getName(); }),
+  };
+}
+
+function resolveGoodsSourceSheetForMonth_(spreadsheet, config, monthDate) {
+  const prefix = String(config.GOODS_SOURCE_SHEET_PREFIX || "FG-").trim();
+  const timeZone = String(config.TIME_ZONE || Session.getScriptTimeZone() || "Asia/Calcutta");
+  const normalizedSheets = {};
+  spreadsheet.getSheets().forEach(function (sheet) {
+    normalizedSheets[normalizeTabName_(sheet.getName())] = sheet;
+  });
+  const monthLong = Utilities.formatDate(monthDate, timeZone, "MMMM");
+  const monthShort = Utilities.formatDate(monthDate, timeZone, "MMM");
+  const yearShort = Utilities.formatDate(monthDate, timeZone, "yy");
+  const yearLong = Utilities.formatDate(monthDate, timeZone, "yyyy");
+  const candidates = [
+    prefix + monthLong + "-" + yearShort,
+    prefix + monthShort + "-" + yearShort,
+    prefix + monthLong + "-" + yearLong,
+    prefix + monthShort + "-" + yearLong,
+  ].map(normalizeTabName_);
+  for (let index = 0; index < candidates.length; index += 1) {
+    if (normalizedSheets[candidates[index]]) return normalizedSheets[candidates[index]];
+  }
+  return null;
 }
 
 function latestManualTaskActions_() {

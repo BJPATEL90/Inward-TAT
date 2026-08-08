@@ -860,6 +860,35 @@ button {
 .volume-summary .within-capacity { background: #f2fbf6; }
 .volume-summary .within-capacity strong { color: #0b7a48; }
 
+.period-volume-section {
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.period-volume-section > header h3 { margin: 5px 0 0; font-size: 15px; }
+.period-volume-section > header small { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; }
+.period-volume-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.period-volume-card { position: relative; overflow: hidden; padding: 16px; border: 1px solid #e1e7f1; border-radius: 12px; background: #fbfcff; }
+.period-volume-card::before { position: absolute; inset: 0 auto 0 0; width: 4px; content: ""; background: #3158d4; }
+.period-volume-card.period-last_month::before { background: #e0a400; }
+.period-volume-card.period-mtd::before { background: #16a65a; }
+.period-volume-card.period-yesterday::before { background: #e04a43; }
+.period-volume-card > span,
+.period-volume-card > strong,
+.period-volume-card > em { display: block; }
+.period-volume-card > span { color: #5e6e87; font-size: 9px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.period-volume-card > strong { margin-top: 8px; color: #172d68; font-size: 23px; }
+.period-volume-card > em { margin-top: 2px; color: #7d899c; font-size: 8px; font-style: normal; }
+.period-volume-card > div { display: flex; justify-content: space-between; gap: 8px; margin-top: 13px; padding-top: 10px; border-top: 1px solid #e3e9f2; }
+.period-volume-card > div small { color: #66758c; font-size: 8px; }
+.period-volume-card > div b { margin-left: 3px; color: #172d68; }
+.period-volume-card > div b.over { color: #bd352d; }
+.period-volume-card footer { margin-top: 11px; color: #8190a5; font-size: 8px; }
+
 .panel {
   min-width: 0;
   border: 1px solid var(--line);
@@ -2294,6 +2323,7 @@ tbody tr:hover {
   .volume-summary-title { grid-column: 1 / -1; }
   .volume-summary > div:nth-child(2),
   .volume-summary > div:nth-child(4) { border-left: 0; }
+  .period-volume-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .facility-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2380,6 +2410,7 @@ tbody tr:hover {
   .volume-summary { grid-template-columns: 1fr; }
   .volume-summary > div { min-height: 78px; border-top: 1px solid #e4eaf3; border-left: 0; }
   .volume-summary > div:first-child { border-top: 0; }
+  .period-volume-grid { grid-template-columns: 1fr; }
   .chart-legend {
     align-items: flex-start;
     flex-direction: column;
