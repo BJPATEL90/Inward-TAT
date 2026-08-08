@@ -747,56 +747,108 @@ function MiniKpi({ kpi, label, value, note, primary = false }) {
 }
 
 function TrendPanel({ daily }) {
+  const [hovered, setHovered] = useState(null);
   const rows = daily
     .filter((row) => row.facility === "All Mother Facilities" && row.kpi1Hours != null)
     .sort((a, b) => a.summaryDate.localeCompare(b.summaryDate));
   const width = 760;
-  const height = 270;
-  const pad = { left: 48, right: 24, top: 25, bottom: 38 };
-  const values = rows.map((row) => row.kpi1Hours);
-  const max = Math.max(60, ...values);
+  const height = 220;
+  const pad = { left: 48, right: 24, top: 24, bottom: 34 };
+  const max = 40;
+  const target = 14;
+  const series = [
+    { key: "kpi1Hours", label: "KPI1 · Unloading to Putaway", shortLabel: "KPI1", color: "#16a65a" },
+    { key: "kpi2Hours", label: "KPI2 · GRN to Putaway", shortLabel: "KPI2", color: "#3158d4" },
+    { key: "kpi3Hours", label: "KPI3 · Unloading to GRN", shortLabel: "KPI3", color: "#e0a400" },
+  ];
   const x = (index) =>
     pad.left + (index * (width - pad.left - pad.right)) / Math.max(rows.length - 1, 1);
-  const y = (value) =>
-    height - pad.bottom - (value / max) * (height - pad.top - pad.bottom);
-  const path = rows
-    .map((row, index) => `${index ? "L" : "M"} ${x(index)} ${y(row.kpi1Hours)}`)
+  const y = (value) => {
+    const bounded = Math.min(Math.max(Number(value) || 0, 0), max);
+    return height - pad.bottom - (bounded / max) * (height - pad.top - pad.bottom);
+  };
+  const pathFor = (key) => rows
+    .map((row, index) => ({ index, value: Number(row[key]) }))
+    .filter((point) => Number.isFinite(point.value))
+    .map((point, index) => `${index ? "L" : "M"} ${x(point.index)} ${y(point.value)}`)
     .join(" ");
-  const area = rows.length
-    ? `${path} L ${x(rows.length - 1)} ${height - pad.bottom} L ${x(0)} ${height - pad.bottom} Z`
-    : "";
+  const tooltipWidth = 142;
+  const tooltipHeight = 76;
+  const tooltipX = hovered
+    ? Math.min(Math.max(x(hovered.index) - tooltipWidth / 2, pad.left), width - pad.right - tooltipWidth)
+    : 0;
+  const tooltipY = hovered
+    ? Math.max(pad.top, Math.min(...series.map((item) => y(hovered.row[item.key]))) - tooltipHeight - 9)
+    : 0;
 
   return (
     <article className="panel trend-panel">
-      <PanelHeading title="MTD KPI1 daily trend" subtitle="Unloading to Putaway · Daily simple average" />
-      <div className="chart-legend"><span><i />KPI1 average</span><em>{rows.length} reporting days</em></div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="line-chart" role="img" aria-label="Daily MTD unloading to putaway trend">
-        <defs>
-          <linearGradient id="trendArea" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#2748c7" stopOpacity=".22" />
-            <stop offset="100%" stopColor="#2748c7" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-          const value = max * ratio;
+      <PanelHeading title="MTD daily KPI trend" subtitle="Daily simple averages · Fixed 0–40 hour scale" />
+      <div className="chart-legend">
+        <div className="chart-series-legend">
+          {series.map((item) => <span key={item.key}><i style={{ background: item.color }} />{item.shortLabel}</span>)}
+          <span><i className="target-legend" />KPI1 target 14h</span>
+        </div>
+        <em>{rows.length} reporting days</em>
+      </div>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="line-chart"
+        role="img"
+        aria-label="Daily MTD KPI1, KPI2 and KPI3 trend"
+        onMouseLeave={() => setHovered(null)}
+      >
+        {[0, 10, 20, 30, 40].map((value) => {
           return (
-            <g key={ratio}>
+            <g key={value}>
               <line x1={pad.left} x2={width - pad.right} y1={y(value)} y2={y(value)} className="chart-gridline" />
-              <text x={pad.left - 10} y={y(value) + 4} textAnchor="end">{Math.round(value)}h</text>
+              <text x={pad.left - 10} y={y(value) + 4} textAnchor="end">{value}h</text>
             </g>
           );
         })}
-        {area && <path d={area} fill="url(#trendArea)" />}
-        {path && <path d={path} className="trend-path" />}
-        {rows.map((row, index) => (
-          <circle key={row.summaryDate} cx={x(index)} cy={y(row.kpi1Hours)} r="3.5" className="trend-point">
-            <title>{formatShortDate(row.summaryDate)}: {formatDuration(row.kpi1Hours)}</title>
-          </circle>
-        ))}
+        <line x1={pad.left} x2={width - pad.right} y1={y(target)} y2={y(target)} className="target-line" />
+        <text x={width - pad.right - 3} y={y(target) - 5} textAnchor="end" className="target-label">KPI1 target 14h</text>
+        {series.map((item) => {
+          const path = pathFor(item.key);
+          return path ? <path key={item.key} d={path} className="trend-path" style={{ stroke: item.color }} /> : null;
+        })}
+        {series.flatMap((item) => rows.map((row, index) => {
+          const value = Number(row[item.key]);
+          if (!Number.isFinite(value)) return [];
+          return (
+            <circle
+              key={`${item.key}-${row.summaryDate}`}
+              cx={x(index)}
+              cy={y(value)}
+              r="3.5"
+              className="trend-point"
+              style={{ stroke: item.color }}
+              tabIndex="0"
+              onMouseEnter={() => setHovered({ row, index })}
+              onFocus={() => setHovered({ row, index })}
+              onBlur={() => setHovered(null)}
+            >
+              <title>{`${formatShortDate(row.summaryDate)} · ${item.label}: ${formatDuration(value)}`}</title>
+            </circle>
+          );
+        }))}
         {rows.filter((_, index) => index % Math.max(Math.ceil(rows.length / 7), 1) === 0 || index === rows.length - 1).map((row) => {
           const index = rows.indexOf(row);
           return <text key={row.summaryDate} x={x(index)} y={height - 12} textAnchor="middle" className="chart-date">{formatDay(row.summaryDate)}</text>;
         })}
+        {hovered && (
+          <g className="chart-tooltip" transform={`translate(${tooltipX} ${tooltipY})`}>
+            <rect width={tooltipWidth} height={tooltipHeight} rx="7" />
+            <text x="10" y="16" className="tooltip-date">{formatShortDate(hovered.row.summaryDate)}</text>
+            {series.map((item, index) => (
+              <g key={item.key} transform={`translate(0 ${28 + index * 15})`}>
+                <circle cx="11" cy="0" r="3" fill={item.color} />
+                <text x="19" y="3">{item.shortLabel}</text>
+                <text x={tooltipWidth - 10} y="3" textAnchor="end">{formatDuration(hovered.row[item.key])}</text>
+              </g>
+            ))}
+          </g>
+        )}
       </svg>
     </article>
   );

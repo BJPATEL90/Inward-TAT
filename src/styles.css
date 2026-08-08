@@ -867,11 +867,25 @@ button {
   gap: 6px;
 }
 
+.chart-series-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
 .chart-legend i {
   width: 19px;
   height: 3px;
   border-radius: 99px;
   background: var(--blue);
+}
+
+.chart-legend .target-legend {
+  height: 0;
+  border-top: 2px dashed #16a65a;
+  border-radius: 0;
+  background: transparent;
 }
 
 .chart-legend em {
@@ -898,16 +912,56 @@ button {
 
 .trend-path {
   fill: none;
-  stroke: var(--blue);
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 3;
+  stroke-width: 2.5;
 }
 
 .trend-point {
   fill: #fff;
-  stroke: var(--blue);
   stroke-width: 2;
+  cursor: pointer;
+  transition: stroke-width 120ms ease;
+}
+
+.trend-point:hover,
+.trend-point:focus {
+  stroke-width: 4;
+  outline: none;
+}
+
+.target-line {
+  stroke: #16a65a;
+  stroke-width: 1.7;
+  stroke-dasharray: 6 5;
+  opacity: .85;
+}
+
+.line-chart .target-label {
+  fill: #168c4e;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.chart-tooltip {
+  pointer-events: none;
+  filter: drop-shadow(0 5px 8px rgb(17 35 76 / 22%));
+}
+
+.chart-tooltip rect {
+  fill: #14234d;
+  stroke: #263c70;
+  stroke-width: 1;
+}
+
+.line-chart .chart-tooltip text {
+  fill: #fff;
+  font-size: 9px;
+}
+
+.line-chart .chart-tooltip .tooltip-date {
+  fill: #b9cdfc;
+  font-weight: 700;
 }
 
 .chart-date {
@@ -2013,6 +2067,17 @@ tbody tr:hover {
 }
 
 @media (max-width: 680px) {
+  .chart-legend {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+    padding-inline: 8px;
+  }
+
+  .chart-series-legend {
+    gap: 7px 11px;
+  }
+
   .topbar {
     align-items: flex-start;
   }
