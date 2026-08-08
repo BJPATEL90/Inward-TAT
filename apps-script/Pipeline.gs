@@ -330,7 +330,7 @@ function importUnicommerceEmails_(reportType, config, runId) {
             emailMessageId: message.getId(),
             status: "SKIPPED_TERMINAL",
             errorDetail:
-              "Putaway export name does not identify SLAMB, SLMH or SLRX: " +
+              "Putaway export name does not identify SLAMB, SLMH, SLRX or OWN: " +
               exportJob,
           });
           logExecution_(
@@ -1408,7 +1408,7 @@ function selectExportMessages_(messages, isGrn, config) {
     const facility = facilityFromPutawayExport_(exportJob, config);
     if (facility) latestByFacility[facility] = message;
   });
-  return ["SL Rx", "SL Ambient", "SL Mother Hub"]
+  return ["SL Rx", "SL Ambient", "SL Mother Hub", "OWN"]
     .map(function (facility) {
       return latestByFacility[facility];
     })
@@ -1497,6 +1497,12 @@ function facilityFromPutawayExport_(exportJob, config) {
   ) {
     return "SL Rx";
   }
+  if (
+    value.indexOf("PUTAWAY-OWN") !== -1 ||
+    value.indexOf(String(config.PUTAWAY_EXPORT_OWN || "GRN/Putaway-OWN").toUpperCase().replace(/\s+/g, "")) !== -1
+  ) {
+    return "OWN";
+  }
   return "";
 }
 
@@ -1510,6 +1516,7 @@ function normalizeFacility_(value) {
     return "SL Mother Hub";
   }
   if (["slrx"].indexOf(compact) !== -1) return "SL Rx";
+  if (["own"].indexOf(compact) !== -1) return "OWN";
   return "";
 }
 

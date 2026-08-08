@@ -11,7 +11,7 @@
 - Putaway completion: latest `Last Updated` across matching completed putaway rows.
 - Elapsed time: continuous hours, including nights, Sundays and holidays.
 - Putaway filters: `Type = PUTAWAY_GRN_ITEM` and `Status Code = COMPLETE`.
-- Facility scope: SL Ambient, SL Mother Hub and SL Rx only.
+- Facility scope: SL Ambient, SL Mother Hub, SL Rx and OWN.
 
 ## KPI display contract
 
@@ -46,6 +46,7 @@ Named putaway exports are mapped as follows:
 - `SLAMB` → SL Ambient
 - `SLMH` → SL Mother Hub
 - `SLRX` → SL Rx
+- `OWN` → OWN
 
 Generic putaway exports are rejected with `UNKNOWN_PUTAWAY_FACILITY` because the
 CSV itself does not contain a facility column.

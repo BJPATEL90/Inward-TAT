@@ -25,8 +25,9 @@ The dashboard covers:
 - SL Ambient
 - SL Mother Hub
 - SL Rx
+- OWN
 
-`Raw_Goods_Inward` imports only SL Mother Hub and SL Ambient unloading rows. The primary invoice key resolves the ERP facility across all three facilities. When the primary key is unavailable, the existing SL Rx `GRN Number + SKU` bridge remains part of the controlled fallback.
+`Raw_Goods_Inward` imports only SL Mother Hub and SL Ambient unloading rows. The primary invoice key resolves the ERP facility across SL Ambient, SL Mother Hub, SL Rx, and OWN. When the primary key is unavailable, the existing SL Rx `GRN Number + SKU` bridge remains part of the controlled fallback.
 
 ## Data sources
 
@@ -58,6 +59,7 @@ Only the configured mother facilities are processed. Exact `SKU + Invoice Number
   - `GRN/Putaway-SLAMB`
   - `GRN/Putaway-SLMH`
   - `GRN/Putaway-SLRX`
+  - `GRN/Putaway-OWN`
 
 Only `PUTAWAY_GRN_ITEM` rows with `COMPLETE` status are used. Because one GRN item may occupy multiple shelves, shelf-level rows are consolidated by `Facility + GRN Number + SKU`; the latest `Last Updated` value becomes the putaway completion timestamp.
 

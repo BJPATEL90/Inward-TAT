@@ -42,6 +42,7 @@ export const fallbackSnapshot = {
       { facility: "SL Ambient", kpi1Hours: 22.8475, kpi2Hours: 15.5178, kpi3Hours: 7.6778, records: 55, completeRecords: 54, exceptionRecords: 1 },
       { facility: "SL Mother Hub", kpi1Hours: 25.1429, kpi2Hours: 17.8426, kpi3Hours: 7.4403, records: 443, completeRecords: 414, exceptionRecords: 29 },
       { facility: "SL Rx", kpi1Hours: 67.4593, kpi2Hours: 22.6463, kpi3Hours: 43.2793, records: 28, completeRecords: 27, exceptionRecords: 1 },
+      { facility: "OWN", kpi1Hours: null, kpi2Hours: null, kpi3Hours: null, records: 0, completeRecords: 0, exceptionRecords: 0 },
     ],
   },
   daily: dailyKpi1.map((kpi1Hours, index) => ({

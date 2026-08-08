@@ -29,7 +29,7 @@ import {
   verifyGoogleCredential,
 } from "./auth";
 
-const FACILITIES = ["All facilities", "SL Ambient", "SL Mother Hub", "SL Rx"];
+const FACILITIES = ["All facilities", "SL Ambient", "SL Mother Hub", "SL Rx", "OWN"];
 
 function App() {
   const [session, setSession] = useState(null);
@@ -573,7 +573,7 @@ function CalculationLogic() {
             <div><h3>Inclusion controls</h3><p>Rules applied before a record enters any KPI average.</p></div>
           </div>
           <ul>
-            <li><CheckCircle2 size={17} /> Facility must resolve to SL Ambient, SL Mother Hub, or SL Rx.</li>
+            <li><CheckCircle2 size={17} /> Facility must resolve to SL Ambient, SL Mother Hub, SL Rx, or OWN.</li>
             <li><CheckCircle2 size={17} /> GRN Received Timestamp and completed Putaway Last Updated must exist.</li>
             <li><CheckCircle2 size={17} /> Putaway type must be PUTAWAY_GRN_ITEM and all consolidated shelf rows must be complete.</li>
             <li><CheckCircle2 size={17} /> Negative timestamp sequences are excluded and sent to exceptions.</li>
@@ -1183,19 +1183,22 @@ function csvCell(value) {
 function facilityInitials(facility) {
   if (facility === "SL Mother Hub") return "MH";
   if (facility === "SL Ambient") return "AM";
-  return "RX";
+  if (facility === "SL Rx") return "RX";
+  return "OWN";
 }
 
 function facilityClass(facility) {
   if (facility === "SL Mother Hub") return "mother";
   if (facility === "SL Ambient") return "ambient";
-  return "rx";
+  if (facility === "SL Rx") return "rx";
+  return "own";
 }
 
 function shortFacility(facility) {
   if (facility === "SL Mother Hub") return "Mother Hub";
   if (facility === "SL Ambient") return "Ambient";
-  return "Rx";
+  if (facility === "SL Rx") return "Rx";
+  return "OWN";
 }
 
 function pendingStage(exceptionCode = "") {

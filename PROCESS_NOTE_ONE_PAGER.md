@@ -2,7 +2,7 @@
 
 ## Objective
 
-Measure and communicate inbound turnaround time from vehicle unloading through GRN and final Putaway for SL Ambient, SL Mother Hub, and SL Rx.
+Measure and communicate inbound turnaround time from vehicle unloading through GRN and final Putaway for SL Ambient, SL Mother Hub, SL Rx, and OWN.
 
 ## KPI framework
 
@@ -20,7 +20,7 @@ All KPIs use continuous elapsed time and a simple average across the same comple
 |---|---|---|
 | Goods Inward | Monthly Google Sheet tab | Unloading date/time, facility, GRN, and SKU |
 | GRN | Unicommerce email | Latest cumulative MTD report with `GRN Received Timestamp` |
-| Putaway | Three Unicommerce emails | Cumulative SLAMB, SLMH, and SLRX reports with `Last Updated` |
+| Putaway | Four Unicommerce emails | Cumulative SLAMB, SLMH, SLRX, and OWN reports with `Last Updated` |
 
 ERP reports received on a date contain activity through the previous day. For example, the 1–10 report is received on the 11th.
 
@@ -38,7 +38,7 @@ ERP reports received on a date contain activity through the previous day. For ex
 ## Daily validation
 
 - `Execution_Log` shows `PIPELINE | COMPLETED`.
-- One GRN and all three Putaway exports were processed.
+- One GRN and all four Putaway exports were processed.
 - Yesterday is not treated as zero when data is still pending.
 - No unexplained `NO_GRN_MATCH`, `NO_PUTAWAY_MATCH`, or negative timestamp exception remains.
 - KPI1 equals KPI2 plus KPI3 for the same complete cohort.

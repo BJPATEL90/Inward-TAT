@@ -40,8 +40,9 @@ Calculation rules:
 - SL Ambient
 - SL Mother Hub
 - SL Rx
+- OWN
 
-Goods Inward records are initially filtered to SL Mother Hub and SL Ambient. The invoice-based primary match resolves the ERP facility across SL Ambient, SL Mother Hub, and SL Rx. The existing SL Ambient-to-SL Rx `GRN Number + SKU` bridge remains available inside the controlled fallback.
+Goods Inward records are initially filtered to SL Mother Hub and SL Ambient. The invoice-based primary match resolves the ERP facility across SL Ambient, SL Mother Hub, SL Rx, and OWN. The existing SL Ambient-to-SL Rx `GRN Number + SKU` bridge remains available inside the controlled fallback.
 
 ## Source data
 
@@ -60,7 +61,7 @@ The monthly `FG-<Month>-<YY>` tab provides Vehicle Unloading Date, Unloading Tim
 
 - Sender: `noreply@e.unicommerce.com`
 - Subject: `Export Job Complete - GRN/Gatepass to Putaway`
-- Export jobs: `GRN/Putaway-SLAMB`, `GRN/Putaway-SLMH`, and `GRN/Putaway-SLRX`
+- Export jobs: `GRN/Putaway-SLAMB`, `GRN/Putaway-SLMH`, `GRN/Putaway-SLRX`, and `GRN/Putaway-OWN`
 - Filter: `Type = PUTAWAY_GRN_ITEM` and `Status Code = COMPLETE`
 - Required timestamp: latest `Last Updated` across matching shelf rows
 

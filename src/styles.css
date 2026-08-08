@@ -1192,6 +1192,11 @@ tbody tr:hover {
   background: #f8ebfb;
 }
 
+.facility-pill.own {
+  color: #006b63;
+  background: #e3f8f4;
+}
+
 .status-pill {
   gap: 4px;
   padding: 5px 8px;
