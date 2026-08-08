@@ -667,6 +667,8 @@ function Dashboard({
         </div>
       </section>
 
+      <PeriodVolumeSummary periods={snapshot?.volume?.periods || []} />
+
       {showYesterdayPending && (
         <section className="data-pending-banner" role="status">
           <div className="pending-banner-icon"><Clock3 size={22} /></div>
@@ -729,8 +731,6 @@ function Dashboard({
         toDate={toDate}
         capacity={snapshot?.volume?.dailyCapacityBoxes || 3500}
       />
-
-      <PeriodVolumeSummary periods={snapshot?.volume?.periods || []} />
 
       <section className="dashboard-grid">
         <TrendPanel
