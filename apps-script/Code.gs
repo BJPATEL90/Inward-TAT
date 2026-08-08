@@ -249,7 +249,6 @@ function setupInwardTatWorkbook() {
   seedConfig_(spreadsheet.getSheetByName(INWARD_TAT.SHEETS.CONFIG));
   applyDataFormats_(spreadsheet);
   createNamedRanges_(spreadsheet);
-  onOpen();
 
   const result = validateInwardTatWorkbook(false);
   if (!result.ok) {
