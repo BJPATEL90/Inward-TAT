@@ -517,7 +517,7 @@ button {
 .period-card {
   position: relative;
   overflow: hidden;
-  min-height: 290px;
+  min-height: 260px;
   padding: 20px;
   border-radius: 16px;
   color: var(--text);
@@ -560,15 +560,6 @@ button {
   margin-top: 5px;
   color: var(--muted);
   font-size: 10px;
-}
-
-.period-card .kpi-availability {
-  display: block;
-  margin-top: 4px;
-  color: #7a879c;
-  font-size: 8px;
-  font-weight: 600;
-  line-height: 1.3;
 }
 
 .decimal-duration {
@@ -788,21 +779,6 @@ button {
   color: #7a879c;
   font-size: 9px;
 }
-
-.mini-kpi-availability {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 9px;
-  padding-top: 8px;
-  border-top: 1px solid #e5eaf2;
-  color: #65748c;
-  font-size: 8px;
-}
-
-.mini-kpi-availability span { color: #65748c; font-size: 8px; font-weight: 600; }
-.mini-kpi-availability b { color: #2443c4; }
 
 .completion-card {
   display: flex;
@@ -1154,6 +1130,12 @@ button {
   border-bottom: 1px solid #e3e9f3;
 }
 
+.facility-row.has-kpi {
+  border-color: #cad8fb;
+  background: #f7f9ff;
+  box-shadow: inset 4px 0 0 #3158d4;
+}
+
 .facility-name {
   display: flex;
   align-items: center;
@@ -1199,13 +1181,6 @@ button {
   margin-top: 4px;
   color: #263550;
   font-size: 12px;
-}
-
-.facility-row > div > small {
-  display: block;
-  margin-top: 3px;
-  color: #7b889d;
-  font-size: 7px;
 }
 
 .facility-note {

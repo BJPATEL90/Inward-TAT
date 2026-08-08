@@ -712,9 +712,9 @@ function Dashboard({
       </section>
 
       <section className="range-kpis">
-        <MiniKpi kpi="KPI1" label={labels.kpi1 || "Unloading to Putaway"} value={selectedSummary.kpi1Hours} records={selectedSummary.kpi1Records} totalRecords={selectedSummary.records} note="Records with unloading and putaway" primary />
-        <MiniKpi kpi="KPI2" label={labels.kpi2 || "GRN to Putaway"} value={selectedSummary.kpi2Hours} records={selectedSummary.kpi2Records} totalRecords={selectedSummary.records} note="Records with GRN and putaway" />
-        <MiniKpi kpi="KPI3" label={labels.kpi3 || "Unloading to GRN"} value={selectedSummary.kpi3Hours} records={selectedSummary.kpi3Records} totalRecords={selectedSummary.records} note="Records with unloading and GRN" />
+        <MiniKpi kpi="KPI1" label={labels.kpi1 || "Unloading to Putaway"} value={selectedSummary.kpi1Hours} note="Calculated for selected range" primary />
+        <MiniKpi kpi="KPI2" label={labels.kpi2 || "GRN to Putaway"} value={selectedSummary.kpi2Hours} note="Calculated for selected range" />
+        <MiniKpi kpi="KPI3" label={labels.kpi3 || "Unloading to GRN"} value={selectedSummary.kpi3Hours} note="Calculated for selected range" />
         <article className="completion-card">
           <div className="completion-icon"><CheckCircle2 size={23} /></div>
           <div>
@@ -753,31 +753,22 @@ function Dashboard({
 }
 
 function PeriodCard({ title, data = {}, dates, tone, labels }) {
-  const hasLiveCounts = data.records !== undefined && data.records !== null;
-  const availability = (key) => {
-    if (!hasLiveCounts) return "Published value";
-    const count = data[`${key}Records`] ?? data.completeRecords ?? 0;
-    return `${count} of ${data.records || 0} records \u00b7 ${percentage(count, data.records)} available`;
-  };
   return (
     <article className={`period-card tone-${tone}`}>
       <span className="period-title">{title}</span>
       <strong className="primary-duration">{formatDurationWords(data.kpi1Hours)}</strong>
-      <em className="decimal-duration">{formatDecimalHours(data.kpi1Hours) || "Awaiting data"}</em>
+      <em className="decimal-duration">{formatDecimalHours(data.kpi1Hours)}</em>
       <small><b>KPI1</b> · {labels.kpi1 || "Unloading to Putaway"}</small>
-      <small className="kpi-availability">{availability("kpi1")}</small>
       <div className="sub-kpis">
         <div>
           <span><b>KPI2</b> · {labels.kpi2 || "GRN to Putaway"}</span>
           <strong>{formatDurationWords(data.kpi2Hours)}</strong>
-          <em className="decimal-duration">{formatDecimalHours(data.kpi2Hours) || "Awaiting data"}</em>
-          <small className="kpi-availability">{availability("kpi2")}</small>
+          <em className="decimal-duration">{formatDecimalHours(data.kpi2Hours)}</em>
         </div>
         <div>
           <span><b>KPI3</b> · {labels.kpi3 || "Unloading to GRN"}</span>
           <strong>{formatDurationWords(data.kpi3Hours)}</strong>
-          <em className="decimal-duration">{formatDecimalHours(data.kpi3Hours) || "Awaiting data"}</em>
-          <small className="kpi-availability">{availability("kpi3")}</small>
+          <em className="decimal-duration">{formatDecimalHours(data.kpi3Hours)}</em>
         </div>
       </div>
       <footer>
@@ -788,18 +779,13 @@ function PeriodCard({ title, data = {}, dates, tone, labels }) {
   );
 }
 
-function MiniKpi({ kpi, label, value, records, totalRecords, note, primary = false }) {
-  const availableRecords = records || 0;
+function MiniKpi({ kpi, label, value, note, primary = false }) {
   return (
     <article className={`mini-kpi ${primary ? "primary" : ""}`}>
       <span><b>{kpi}</b> · {label}</span>
       <strong>{formatDurationWords(value)}</strong>
-      <em className="decimal-duration">{formatDecimalHours(value) || "Awaiting data"}</em>
+      <em className="decimal-duration">{formatDecimalHours(value)}</em>
       <small>{note}</small>
-      <div className="mini-kpi-availability">
-        <span>{availableRecords} of {totalRecords || 0} records</span>
-        <b>{percentage(availableRecords, totalRecords)} available</b>
-      </div>
     </article>
   );
 }
@@ -1100,14 +1086,14 @@ function FacilityPanel({ facilities }) {
       <PanelHeading title="Facility performance" subtitle="MTD averages by ERP facility" />
       <div className="facility-list">
         {facilities.map((row) => (
-          <div className="facility-row" key={row.facility}>
+          <div className={`facility-row ${row.kpi1Hours != null || row.kpi2Hours != null || row.kpi3Hours != null ? "has-kpi" : ""}`} key={row.facility}>
             <div className="facility-name">
               <span>{facilityInitials(row.facility)}</span>
-              <div><strong>{row.facility}</strong><small>{row.completeRecords || 0} complete of {row.records || 0}</small></div>
+              <div><strong>{row.facility}</strong><small>{row.records || 0} MTD records</small></div>
             </div>
-            <div><span>KPI1</span><strong>{formatDuration(row.kpi1Hours)}</strong><small>{percentage(row.kpi1Records ?? row.completeRecords, row.records)} available</small></div>
-            <div><span>KPI2</span><strong>{formatDuration(row.kpi2Hours)}</strong><small>{percentage(row.kpi2Records ?? row.completeRecords, row.records)} available</small></div>
-            <div><span>KPI3</span><strong>{formatDuration(row.kpi3Hours)}</strong><small>{percentage(row.kpi3Records ?? row.completeRecords, row.records)} available</small></div>
+            <div><span>KPI1</span><strong>{formatDuration(row.kpi1Hours)}</strong></div>
+            <div><span>KPI2</span><strong>{formatDuration(row.kpi2Hours)}</strong></div>
+            <div><span>KPI3</span><strong>{formatDuration(row.kpi3Hours)}</strong></div>
           </div>
         ))}
       </div>
