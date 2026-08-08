@@ -45,6 +45,19 @@ export function hasLiveApi() {
   return Boolean(API_URL);
 }
 
+export async function submitManualTaskAction(payload) {
+  if (!API_URL || !new URL(API_URL, window.location.origin).hostname.includes("script.google.com")) {
+    throw new Error("Manual task updates require the live Apps Script API.");
+  }
+  const data = await postToAppsScript({
+    action: "manualTaskAction",
+    credential: getStoredSession()?.credential || "",
+    ...payload,
+  });
+  if (!data.ok) throw new Error(data.error || "Manual task action failed");
+  return data;
+}
+
 function authHeaders() {
   const credential = getStoredSession()?.credential;
   return credential ? { Authorization: `Bearer ${credential}` } : {};

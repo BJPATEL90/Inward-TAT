@@ -712,6 +712,22 @@ function normalizePutawayRows_(rows, facility, config) {
   });
 }
 
+function latestManualTaskActions_() {
+  const spreadsheet = openInwardTatSpreadsheet_();
+  const definition = SHEET_DEFINITIONS.filter(function (entry) {
+    return entry.name === INWARD_TAT.SHEETS.MANUAL_TASKS;
+  })[0];
+  if (!definition) throw new Error("Manual task action sheet definition was not found.");
+  const sheet = getOrCreateSheet_(spreadsheet, definition.name);
+  ensureHeaders_(sheet, definition.headers);
+  const latest = new Map();
+  sheetObjects_(sheet).forEach(function (row) {
+    const recordKey = String(row["Record Key"] || "").trim();
+    if (recordKey) latest.set(recordKey, row);
+  });
+  return latest;
+}
+
 function rebuildTatFacts_(config, runId) {
   const goodsSheet = getSheet_(INWARD_TAT.SHEETS.RAW_GOODS);
   const grnSheet = getSheet_(INWARD_TAT.SHEETS.RAW_GRN);
@@ -725,6 +741,7 @@ function rebuildTatFacts_(config, runId) {
   const grnMap = new Map();
   const grnPrimaryIndex = new Map();
   const putawayMap = new Map();
+  const manualActionMap = latestManualTaskActions_();
   const exceptions = [];
   const rxSkuGrnBridge = new Set();
   const ownSkuGrnBridge = new Set();
@@ -1007,29 +1024,43 @@ function rebuildTatFacts_(config, runId) {
     const facility = parts[0];
     const grnNumber = parts[1];
     const sku = parts.slice(2).join("|");
+    const manualAction = manualActionMap.get(key) || null;
+    const manualActionType = manualAction
+      ? String(manualAction["Action Type"] || "").trim().toUpperCase()
+      : "";
+    const manualUpdateActive = manualActionType === "UPDATE_FIELDS";
+    const manualCloseActive = manualActionType === "CLOSE";
+    const manualActionActive = manualUpdateActive || manualCloseActive;
+    const manualGrnReceived = manualUpdateActive
+      ? parseDateTime_(manualAction["Manual GRN Received Timestamp"])
+      : null;
+    const manualPutawayCompleted = manualUpdateActive
+      ? parseDateTime_(manualAction["Manual Putaway Completed Timestamp"])
+      : null;
     const issueCodes = [];
-
-    if (!goodsRow) issueCodes.push("NO_GOODS_MATCH");
-    if (joinBlocked) {
-      issueCodes.push("AMBIGUOUS_MATCH");
-    } else {
-      if (!grnRow) issueCodes.push("NO_GRN_MATCH");
-      if (!putawayRow) issueCodes.push("NO_PUTAWAY_MATCH");
-    }
-    if (
-      putawayRow &&
-      !putawayRow.allShelvesComplete
-    ) {
-      issueCodes.push("PUTAWAY_NOT_COMPLETE");
-    }
-
     const unloading = goodsRow ? goodsRow.timestamp : null;
-    const grnReceived = grnRow ? grnRow.timestamp : null;
-    const putawayCompleted =
+    const systemGrnReceived = grnRow ? grnRow.timestamp : null;
+    const systemPutawayCompleted =
       putawayRow &&
       putawayRow.allShelvesComplete
         ? putawayRow.timestamp
         : null;
+    const grnReceived = systemGrnReceived || manualGrnReceived;
+    const putawayCompleted = systemPutawayCompleted || manualPutawayCompleted;
+
+    if (!unloading) issueCodes.push("NO_GOODS_MATCH");
+    if (joinBlocked && (!grnReceived || !putawayCompleted)) {
+      issueCodes.push("AMBIGUOUS_MATCH");
+    } else {
+      if (!grnReceived) issueCodes.push("NO_GRN_MATCH");
+      if (!putawayCompleted) {
+        if (!putawayRow) issueCodes.push("NO_PUTAWAY_MATCH");
+        else if (!putawayRow.allShelvesComplete) {
+          issueCodes.push("PUTAWAY_NOT_COMPLETE");
+        }
+      }
+    }
+
     const kpi3 = hoursBetween_(unloading, grnReceived);
     const kpi2 = hoursBetween_(grnReceived, putawayCompleted);
     const kpi1 = hoursBetween_(unloading, putawayCompleted);
@@ -1038,7 +1069,32 @@ function rebuildTatFacts_(config, runId) {
     if (kpi2 !== null && kpi2 < 0) issueCodes.push("NEGATIVE_KPI2");
     if (kpi1 !== null && kpi1 < 0) issueCodes.push("NEGATIVE_KPI1");
 
-    const recordStatus = issueCodes.length ? "INCOMPLETE" : "COMPLETE";
+    const systemKpi3 = hoursBetween_(unloading, systemGrnReceived);
+    const systemKpi2 = hoursBetween_(systemGrnReceived, systemPutawayCompleted);
+    const systemKpi1 = hoursBetween_(unloading, systemPutawayCompleted);
+    const systemRecovered = Boolean(
+      manualActionActive &&
+      unloading &&
+      systemGrnReceived &&
+      systemPutawayCompleted &&
+      systemKpi3 >= 0 &&
+      systemKpi2 >= 0 &&
+      systemKpi1 >= 0
+    );
+    const recordStatus = issueCodes.length
+      ? manualCloseActive && !systemRecovered
+        ? "MANUALLY_CLOSED"
+        : "INCOMPLETE"
+      : "COMPLETE";
+    const manualActionStatus = systemRecovered
+      ? "SYSTEM_RECOVERED"
+      : manualCloseActive
+        ? "MANUALLY_CLOSED"
+        : manualUpdateActive
+          ? issueCodes.length
+            ? "MANUAL_UPDATE_PARTIAL"
+            : "MANUALLY_COMPLETED"
+          : "";
     factRows.push([
       key,
       facility,
@@ -1062,6 +1118,10 @@ function rebuildTatFacts_(config, runId) {
       new Date(),
       goodsRow ? goodsRow.matchMethod : "NO_GOODS_MATCH",
       goodsRow ? goodsRow.matchDetail : "No Goods Inward row resolved to this ERP key.",
+      manualActionStatus,
+      manualAction ? manualAction["Action By"] || "" : "",
+      manualAction ? manualAction["Action At"] || "" : "",
+      manualAction ? manualAction.Reason || "" : "",
     ]);
 
     issueCodes.forEach(function (code) {

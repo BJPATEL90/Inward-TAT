@@ -33,6 +33,7 @@ const INWARD_TAT = Object.freeze({
     IMPORT_LOG: "Import_Log",
     EXECUTION_LOG: "Execution_Log",
     EMAIL_LOG: "Email_Log",
+    MANUAL_TASKS: "Manual_Task_Actions",
   }),
 });
 
@@ -112,7 +113,8 @@ const SHEET_DEFINITIONS = Object.freeze([
       "KPI1 Unloading to Putaway Hours", "Unloading Date", "GRN Date", "Putaway Date",
       "Record Status", "Exception Code", "Exception Detail", "Goods Source Row",
       "GRN Source Row", "Putaway Source Row", "Calculated At", "Match Method",
-      "Match Detail",
+      "Match Detail", "Manual Action Status", "Manual Action By", "Manual Action At",
+      "Manual Action Reason",
     ],
   },
   {
@@ -160,6 +162,16 @@ const SHEET_DEFINITIONS = Object.freeze([
       "Email Run Id", "Generated At", "Period Start", "Period End", "Recipients",
       "KPI1 Hours", "KPI2 Hours", "KPI3 Hours", "CSV File Id", "Status", "Error Detail",
     ],
+  },
+  {
+    name: INWARD_TAT.SHEETS.MANUAL_TASKS,
+    tabColor: INWARD_TAT.COLORS.AMBER,
+    headers: [
+      "Action Id", "Record Key", "Facility", "GRN Number", "SKU", "Action Type",
+      "Manual GRN Received Timestamp", "Manual Putaway Completed Timestamp", "Reason",
+      "Remarks", "Evidence URL", "Action By", "Action At",
+    ],
+    widths: [240, 420, 150, 130, 220, 140, 190, 210, 220, 360, 300, 240, 170],
   },
 ]);
 
@@ -214,6 +226,7 @@ const CONFIG_DEFAULTS = Object.freeze([
   ["DASHBOARD_URL", "", "URL", "Production dashboard URL included in stakeholder email."],
   ["EMAIL_RECIPIENTS", "", "EMAIL_LIST", "Comma-separated stakeholder recipients."],
   ["EMAIL_SEND_TIME", "", "TIME", "Daily stakeholder email time in TIME_ZONE."],
+  ["MANUAL_TASK_USERS", "", "EMAIL_LIST", "Comma-separated Mosaic email addresses permitted to close tasks or enter missing timestamps."],
   ["EMAIL_LOOKBACK_DAYS", 45, "NUMBER", "Gmail search window used by the ingestion pipeline."],
   ["ERP_EXPORT_MODE", "MTD_CUMULATIVE", "TEXT", "Uses the latest MTD GRN export and latest named Putaway export for each facility."],
   ["PIPELINE_BATCH_SIZE", 500, "NUMBER", "Maximum rows written to Sheets in one operation."],

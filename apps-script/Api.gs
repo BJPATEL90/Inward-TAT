@@ -42,7 +42,7 @@ function handleApiRequest_(event) {
       );
       return apiResponse_(auth, event);
     }
-    if (action !== "dashboard") {
+    if (["dashboard", "manualtaskaction"].indexOf(action) === -1) {
       return jsonResponse_({ ok: false, error: "Unsupported action: " + action });
     }
 
@@ -52,6 +52,9 @@ function handleApiRequest_(event) {
     if (!auth.ok) {
       return apiResponse_(auth, event);
     }
+    if (action === "manualtaskaction") {
+      return apiResponse_(submitManualTaskAction_(event, auth.user), event);
+    }
 
     const bypassCache =
       String((event && event.parameter && event.parameter.refresh) || "") === "1";
@@ -59,7 +62,10 @@ function handleApiRequest_(event) {
     if (!bypassCache) {
       const cached = cache.get("INWARD_TAT_DASHBOARD_V1");
       if (cached) {
-        return apiTextResponse_(cached, event);
+        return apiResponse_(
+          attachDashboardUserContext_(JSON.parse(cached), auth.user),
+          event
+        );
       }
     }
 
@@ -68,7 +74,7 @@ function handleApiRequest_(event) {
     if (json.length < 90000) {
       cache.put("INWARD_TAT_DASHBOARD_V1", json, 120);
     }
-    return apiTextResponse_(json, event);
+    return apiResponse_(attachDashboardUserContext_(payload, auth.user), event);
   } catch (error) {
     return apiResponse_({
       ok: false,
@@ -117,6 +123,105 @@ function verifyGoogleCredential_(credential) {
   };
 }
 
+function attachDashboardUserContext_(payload, user) {
+  const result = Object.assign({}, payload);
+  result.permissions = {
+    canManagePendingTasks: isManualTaskUser_(user && user.email),
+  };
+  return result;
+}
+
+function isManualTaskUser_(email) {
+  const config = getConfig_();
+  const allowed = String(config.MANUAL_TASK_USERS || "")
+    .split(/[;,\n]/)
+    .map(function (value) {
+      return value.trim().toLowerCase();
+    })
+    .filter(Boolean);
+  return allowed.indexOf(String(email || "").trim().toLowerCase()) !== -1;
+}
+
+function submitManualTaskAction_(event, user) {
+  if (!isManualTaskUser_(user && user.email)) {
+    throw new Error("You are not authorised to update or close pending tasks.");
+  }
+  const parameters = (event && event.parameter) || {};
+  const recordKey = String(parameters.recordKey || "").trim();
+  const actionType = String(parameters.taskAction || "").trim().toUpperCase();
+  const reason = String(parameters.reason || "").trim();
+  const remarks = String(parameters.remarks || "").trim();
+  const evidenceUrl = String(parameters.evidenceUrl || "").trim();
+  if (!recordKey) throw new Error("Record key is required.");
+  if (["UPDATE_FIELDS", "CLOSE", "REOPEN"].indexOf(actionType) === -1) {
+    throw new Error("Unsupported manual task action.");
+  }
+  if (!reason) throw new Error("Reason is required for every manual action.");
+  if (!remarks) throw new Error("Remarks are required for every manual action.");
+
+  const fact = sheetObjects_(getSheet_(INWARD_TAT.SHEETS.FACT)).filter(function (row) {
+    return String(row["Record Key"] || "").trim() === recordKey;
+  })[0];
+  if (!fact) throw new Error("The selected pending task was not found.");
+
+  let manualGrn = null;
+  let manualPutaway = null;
+  if (actionType === "UPDATE_FIELDS") {
+    manualGrn = parseApiManualDateTime_(parameters.grnReceivedTimestamp);
+    manualPutaway = parseApiManualDateTime_(parameters.putawayCompletedTimestamp);
+    if (!manualGrn && !manualPutaway) {
+      throw new Error("Enter at least one missing timestamp.");
+    }
+    const unloading = parseDateTime_(fact["Unloading Timestamp"]);
+    const effectiveGrn = parseDateTime_(fact["GRN Received Timestamp"]) || manualGrn;
+    const effectivePutaway =
+      parseDateTime_(fact["Putaway Completed Timestamp"]) || manualPutaway;
+    if (!unloading) throw new Error("Unloading timestamp is missing and cannot be overridden here.");
+    if (effectiveGrn && effectiveGrn < unloading) {
+      throw new Error("GRN Received Timestamp cannot be earlier than unloading.");
+    }
+    if (effectivePutaway && effectivePutaway < unloading) {
+      throw new Error("Putaway Timestamp cannot be earlier than unloading.");
+    }
+    if (effectiveGrn && effectivePutaway && effectivePutaway < effectiveGrn) {
+      throw new Error("Putaway Timestamp cannot be earlier than GRN Received Timestamp.");
+    }
+  }
+
+  const definition = SHEET_DEFINITIONS.filter(function (entry) {
+    return entry.name === INWARD_TAT.SHEETS.MANUAL_TASKS;
+  })[0];
+  const sheet = getOrCreateSheet_(openInwardTatSpreadsheet_(), definition.name);
+  ensureHeaders_(sheet, definition.headers);
+  sheet.appendRow([
+    Utilities.getUuid(),
+    recordKey,
+    fact.Facility || "",
+    fact["GRN Number"] || "",
+    fact.SKU || "",
+    actionType,
+    manualGrn || "",
+    manualPutaway || "",
+    reason,
+    remarks,
+    evidenceUrl,
+    user.email,
+    new Date(),
+  ]);
+  const rebuild = rebuildHistoricalInwardTatFacts();
+  return {
+    ok: true,
+    recordKey: recordKey,
+    actionType: actionType,
+    completedAt: rebuild.completedAt,
+  };
+}
+
+function parseApiManualDateTime_(value) {
+  const text = String(value || "").trim().replace("T", " ");
+  return text ? parseDateTime_(text) : null;
+}
+
 function buildDashboardSnapshot_() {
   const config = getConfig_();
   const facts = sheetObjects_(getSheet_(INWARD_TAT.SHEETS.FACT));
@@ -150,6 +255,10 @@ function buildDashboardSnapshot_() {
         exceptionDetail: textOrBlank_(row["Exception Detail"]),
         matchMethod: textOrBlank_(row["Match Method"]),
         matchDetail: textOrBlank_(row["Match Detail"]),
+        manualActionStatus: textOrBlank_(row["Manual Action Status"]),
+        manualActionBy: textOrBlank_(row["Manual Action By"]),
+        manualActionAt: apiDateTime_(row["Manual Action At"]),
+        manualActionReason: textOrBlank_(row["Manual Action Reason"]),
       };
     });
 
@@ -175,7 +284,7 @@ function buildDashboardSnapshot_() {
 
   return {
     ok: true,
-    apiVersion: "1.0.0",
+    apiVersion: "1.1.0",
     generatedAt: new Date().toISOString(),
     timeZone: textOrBlank_(config.TIME_ZONE) || "Asia/Kolkata",
     lastRefresh: apiDateTime_(config.LAST_SUCCESSFUL_REFRESH),

@@ -445,7 +445,7 @@ function buildMonthlyWorkbook_(
 
 function summarizePendingEmailFacts_(facts) {
   const pending = facts.filter(function (row) {
-    return String(row["Record Status"] || "").toUpperCase() !== "COMPLETE";
+    return String(row["Record Status"] || "").toUpperCase() === "INCOMPLETE";
   });
   const summary = {
     total: pending.length,

@@ -46,6 +46,12 @@ ERP reports received on a date contain activity through the previous day. For ex
 
 ## Exception handling
 
+Manual task controls:
+
+- Access is restricted through the `MANUAL_TASK_USERS` Config list.
+- Every update, closure, and reopening is appended to `Manual_Task_Actions` with user, reason, remarks, evidence, and timestamp.
+- Manual timestamps contribute to KPIs only after sequence validation; later ERP timestamps automatically take precedence.
+
 | Exception | Action |
 |---|---|
 | Missing GRN | Verify exact facility, GRN, SKU, and GRN Received Timestamp |

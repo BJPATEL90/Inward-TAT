@@ -108,6 +108,13 @@ The React dashboard provides:
 - MTD and filtered CSV download
 - Last refresh timestamp
 - Responsive desktop and mobile layouts
+- Controlled manual task closure, timestamp completion, reopening, and audit history
+
+### Controlled manual task actions
+
+Run `setupInwardTatWorkbook` after deployment to create `Manual_Task_Actions` and the `MANUAL_TASK_USERS` Config key. Add permitted Mosaic email addresses to that Config value as a comma-separated list. Only those signed-in users can update missing GRN/Putaway timestamps, close tasks, or reopen manually closed tasks.
+
+Manual timestamps are stored separately from raw ERP data and are used only when the corresponding system timestamp is missing. Valid manual timestamps contribute to KPI calculations. Every rebuild continues checking ERP data; once valid system timestamps arrive, they take precedence and the Fact record is marked `SYSTEM_RECOVERED` in its manual-action audit fields.
 
 The selected date range is based on Vehicle Unloading Date. All three selected-range KPIs change with the date and facility filters.
 

@@ -19,7 +19,7 @@ import {
   TableProperties,
   X,
 } from "lucide-react";
-import { hasLiveApi, loadDashboard } from "./api";
+import { hasLiveApi, loadDashboard, submitManualTaskAction } from "./api";
 import {
   clearSession,
   getAuthConfig,
@@ -222,13 +222,33 @@ function DashboardApp({ authUser, onSignOut }) {
             .join(" ")
             .toLowerCase()
             .includes(normalizedQuery);
-        return row.status !== "COMPLETE" && dateMatch && facilityMatch && queryMatch;
+        return row.status === "INCOMPLETE" && dateMatch && facilityMatch && queryMatch;
       })
       .sort((a, b) =>
         String(b.unloadingTimestamp || b.unloadingDate).localeCompare(
           String(a.unloadingTimestamp || a.unloadingDate),
         ),
       );
+  }, [snapshot, fromDate, toDate, facility, query]);
+
+  const manuallyClosedFacts = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return (snapshot?.facts || [])
+      .filter((row) => {
+        const dateMatch =
+          row.unloadingDate &&
+          (!fromDate || row.unloadingDate >= fromDate) &&
+          (!toDate || row.unloadingDate <= toDate);
+        const facilityMatch = facility === "All facilities" || row.facility === facility;
+        const queryMatch =
+          !normalizedQuery ||
+          [row.grnNumber, row.sku, row.facility, row.manualActionReason]
+            .join(" ")
+            .toLowerCase()
+            .includes(normalizedQuery);
+        return row.status === "MANUALLY_CLOSED" && dateMatch && facilityMatch && queryMatch;
+      })
+      .sort((a, b) => String(b.manualActionAt || "").localeCompare(String(a.manualActionAt || "")));
   }, [snapshot, fromDate, toDate, facility, query]);
 
   const selectedSummary = useMemo(() => {
@@ -259,6 +279,10 @@ function DashboardApp({ authUser, onSignOut }) {
       "KPI3 Unloading to GRN",
       "Status",
       "Exception",
+      "Manual Action Status",
+      "Manual Action By",
+      "Manual Action At",
+      "Manual Action Reason",
     ];
     const rows = rowsToExport.map((row) => [
       row.facility,
@@ -272,6 +296,10 @@ function DashboardApp({ authUser, onSignOut }) {
       formatDuration(row.kpi3Hours),
       row.status,
       row.exceptionCode,
+      row.manualActionStatus,
+      row.manualActionBy,
+      row.manualActionAt,
+      row.manualActionReason,
     ]);
     const csv = [headers, ...rows]
       .map((row) => row.map(csvCell).join(","))
@@ -351,6 +379,7 @@ function DashboardApp({ authUser, onSignOut }) {
         ) : page === "pending" ? (
           <PendingTasks
             rows={pendingFacts}
+            closedRows={manuallyClosedFacts}
             fromDate={fromDate}
             toDate={toDate}
             setFromDate={setFromDate}
@@ -361,6 +390,8 @@ function DashboardApp({ authUser, onSignOut }) {
             setQuery={setQuery}
             generatedAt={snapshot?.generatedAt}
             onExport={exportCsv}
+            canManage={Boolean(snapshot?.permissions?.canManagePendingTasks)}
+            onTaskUpdated={() => hydrate(true)}
           />
         ) : (
           <CalculationLogic />
@@ -914,6 +945,7 @@ function FacilityPanel({ facilities }) {
 
 function PendingTasks({
   rows,
+  closedRows,
   fromDate,
   toDate,
   setFromDate,
@@ -924,7 +956,12 @@ function PendingTasks({
   setQuery,
   generatedAt,
   onExport,
+  canManage,
+  onTaskUpdated,
 }) {
+  const [taskView, setTaskView] = useState("open");
+  const [taskEditor, setTaskEditor] = useState(null);
+  const displayRows = taskView === "closed" ? closedRows : rows;
   const facilityCounts = FACILITIES.slice(1).map((name) => ({
     facility: name,
     count: rows.filter((row) => row.facility === name).length,
@@ -987,8 +1024,14 @@ function PendingTasks({
         <label><span>Facility</span><select value={facility} onChange={(event) => setFacility(event.target.value)}>{FACILITIES.map((option) => <option key={option}>{option}</option>)}</select></label>
       </section>
 
+      <div className="task-view-tabs" role="tablist" aria-label="Task status view">
+        <button type="button" className={taskView === "open" ? "active" : ""} onClick={() => setTaskView("open")}>Open tasks <span>{rows.length}</span></button>
+        <button type="button" className={taskView === "closed" ? "active" : ""} onClick={() => setTaskView("closed")}>Manually closed <span>{closedRows.length}</span></button>
+        {!canManage && <small>Manual actions are restricted to users listed in Config.</small>}
+      </div>
+
       <section className="pending-list" aria-label="Pending task list">
-        {rows.slice(0, 200).map((row) => {
+        {displayRows.slice(0, 200).map((row) => {
           const stage = pendingStage(row.exceptionCode);
           return (
             <article className="pending-task" key={row.recordKey}>
@@ -1009,19 +1052,113 @@ function PendingTasks({
               </div>
               <div className="pending-reason">
                 <AlertCircle size={16} />
-                <div><strong>{stage.action}</strong><small>{readableException(row.exceptionCode)}</small></div>
+                <div className="pending-reason-content">
+                  <strong>{taskView === "closed" ? "Manually closed" : stage.action}</strong>
+                  <small>{taskView === "closed" ? row.manualActionReason || "Closed by authorised user" : readableException(row.exceptionCode)}</small>
+                  {canManage && (
+                    <div className="pending-task-actions">
+                      {taskView === "open" ? (
+                        <>
+                          <button type="button" onClick={() => setTaskEditor({ row, mode: "UPDATE_FIELDS" })}>Update fields</button>
+                          <button type="button" className="danger" onClick={() => setTaskEditor({ row, mode: "CLOSE" })}>Close</button>
+                        </>
+                      ) : (
+                        <button type="button" onClick={() => setTaskEditor({ row, mode: "REOPEN" })}>Reopen task</button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </article>
           );
         })}
-        {!rows.length && (
+        {!displayRows.length && (
           <div className="pending-empty">
             <CheckCircle2 size={30} />
-            <strong>No pending tasks in this selection</strong>
-            <span>All unloading-backed records are complete.</span>
+            <strong>{taskView === "closed" ? "No manually closed tasks" : "No pending tasks in this selection"}</strong>
+            <span>{taskView === "closed" ? "Closed task history will appear here." : "All unloading-backed records are complete."}</span>
           </div>
         )}
-        {rows.length > 200 && <footer className="table-footer">Showing the latest 200 tasks. Download CSV for the complete filtered list.</footer>}
+        {displayRows.length > 200 && <footer className="table-footer">Showing the latest 200 tasks. Download CSV for the complete filtered list.</footer>}
+      </section>
+      {taskEditor && (
+        <ManualTaskModal
+          editor={taskEditor}
+          onClose={() => setTaskEditor(null)}
+          onSaved={async () => {
+            setTaskEditor(null);
+            await onTaskUpdated();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ManualTaskModal({ editor, onClose, onSaved }) {
+  const { row, mode } = editor;
+  const [form, setForm] = useState({
+    grnReceivedTimestamp: "",
+    putawayCompletedTimestamp: "",
+    reason: "",
+    remarks: "",
+    evidenceUrl: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const title = mode === "UPDATE_FIELDS" ? "Update missing fields" : mode === "CLOSE" ? "Close pending task" : "Reopen task";
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await submitManualTaskAction({
+        recordKey: row.recordKey,
+        taskAction: mode,
+        ...form,
+      });
+      await onSaved();
+    } catch (submitError) {
+      setError(submitError.message || "Unable to save the manual action.");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="task-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className="task-modal" role="dialog" aria-modal="true" aria-labelledby="manual-task-title">
+        <header>
+          <div><span>Controlled manual action</span><h3 id="manual-task-title">{title}</h3></div>
+          <button type="button" onClick={onClose} aria-label="Close dialog"><X size={18} /></button>
+        </header>
+        <div className="task-modal-record">
+          <span className={`facility-pill ${facilityClass(row.facility)}`}>{row.facility}</span>
+          <div><strong>{row.grnNumber}</strong><small>{row.sku}</small></div>
+        </div>
+        <form onSubmit={submit}>
+          {mode === "UPDATE_FIELDS" && (
+            <div className="manual-timestamp-grid">
+              {!row.grnReceivedTimestamp ? (
+                <label><span>GRN Received Timestamp</span><input type="datetime-local" value={form.grnReceivedTimestamp} onChange={(event) => update("grnReceivedTimestamp", event.target.value)} /></label>
+              ) : <div className="existing-timestamp"><span>GRN Received</span><strong>{formatTableDate(row.grnReceivedTimestamp)}</strong></div>}
+              {!row.putawayCompletedTimestamp ? (
+                <label><span>Putaway Completed Timestamp</span><input type="datetime-local" value={form.putawayCompletedTimestamp} onChange={(event) => update("putawayCompletedTimestamp", event.target.value)} /></label>
+              ) : <div className="existing-timestamp"><span>Putaway Completed</span><strong>{formatTableDate(row.putawayCompletedTimestamp)}</strong></div>}
+            </div>
+          )}
+          <label><span>Reason</span><select required value={form.reason} onChange={(event) => update("reason", event.target.value)}><option value="">Select reason</option><option>ERP data missing but operation verified</option><option>Physical completion confirmed</option><option>Matching issue verified</option><option>Incorrect or duplicate pending task</option><option>Other</option></select></label>
+          <label><span>Remarks</span><textarea required rows="3" value={form.remarks} onChange={(event) => update("remarks", event.target.value)} placeholder="Enter the verification and supporting details" /></label>
+          <label><span>Evidence URL <small>optional</small></span><input type="url" value={form.evidenceUrl} onChange={(event) => update("evidenceUrl", event.target.value)} placeholder="Google Drive or supporting document link" /></label>
+          <div className={`manual-action-note ${mode === "CLOSE" ? "warning" : ""}`}>
+            {mode === "UPDATE_FIELDS" && "Valid manual timestamps will be included in KPI calculations until ERP data recovers."}
+            {mode === "CLOSE" && "This task will leave the open list and remain excluded from KPIs until ERP data recovers."}
+            {mode === "REOPEN" && "The task will return to the open pending list on the next refresh."}
+          </div>
+          {error && <div className="task-modal-error"><AlertCircle size={15} />{error}</div>}
+          <footer><button type="button" className="modal-cancel" onClick={onClose}>Cancel</button><button type="submit" className="modal-submit" disabled={saving}>{saving ? "Saving…" : "Confirm action"}</button></footer>
+        </form>
       </section>
     </div>
   );
