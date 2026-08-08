@@ -174,6 +174,7 @@ function buildInwardTatEmailPayload_(config) {
     return !latest || date > latest ? date : latest;
   }, null);
   const summary = summarizeEmailFacts_(mtdFacts);
+  const pendingSummary = summarizePendingEmailFacts_(mtdFacts);
   const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
   const yesterdayKey = Utilities.formatDate(yesterday, timeZone, "yyyy-MM-dd");
   const yesterdaySummary = summarizeEmailFacts_(
@@ -221,6 +222,7 @@ function buildInwardTatEmailPayload_(config) {
         mtd: summary,
         yesterday: yesterdaySummary,
       },
+      pendingSummary,
       monthStart,
       periodEnd,
       yesterday,
@@ -441,6 +443,43 @@ function buildMonthlyWorkbook_(
   }
 }
 
+function summarizePendingEmailFacts_(facts) {
+  const pending = facts.filter(function (row) {
+    return String(row["Record Status"] || "").toUpperCase() !== "COMPLETE";
+  });
+  const summary = {
+    total: pending.length,
+    awaitingGrn: 0,
+    awaitingPutaway: 0,
+    dataReview: 0,
+    facilities: {
+      "SL Ambient": 0,
+      "SL Mother Hub": 0,
+      "SL Rx": 0,
+    },
+  };
+
+  pending.forEach(function (row) {
+    const facility = normalizeFacility_(row.Facility);
+    if (Object.prototype.hasOwnProperty.call(summary.facilities, facility)) {
+      summary.facilities[facility] += 1;
+    }
+    const codes = String(row["Exception Code"] || "").split("|");
+    if (codes.indexOf("NO_GRN_MATCH") !== -1) {
+      summary.awaitingGrn += 1;
+    } else if (
+      codes.indexOf("NO_PUTAWAY_MATCH") !== -1 ||
+      codes.indexOf("PUTAWAY_NOT_COMPLETE") !== -1
+    ) {
+      summary.awaitingPutaway += 1;
+    } else {
+      summary.dataReview += 1;
+    }
+  });
+
+  return summary;
+}
+
 function buildMtdCsv_(facts, periodStart, periodEnd, timeZone) {
   const headers = [
     "Facility",
@@ -483,6 +522,7 @@ function buildMtdCsv_(facts, periodStart, periodEnd, timeZone) {
 
 function buildInwardTatEmailHtml_(
   periods,
+  pendingSummary,
   periodStart,
   periodEnd,
   yesterday,
@@ -536,7 +576,7 @@ function buildInwardTatEmailHtml_(
     '.header-logo div{width:82px!important;height:57px!important;padding-top:19px!important}.email-title{font-size:24px!important;line-height:30px!important}' +
     '.email-content{display:block!important;width:100%!important;box-sizing:border-box!important;padding:24px 0 30px!important}.content-inner{display:block!important;width:calc(100% - 32px)!important;max-width:calc(100% - 32px)!important;min-width:0!important;margin:0 16px!important;overflow:hidden!important}.kpi-grid{max-width:100%!important;min-width:0!important;table-layout:auto!important;border-spacing:0!important}.kpi-grid,.kpi-grid tbody,.kpi-grid tr,.kpi-card{display:block!important;width:100%!important}' +
     '.kpi-card{box-sizing:border-box!important;margin:0 0 12px!important;padding:18px 14px!important}.alert-cell{padding:18px 16px!important}' +
-    '.trend-image{width:100%!important;max-width:100%!important;height:auto!important;box-sizing:border-box!important;object-fit:contain!important}.dashboard-button{display:block!important;box-sizing:border-box!important;width:100%!important;padding:14px 16px!important}.kpi-definitions span{display:block!important;margin-top:5px!important}.kpi-definitions .separator{display:none!important}.email-footer{max-width:100%!important;padding:0 8px!important;overflow-wrap:anywhere!important;word-break:break-word!important}' +
+    '.trend-image{width:100%!important;max-width:100%!important;height:auto!important;box-sizing:border-box!important;object-fit:contain!important}.pending-grid,.pending-grid tbody,.pending-grid tr,.pending-cell{display:block!important;width:100%!important}.pending-cell{box-sizing:border-box!important;margin:0 0 9px!important}.pending-facilities span{display:block!important;margin:6px 0 0!important}.dashboard-button{display:block!important;box-sizing:border-box!important;width:100%!important;padding:14px 16px!important}.kpi-definitions span{display:block!important;margin-top:5px!important}.kpi-definitions .separator{display:none!important}.email-footer{max-width:100%!important;padding:0 8px!important;overflow-wrap:anywhere!important;word-break:break-word!important}' +
     '}' +
     '</style></head><body style="margin:0;padding:0;background:#f1f5fa">' +
     '<div class="email-shell" style="margin:0;background:#f1f5fa;padding:20px;font-family:Arial,Helvetica,sans-serif;color:#172033">' +
@@ -594,11 +634,54 @@ function buildInwardTatEmailHtml_(
     '<div style="font-size:18px;font-weight:700;margin-top:28px">MTD KPI1 Daily Trend</div>' +
     '<div style="font-size:13px;color:#60718d;margin-top:5px">Unloading to Putaway average hours by unloading date.</div>' +
     '<div style="margin-top:14px"><img class="trend-image" src="cid:mtdTrend" alt="MTD KPI1 trend" style="display:block;width:100%;height:auto;max-width:824px;border:1px solid #d9e1ef;border-radius:12px"></div>' +
+    buildPendingEmailSummary_(pendingSummary) +
     '<div style="text-align:center;margin-top:28px"><a href="' +
     dashboardUrl +
     '" class="dashboard-button" style="display:inline-block;background:#2750df;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:9px;font-size:15px;font-weight:700">Open Inward TAT Dashboard</a></div>' +
     '<div class="email-footer" style="font-size:12px;line-height:18px;color:#71809a;margin-top:22px;text-align:center;box-sizing:border-box">The attached Excel workbook contains separate Last Month and Current MTD tabs at Facility + GRN + SKU level.<br>Dashboard access is restricted to Mosaic Wellness Google accounts.</div>' +
     "</div></td></tr></table></div></body></html>"
+  );
+}
+
+function buildPendingEmailSummary_(summary) {
+  const facilityHtml = [
+    ["SL Ambient", summary.facilities["SL Ambient"] || 0],
+    ["SL Mother Hub", summary.facilities["SL Mother Hub"] || 0],
+    ["SL Rx", summary.facilities["SL Rx"] || 0],
+  ].map(function (item) {
+    return '<span style="display:inline-block;margin-right:18px"><strong style="color:#172b59">' +
+      item[1] +
+      "</strong> " +
+      item[0] +
+      "</span>";
+  }).join("");
+
+  return (
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:26px;border:1px solid #d8e1ef;border-radius:13px;background:#f8faff"><tr><td style="padding:20px">' +
+    '<div style="font-size:18px;font-weight:700;color:#172033">Pending Tasks Summary</div>' +
+    '<div style="margin-top:5px;font-size:12px;line-height:18px;color:#65758f">Open MTD unloading records are rechecked and closed automatically after each cumulative ERP refresh.</div>' +
+    '<table class="pending-grid" role="presentation" width="100%" cellspacing="8" cellpadding="0" style="margin-top:12px;table-layout:fixed"><tr>' +
+    buildPendingEmailCell_("TOTAL OPEN", summary.total, "#fff4d2", "#9a6200") +
+    buildPendingEmailCell_("AWAITING GRN", summary.awaitingGrn, "#fff4d2", "#9a6200") +
+    buildPendingEmailCell_("AWAITING PUTAWAY", summary.awaitingPutaway, "#eaf0ff", "#294fc0") +
+    buildPendingEmailCell_("DATA REVIEW", summary.dataReview, "#fff0ee", "#b8322a") +
+    '</tr></table><div class="pending-facilities" style="margin-top:12px;padding-top:12px;border-top:1px solid #dce4ef;font-size:12px;color:#60718d">' +
+    facilityHtml +
+    "</div></td></tr></table>"
+  );
+}
+
+function buildPendingEmailCell_(label, value, background, color) {
+  return (
+    '<td class="pending-cell" width="25%" valign="top" style="padding:12px 9px;border-radius:9px;text-align:center;background:' +
+    background +
+    ';color:' +
+    color +
+    '"><div style="font-size:9px;font-weight:700;letter-spacing:.4px">' +
+    label +
+    '</div><div style="margin-top:5px;font-size:23px;line-height:28px;font-weight:800">' +
+    value +
+    "</div></td>"
   );
 }
 

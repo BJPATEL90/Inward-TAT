@@ -6,6 +6,7 @@ import {
   CalendarRange,
   CheckCircle2,
   ChevronRight,
+  ClipboardList,
   Clock3,
   Database,
   Download,
@@ -206,6 +207,30 @@ function DashboardApp({ authUser, onSignOut }) {
     });
   }, [snapshot, fromDate, toDate, facility, status, query]);
 
+  const pendingFacts = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return (snapshot?.facts || [])
+      .filter((row) => {
+        const dateMatch =
+          row.unloadingDate &&
+          (!fromDate || row.unloadingDate >= fromDate) &&
+          (!toDate || row.unloadingDate <= toDate);
+        const facilityMatch = facility === "All facilities" || row.facility === facility;
+        const queryMatch =
+          !normalizedQuery ||
+          [row.grnNumber, row.sku, row.facility, row.exceptionCode]
+            .join(" ")
+            .toLowerCase()
+            .includes(normalizedQuery);
+        return row.status !== "COMPLETE" && dateMatch && facilityMatch && queryMatch;
+      })
+      .sort((a, b) =>
+        String(b.unloadingTimestamp || b.unloadingDate).localeCompare(
+          String(a.unloadingTimestamp || a.unloadingDate),
+        ),
+      );
+  }, [snapshot, fromDate, toDate, facility, query]);
+
   const selectedSummary = useMemo(() => {
     const isFullPreviewRange =
       source === "preview" &&
@@ -220,7 +245,8 @@ function DashboardApp({ authUser, onSignOut }) {
   }, [filteredFacts, source, facility, status, query, fromDate, toDate, defaultFrom, defaultTo, snapshot]);
 
   const exportCsv = () => {
-    const rowsToExport = page === "details" ? filteredFacts : snapshot?.facts || [];
+    const rowsToExport =
+      page === "details" ? filteredFacts : page === "pending" ? pendingFacts : snapshot?.facts || [];
     const headers = [
       "Facility",
       "GRN Number",
@@ -254,7 +280,8 @@ function DashboardApp({ authUser, onSignOut }) {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `inward-tat-${page === "details" ? "filtered" : "mtd"}.csv`;
+    const exportName = page === "details" ? "filtered" : page === "pending" ? "pending-tasks" : "mtd";
+    anchor.download = `inward-tat-${exportName}.csv`;
     anchor.click();
     URL.revokeObjectURL(url);
   };
@@ -321,6 +348,19 @@ function DashboardApp({ authUser, onSignOut }) {
             query={query}
             setQuery={setQuery}
           />
+        ) : page === "pending" ? (
+          <PendingTasks
+            rows={pendingFacts}
+            fromDate={fromDate}
+            toDate={toDate}
+            setFromDate={setFromDate}
+            setToDate={setToDate}
+            facility={facility}
+            setFacility={setFacility}
+            query={query}
+            setQuery={setQuery}
+            generatedAt={snapshot?.generatedAt}
+          />
         ) : (
           <CalculationLogic />
         )}
@@ -332,6 +372,7 @@ function DashboardApp({ authUser, onSignOut }) {
 function Sidebar({ page, setPage, open }) {
   const items = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "pending", label: "Pending Tasks", icon: ClipboardList },
     { id: "details", label: "Detailed Records", icon: TableProperties },
     { id: "logic", label: "Calculation Logic", icon: BookOpen },
   ];
@@ -369,12 +410,16 @@ function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, s
   const pageTitle =
     page === "dashboard"
       ? "Vehicle Arrival to Putaway TAT"
+      : page === "pending"
+        ? "Pending Tasks"
       : page === "details"
         ? "Detailed TAT Records"
         : "Calculation & Publication Logic";
   const pageSubtitle =
     page === "dashboard"
       ? "Mother-facility inbound performance"
+      : page === "pending"
+        ? "Open GRN, Putaway, timestamp, and matching actions"
       : page === "details"
         ? "Resolved ERP Facility + GRN + SKU level review"
         : "How records are matched, calculated, excluded, and published";
@@ -782,6 +827,127 @@ function FacilityPanel({ facilities }) {
   );
 }
 
+function PendingTasks({
+  rows,
+  fromDate,
+  toDate,
+  setFromDate,
+  setToDate,
+  facility,
+  setFacility,
+  query,
+  setQuery,
+  generatedAt,
+}) {
+  const facilityCounts = FACILITIES.slice(1).map((name) => ({
+    facility: name,
+    count: rows.filter((row) => row.facility === name).length,
+  }));
+  const awaitingGrn = rows.filter((row) => pendingStage(row.exceptionCode).key === "grn").length;
+  const awaitingPutaway = rows.filter((row) => pendingStage(row.exceptionCode).key === "putaway").length;
+  const dataReview = rows.length - awaitingGrn - awaitingPutaway;
+
+  return (
+    <div className="page-content pending-page">
+      <section className="pending-hero">
+        <div>
+          <span className="section-eyebrow">Operational follow-up</span>
+          <h2>Records awaiting completion</h2>
+          <p>
+            These tasks are rechecked against every new cumulative ERP report and close automatically
+            after the required timestamps and completed Putaway shelves are available.
+          </p>
+        </div>
+        <div className="pending-total">
+          <strong>{rows.length}</strong>
+          <span>open tasks</span>
+        </div>
+      </section>
+
+      <section className="pending-metrics">
+        <PendingMetric label="Awaiting GRN" value={awaitingGrn} tone="amber" />
+        <PendingMetric label="Awaiting Putaway" value={awaitingPutaway} tone="blue" />
+        <PendingMetric label="Data review" value={dataReview} tone="red" />
+        <article className="pending-facility-metric">
+          <span>Pending by facility</span>
+          <div>
+            {facilityCounts.map((item) => (
+              <small key={item.facility}>
+                <b>{item.count}</b> {shortFacility(item.facility)}
+              </small>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <section className="pending-filters">
+        <label className="search-control">
+          <Search size={17} />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search GRN, SKU, facility or reason"
+          />
+          {query && <button onClick={() => setQuery("")} aria-label="Clear search"><X size={15} /></button>}
+        </label>
+        <label><span>From</span><input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /></label>
+        <label><span>To</span><input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></label>
+        <label><span>Facility</span><select value={facility} onChange={(event) => setFacility(event.target.value)}>{FACILITIES.map((option) => <option key={option}>{option}</option>)}</select></label>
+      </section>
+
+      <section className="pending-list" aria-label="Pending task list">
+        {rows.slice(0, 200).map((row) => {
+          const stage = pendingStage(row.exceptionCode);
+          return (
+            <article className="pending-task" key={row.recordKey}>
+              <div className={`pending-stage stage-${stage.key}`}>
+                <span>{stage.label}</span>
+                <small>{pendingAge(row.unloadingTimestamp || row.unloadingDate, generatedAt)}</small>
+              </div>
+              <div className="pending-identity">
+                <span className={`facility-pill ${facilityClass(row.facility)}`}>{row.facility}</span>
+                <div><strong>{row.grnNumber || "GRN pending"}</strong><small>{row.sku}</small></div>
+              </div>
+              <div className="pending-timeline">
+                <PendingMilestone label="Unloading" value={row.unloadingTimestamp} complete />
+                <ArrowRight size={15} />
+                <PendingMilestone label="GRN received" value={row.grnReceivedTimestamp} complete={Boolean(row.grnReceivedTimestamp)} />
+                <ArrowRight size={15} />
+                <PendingMilestone label="Putaway" value={row.putawayCompletedTimestamp} complete={Boolean(row.putawayCompletedTimestamp)} />
+              </div>
+              <div className="pending-reason">
+                <AlertCircle size={16} />
+                <div><strong>{stage.action}</strong><small>{readableException(row.exceptionCode)}</small></div>
+              </div>
+            </article>
+          );
+        })}
+        {!rows.length && (
+          <div className="pending-empty">
+            <CheckCircle2 size={30} />
+            <strong>No pending tasks in this selection</strong>
+            <span>All unloading-backed records are complete.</span>
+          </div>
+        )}
+        {rows.length > 200 && <footer className="table-footer">Showing the latest 200 tasks. Download CSV for the complete filtered list.</footer>}
+      </section>
+    </div>
+  );
+}
+
+function PendingMetric({ label, value, tone }) {
+  return <article className={`pending-metric tone-${tone}`}><span>{label}</span><strong>{value}</strong><small>open records</small></article>;
+}
+
+function PendingMilestone({ label, value, complete }) {
+  return (
+    <div className={complete ? "milestone-complete" : "milestone-pending"}>
+      <span>{label}</span>
+      <strong>{value ? formatTableDate(value) : "Pending"}</strong>
+    </div>
+  );
+}
+
 function Details({
   rows,
   fromDate,
@@ -1024,6 +1190,57 @@ function facilityClass(facility) {
   if (facility === "SL Mother Hub") return "mother";
   if (facility === "SL Ambient") return "ambient";
   return "rx";
+}
+
+function shortFacility(facility) {
+  if (facility === "SL Mother Hub") return "Mother Hub";
+  if (facility === "SL Ambient") return "Ambient";
+  return "Rx";
+}
+
+function pendingStage(exceptionCode = "") {
+  const codes = String(exceptionCode).split("|");
+  if (codes.includes("NO_GRN_MATCH")) {
+    return { key: "grn", label: "Awaiting GRN", action: "Check GRN availability or matching fields" };
+  }
+  if (codes.includes("NO_PUTAWAY_MATCH") || codes.includes("PUTAWAY_NOT_COMPLETE")) {
+    return { key: "putaway", label: "Awaiting Putaway", action: "Check Putaway completion in ERP" };
+  }
+  if (codes.some((code) => code.startsWith("NEGATIVE_KPI"))) {
+    return { key: "review", label: "Timestamp review", action: "Correct the timestamp sequence" };
+  }
+  if (codes.includes("AMBIGUOUS_MATCH")) {
+    return { key: "review", label: "Match review", action: "Resolve the ambiguous source match" };
+  }
+  return { key: "review", label: "Data review", action: "Review missing or inconsistent source data" };
+}
+
+function readableException(exceptionCode = "") {
+  const labels = {
+    NO_GRN_MATCH: "GRN record not matched",
+    NO_PUTAWAY_MATCH: "Putaway record not matched",
+    PUTAWAY_NOT_COMPLETE: "One or more shelf rows are incomplete",
+    NEGATIVE_KPI1: "Putaway precedes unloading",
+    NEGATIVE_KPI2: "Putaway precedes GRN",
+    NEGATIVE_KPI3: "GRN precedes unloading",
+    AMBIGUOUS_MATCH: "More than one matching record found",
+  };
+  return String(exceptionCode)
+    .split("|")
+    .filter(Boolean)
+    .map((code) => labels[code] || code.replaceAll("_", " ").toLowerCase())
+    .join(" · ") || "Incomplete record";
+}
+
+function pendingAge(startValue, endValue) {
+  if (!startValue) return "Age unavailable";
+  const start = new Date(startValue);
+  const end = endValue ? new Date(endValue) : new Date();
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "Age unavailable";
+  const hours = Math.max(0, Math.floor((end.getTime() - start.getTime()) / 3600000));
+  if (hours < 24) return `${hours}h open`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ${hours % 24}h open`;
 }
 
 export default App;
