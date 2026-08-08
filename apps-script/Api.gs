@@ -362,17 +362,17 @@ function summarizeApiFacts_(facts) {
   const completeFacts = facts.filter(function (row) {
     return row.status === "COMPLETE";
   });
-  const kpi1 = completeFacts
+  const kpi1 = facts
     .map(function (row) {
       return row.kpi1Hours;
     })
     .filter(isApiNumber_);
-  const kpi2 = completeFacts
+  const kpi2 = facts
     .map(function (row) {
       return row.kpi2Hours;
     })
     .filter(isApiNumber_);
-  const kpi3 = completeFacts
+  const kpi3 = facts
     .map(function (row) {
       return row.kpi3Hours;
     })

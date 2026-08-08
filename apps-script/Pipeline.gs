@@ -1379,11 +1379,11 @@ function rebuildMtdSummary_(factRows, goodsRows, config) {
       }
       const group = groups.get(key);
       group.unique += 1;
+      if (typeof row[9] === "number") group.kpi1.push(row[9]);
+      if (typeof row[8] === "number") group.kpi2.push(row[8]);
+      if (typeof row[7] === "number") group.kpi3.push(row[7]);
       if (row[13] === "COMPLETE") {
         group.complete += 1;
-        if (typeof row[9] === "number") group.kpi1.push(row[9]);
-        if (typeof row[8] === "number") group.kpi2.push(row[8]);
-        if (typeof row[7] === "number") group.kpi3.push(row[7]);
       } else {
         group.exceptions += 1;
       }

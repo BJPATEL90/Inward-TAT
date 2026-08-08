@@ -100,6 +100,7 @@ The React dashboard provides:
 
 - Executive ribbon for Last Quarter, Last Month, MTD, and Yesterday
 - KPI1, KPI2, and KPI3 values as hours and minutes, with decimal hours shown underneath
+- Per-KPI available-record counts; each average excludes rows missing that KPI's required timestamps
 - Yesterday data-pending alert when no unloading records are available
 - Custom From/To date filters
 - Facility filter

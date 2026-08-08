@@ -710,9 +710,9 @@ function Dashboard({
       </section>
 
       <section className="range-kpis">
-        <MiniKpi kpi="KPI1" label={labels.kpi1 || "Unloading to Putaway"} value={selectedSummary.kpi1Hours} note="Calculated for selected range" primary />
-        <MiniKpi kpi="KPI2" label={labels.kpi2 || "GRN to Putaway"} value={selectedSummary.kpi2Hours} note="Calculated for selected range" />
-        <MiniKpi kpi="KPI3" label={labels.kpi3 || "Unloading to GRN"} value={selectedSummary.kpi3Hours} note="Calculated for selected range" />
+        <MiniKpi kpi="KPI1" label={labels.kpi1 || "Unloading to Putaway"} value={selectedSummary.kpi1Hours} records={selectedSummary.kpi1Records} note="Records with unloading and putaway" primary />
+        <MiniKpi kpi="KPI2" label={labels.kpi2 || "GRN to Putaway"} value={selectedSummary.kpi2Hours} records={selectedSummary.kpi2Records} note="Records with GRN and putaway" />
+        <MiniKpi kpi="KPI3" label={labels.kpi3 || "Unloading to GRN"} value={selectedSummary.kpi3Hours} records={selectedSummary.kpi3Records} note="Records with unloading and GRN" />
         <article className="completion-card">
           <div className="completion-icon"><CheckCircle2 size={23} /></div>
           <div>
@@ -779,13 +779,13 @@ function PeriodCard({ title, data = {}, dates, tone, labels }) {
   );
 }
 
-function MiniKpi({ kpi, label, value, note, primary = false }) {
+function MiniKpi({ kpi, label, value, records, note, primary = false }) {
   return (
     <article className={`mini-kpi ${primary ? "primary" : ""}`}>
       <span><b>{kpi}</b> · {label}</span>
       <strong>{formatDurationWords(value)}</strong>
       <em className="decimal-duration">{formatDecimalHours(value)}</em>
-      <small>{note}</small>
+      <small>{note} · {records || 0} records</small>
     </article>
   );
 }
@@ -1444,14 +1444,20 @@ function summarizeFacts(rows) {
   const average = (values) =>
     values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
   const completeRows = rows.filter((row) => row.status === "COMPLETE");
-  const values = (key) => completeRows.map((row) => row[key]).filter((value) => Number.isFinite(value));
+  const values = (key) => rows.map((row) => row[key]).filter((value) => Number.isFinite(value));
+  const kpi1 = values("kpi1Hours");
+  const kpi2 = values("kpi2Hours");
+  const kpi3 = values("kpi3Hours");
   return {
     records: rows.length,
     completeRecords: completeRows.length,
     exceptionRecords: rows.filter((row) => row.status !== "COMPLETE").length,
-    kpi1Hours: average(values("kpi1Hours")),
-    kpi2Hours: average(values("kpi2Hours")),
-    kpi3Hours: average(values("kpi3Hours")),
+    kpi1Hours: average(kpi1),
+    kpi2Hours: average(kpi2),
+    kpi3Hours: average(kpi3),
+    kpi1Records: kpi1.length,
+    kpi2Records: kpi2.length,
+    kpi3Records: kpi3.length,
   };
 }
 

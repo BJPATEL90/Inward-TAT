@@ -12,7 +12,7 @@ Measure and communicate inbound turnaround time from vehicle unloading through G
 | KPI2 | GRN Received Timestamp to latest completed Putaway |
 | KPI3 | Vehicle Unloading to GRN Received Timestamp |
 
-All KPIs use continuous elapsed time and a simple average across the same complete `Facility + GRN Number + SKU` cohort. The control equation is **KPI1 = KPI2 + KPI3**.
+All KPIs use continuous elapsed time and a simple average. Each KPI includes only records containing both timestamps required for that KPI; unavailable milestones remain pending and are excluded. At record level, **KPI1 = KPI2 + KPI3**. Aggregate averages reconcile only when all three KPIs use the same completed cohort.
 
 ## Daily input and timing
 
@@ -32,7 +32,7 @@ ERP reports received on a date contain activity through the previous day. For ex
 4. If the primary key is unavailable, Facility + GRN Number + SKU is used as a controlled fallback, including SL Ambient-to-SL Rx and SL Mother Hub-to-OWN/EXPORT bridges.
    Unicommerce GRN facility `Aramex` is normalized to `EXPORT` before this bridge is applied.
 5. Ambiguous primary matches are excluded and logged; Putaway shelf rows are pivoted using the resolved ERP facility + GRN Number + SKU, with the latest completed timestamp retained.
-6. Complete records are used for all KPI averages; missing or negative records move to exceptions.
+6. Each KPI uses records with its required valid timestamp pair; missing or negative milestones remain pending or move to exceptions.
 7. The dashboard and MTD summary are refreshed, including daily boxes unloaded and capacity utilisation.
 8. Stakeholders receive the KPI email, volume summary, MTD trend, dashboard link, and CSV attachment.
 
@@ -50,7 +50,7 @@ ERP reports received on a date contain activity through the previous day. For ex
 - One GRN and all five Putaway exports were processed.
 - Yesterday is not treated as zero when data is still pending.
 - No unexplained `NO_GRN_MATCH`, `NO_PUTAWAY_MATCH`, or negative timestamp exception remains.
-- KPI1 equals KPI2 plus KPI3 for the same complete cohort.
+- KPI1 equals KPI2 plus KPI3 at record level and whenever the displayed aggregates share the same cohort.
 - The dashboard last-refresh timestamp and email publication date are current.
 
 ## Exception handling
