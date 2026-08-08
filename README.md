@@ -100,7 +100,7 @@ The React dashboard provides:
 
 - Executive ribbon for Last Quarter, Last Month, MTD, and Yesterday
 - KPI1, KPI2, and KPI3 values as hours and minutes, with decimal hours shown underneath
-- Active KPI values on executive, selected-range, and facility cards; each average excludes rows missing that KPI's required timestamps, while unavailable milestones remain as plain dashes
+- Active KPI values on executive, selected-range, and facility cards; all averages use only `COMPLETE` records, while pending records remain visible in Pending Tasks
 - Yesterday data-pending alert when no unloading records are available
 - Custom From/To date filters
 - Facility filter

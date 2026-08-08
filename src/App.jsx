@@ -1444,7 +1444,7 @@ function summarizeFacts(rows) {
   const average = (values) =>
     values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
   const completeRows = rows.filter((row) => row.status === "COMPLETE");
-  const values = (key) => rows.map((row) => row[key]).filter((value) => Number.isFinite(value));
+  const values = (key) => completeRows.map((row) => row[key]).filter((value) => Number.isFinite(value));
   const kpi1 = values("kpi1Hours");
   const kpi2 = values("kpi2Hours");
   const kpi3 = values("kpi3Hours");

@@ -30,7 +30,7 @@ Calculation rules:
 - Primary keys resolving to multiple ERP facilities are marked `AMBIGUOUS_MATCH` and excluded from KPI averages.
 - Putaway shelf rows are consolidated to the unique key; the latest `Last Updated` timestamp is used.
 - A simple arithmetic average is calculated only across the same `COMPLETE` record cohort.
-- At record level, `KPI1 = KPI2 + KPI3`. Aggregate averages reconcile when the three KPIs use the same completed cohort; partial milestone availability can produce different record counts.
+- Because every KPI uses the same `COMPLETE` cohort, `KPI1 = KPI2 + KPI3` at both record and aggregate level.
 - Missing or negative timestamp sequences are exceptions and are excluded from all three KPI averages.
 - Last Quarter and Last Month values are published values maintained in `Config`.
 - MTD, Yesterday, custom date ranges, and facility views are calculated from operational facts.
@@ -113,7 +113,7 @@ The monthly `FG-<Month>-<YY>` tab provides Vehicle Unloading Date, Unloading Tim
 - Confirm one current cumulative GRN report and three facility Putaway reports were selected.
 - Review `Data_Exceptions` for missing GRN, missing Putaway, facility/SKU mismatches, or negative sequences.
 - Treat Yesterday `00:00` as data pending when no complete unloading cohort is available.
-- Confirm `KPI1 = KPI2 + KPI3` at record level; compare the displayed KPI record counts before reconciling aggregate averages.
+- Confirm `KPI1 = KPI2 + KPI3` for the same complete cohort after rounding.
 - Keep recipients, schedules, published period KPIs, and URLs in `Config`; do not hard-code them.
 
 ## Deployment

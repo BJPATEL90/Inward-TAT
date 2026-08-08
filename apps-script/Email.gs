@@ -246,7 +246,7 @@ function summarizeEmailFacts_(facts) {
     return String(row["Record Status"]).toUpperCase() === "COMPLETE";
   });
   function average(field) {
-    const values = facts
+    const values = completeFacts
       .map(function (row) {
         const raw = row[field];
         return raw === "" || raw === null || raw === undefined
