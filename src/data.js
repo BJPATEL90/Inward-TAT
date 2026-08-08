@@ -14,6 +14,11 @@ export const fallbackSnapshot = {
     kpi2: "GRN to Putaway",
     kpi3: "Unloading to GRN",
   },
+  volume: {
+    dailyCapacityBoxes: 3500,
+    scope: "Combined across all facilities",
+    sourceField: "No. of Boxes Recd",
+  },
   staticPeriods: {
     lastQuarter: { kpi1Hours: 29.84, kpi2Hours: 13, kpi3Hours: 15.84 },
     lastMonth: { kpi1Hours: 28.4, kpi2Hours: 14.4, kpi3Hours: 14 },
@@ -50,6 +55,12 @@ export const fallbackSnapshot = {
     summaryDate: `2026-07-${String(index + 1).padStart(2, "0")}`,
     facility: "All Mother Facilities",
     kpi1Hours,
+    kpi2Hours: Math.max(0.5, kpi1Hours * 0.62),
+    kpi3Hours: Math.max(0.25, kpi1Hours * 0.38),
+    boxesUnloaded: 1700 + ((index * 613) % 2800),
+    dailyCapacityBoxes: 3500,
+    capacityUtilizationPct: ((1700 + ((index * 613) % 2800)) / 3500) * 100,
+    capacityVariancePct: (((1700 + ((index * 613) % 2800)) - 3500) / 3500) * 100,
   })),
   facts: [
     {

@@ -723,8 +723,18 @@ function Dashboard({
         </article>
       </section>
 
+      <VolumeSummary
+        daily={snapshot?.daily || []}
+        fromDate={fromDate}
+        toDate={toDate}
+        capacity={snapshot?.volume?.dailyCapacityBoxes || 3500}
+      />
+
       <section className="dashboard-grid">
-        <TrendPanel daily={snapshot?.daily || []} />
+        <TrendPanel
+          daily={snapshot?.daily || []}
+          capacity={snapshot?.volume?.dailyCapacityBoxes || 3500}
+        />
         <FacilityPanel facilities={snapshot?.summary?.facilities || []} />
       </section>
 
@@ -778,22 +788,67 @@ function MiniKpi({ kpi, label, value, note, primary = false }) {
   );
 }
 
-function TrendPanel({ daily }) {
+function VolumeSummary({ daily, fromDate, toDate, capacity }) {
+  const rows = daily.filter(
+    (row) =>
+      row.facility === "All Mother Facilities" &&
+      (!fromDate || row.summaryDate >= fromDate) &&
+      (!toDate || row.summaryDate <= toDate) &&
+      Number.isFinite(Number(row.boxesUnloaded)),
+  );
+  const total = rows.reduce((sum, row) => sum + Number(row.boxesUnloaded || 0), 0);
+  const average = rows.length ? total / rows.length : 0;
+  const peak = rows.reduce(
+    (current, row) =>
+      !current || Number(row.boxesUnloaded || 0) > Number(current.boxesUnloaded || 0)
+        ? row
+        : current,
+    null,
+  );
+  const peakBoxes = Number(peak?.boxesUnloaded || 0);
+  const peakUtilization = capacity ? (peakBoxes / capacity) * 100 : 0;
+
+  return (
+    <section className="volume-summary" aria-label="Combined unloading volume">
+      <div className="volume-summary-title">
+        <span className="section-eyebrow">Volume handled</span>
+        <h3>Combined across all facilities</h3>
+        <small>Sum of No. of Boxes Recd · Daily capacity {formatBoxes(capacity)} boxes</small>
+      </div>
+      <div><span>Total boxes</span><strong>{formatBoxes(total)}</strong><small>selected date range</small></div>
+      <div><span>Average per day</span><strong>{formatBoxes(average)}</strong><small>{rows.length} reporting days</small></div>
+      <div><span>Peak volume</span><strong>{formatBoxes(peakBoxes)}</strong><small>{peak ? formatShortDate(peak.summaryDate) : "No data"}</small></div>
+      <div className={peakUtilization > 100 ? "over-capacity" : "within-capacity"}>
+        <span>Peak utilisation</span>
+        <strong>{Math.round(peakUtilization)}%</strong>
+        <small>{peakUtilization > 100 ? `${Math.round(peakUtilization - 100)}% above capacity` : `${Math.round(100 - peakUtilization)}% spare capacity`}</small>
+      </div>
+    </section>
+  );
+}
+
+function TrendPanel({ daily, capacity = 3500 }) {
   const [hovered, setHovered] = useState(null);
   const [visibleSeries, setVisibleSeries] = useState({
     kpi1Hours: true,
     kpi2Hours: true,
     kpi3Hours: true,
     target: true,
+    volume: true,
+    capacity: true,
   });
   const rows = daily
-    .filter((row) => row.facility === "All Mother Facilities" && row.kpi1Hours != null)
+    .filter((row) => row.facility === "All Mother Facilities")
     .sort((a, b) => a.summaryDate.localeCompare(b.summaryDate));
   const width = 760;
   const height = 220;
-  const pad = { left: 48, right: 24, top: 24, bottom: 34 };
+  const pad = { left: 48, right: 54, top: 24, bottom: 34 };
   const max = 40;
   const target = 14;
+  const volumeMax = Math.max(
+    capacity * 1.25,
+    ...rows.map((row) => Number(row.boxesUnloaded || 0) * 1.1),
+  );
   const series = [
     { key: "kpi1Hours", label: "KPI1 · Unloading to Putaway", shortLabel: "KPI1", description: "Unloading to Putaway", color: "#16a65a" },
     { key: "kpi2Hours", label: "KPI2 · GRN to Putaway", shortLabel: "KPI2", description: "GRN to Putaway", color: "#3158d4" },
@@ -810,19 +865,32 @@ function TrendPanel({ daily }) {
     const bounded = Math.min(Math.max(Number(value) || 0, 0), max);
     return height - pad.bottom - (bounded / max) * (height - pad.top - pad.bottom);
   };
+  const volumeY = (value) => {
+    const bounded = Math.min(Math.max(Number(value) || 0, 0), volumeMax);
+    return height - pad.bottom - (bounded / volumeMax) * (height - pad.top - pad.bottom);
+  };
   const pathFor = (key) => rows
     .map((row, index) => ({ index, value: Number(row[key]) }))
     .filter((point) => Number.isFinite(point.value))
     .map((point, index) => `${index ? "L" : "M"} ${x(point.index)} ${y(point.value)}`)
     .join(" ");
-  const tooltipWidth = 142;
-  const tooltipHeight = 31 + displayedSeries.length * 15;
+  const tooltipWidth = 174;
+  const tooltipVolumeLines = visibleSeries.volume ? 3 : 0;
+  const tooltipHeight = 31 + (displayedSeries.length + tooltipVolumeLines) * 15;
   const tooltipX = hovered
     ? Math.min(Math.max(x(hovered.index) - tooltipWidth / 2, pad.left), width - pad.right - tooltipWidth)
     : 0;
   const tooltipY = hovered
-    ? Math.max(pad.top, Math.min(...displayedSeries.map((item) => y(hovered.row[item.key]))) - tooltipHeight - 9)
+    ? Math.max(
+        pad.top,
+        Math.min(
+          ...(displayedSeries.length
+            ? displayedSeries.map((item) => y(hovered.row[item.key]))
+            : [volumeY(hovered.row.boxesUnloaded)]),
+        ) - tooltipHeight - 9,
+      )
     : 0;
+  const barWidth = Math.max(8, Math.min(22, (width - pad.left - pad.right) / Math.max(rows.length, 1) * 0.58));
 
   return (
     <article className="panel trend-panel">
@@ -852,6 +920,26 @@ function TrendPanel({ daily }) {
             <i className="target-legend" />
             <span><strong>KPI1 target</strong><small>14-hour benchmark</small></span>
           </button>
+          <button
+            type="button"
+            className={`chart-legend-button ${visibleSeries.volume ? "active" : "inactive"}`}
+            aria-pressed={visibleSeries.volume}
+            onClick={() => toggleSeries("volume")}
+            title="Show or hide unloaded box volume"
+          >
+            <i className="volume-legend" />
+            <span><strong>Volume</strong><small>Boxes unloaded</small></span>
+          </button>
+          <button
+            type="button"
+            className={`chart-legend-button ${visibleSeries.capacity ? "active" : "inactive"}`}
+            aria-pressed={visibleSeries.capacity}
+            onClick={() => toggleSeries("capacity")}
+            title="Show or hide daily box capacity"
+          >
+            <i className="capacity-legend" />
+            <span><strong>Capacity</strong><small>{formatBoxes(capacity)} boxes/day</small></span>
+          </button>
         </div>
         <em>{rows.length} reporting days</em>
       </div>
@@ -859,7 +947,7 @@ function TrendPanel({ daily }) {
         viewBox={`0 0 ${width} ${height}`}
         className="line-chart"
         role="img"
-        aria-label="Daily MTD KPI1, KPI2 and KPI3 trend"
+        aria-label="Daily MTD KPI trend and combined unloading volume"
         onMouseLeave={() => setHovered(null)}
       >
         {[0, 10, 20, 30, 40].map((value) => {
@@ -870,6 +958,35 @@ function TrendPanel({ daily }) {
             </g>
           );
         })}
+        {[0, 0.5, 1].map((ratio) => (
+          <text key={`volume-axis-${ratio}`} x={width - pad.right + 8} y={volumeY(volumeMax * ratio) + 4} textAnchor="start" className="volume-axis-label">
+            {formatCompactBoxes(volumeMax * ratio)}
+          </text>
+        ))}
+        {visibleSeries.volume && rows.map((row, index) => {
+          const boxes = Number(row.boxesUnloaded);
+          if (!Number.isFinite(boxes)) return null;
+          const barY = volumeY(boxes);
+          return (
+            <rect
+              key={`volume-${row.summaryDate}`}
+              x={x(index) - barWidth / 2}
+              y={barY}
+              width={barWidth}
+              height={height - pad.bottom - barY}
+              rx="3"
+              className={`volume-bar ${boxes > capacity ? "over-capacity" : ""}`}
+              tabIndex="0"
+              onMouseEnter={() => setHovered({ row, index })}
+              onFocus={() => setHovered({ row, index })}
+              onBlur={() => setHovered(null)}
+            >
+              <title>{`${formatShortDate(row.summaryDate)} · ${formatBoxes(boxes)} boxes · ${Math.round((boxes / capacity) * 100)}% utilisation`}</title>
+            </rect>
+          );
+        })}
+        {visibleSeries.capacity && <line x1={pad.left} x2={width - pad.right} y1={volumeY(capacity)} y2={volumeY(capacity)} className="capacity-line" />}
+        {visibleSeries.capacity && <text x={width - pad.right - 3} y={volumeY(capacity) - 5} textAnchor="end" className="capacity-label">Capacity {formatBoxes(capacity)}</text>}
         {visibleSeries.target && <line x1={pad.left} x2={width - pad.right} y1={y(target)} y2={y(target)} className="target-line" />}
         {visibleSeries.target && <text x={width - pad.right - 3} y={y(target) - 5} textAnchor="end" className="target-label">KPI1 target 14h</text>}
         {displayedSeries.map((item) => {
@@ -911,6 +1028,17 @@ function TrendPanel({ daily }) {
                 <text x={tooltipWidth - 10} y="3" textAnchor="end">{formatDuration(hovered.row[item.key])}</text>
               </g>
             ))}
+            {visibleSeries.volume && (
+              <g transform={`translate(0 ${28 + displayedSeries.length * 15})`}>
+                <rect x="8" y="-4" width="7" height="7" rx="1" className={Number(hovered.row.boxesUnloaded || 0) > capacity ? "tooltip-volume-over" : "tooltip-volume"} />
+                <text x="19" y="3">Boxes</text>
+                <text x={tooltipWidth - 10} y="3" textAnchor="end">{formatBoxes(hovered.row.boxesUnloaded)}</text>
+                <text x="19" y="18">Utilisation</text>
+                <text x={tooltipWidth - 10} y="18" textAnchor="end">{Math.round(Number(hovered.row.capacityUtilizationPct ?? ((Number(hovered.row.boxesUnloaded || 0) / capacity) * 100)))}%</text>
+                <text x="19" y="33">Vs capacity</text>
+                <text x={tooltipWidth - 10} y="33" textAnchor="end">{formatSignedPercent(Number(hovered.row.capacityVariancePct ?? (((Number(hovered.row.boxesUnloaded || 0) - capacity) / capacity) * 100)))}</text>
+              </g>
+            )}
           </g>
         )}
       </svg>
@@ -1415,6 +1543,25 @@ function facilityInitials(facility) {
   if (facility === "SL Rx") return "RX";
   if (facility === "OWN") return "OWN";
   return "EX";
+}
+
+function formatBoxes(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Math.round(number));
+}
+
+function formatCompactBoxes(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  if (number >= 1000) return `${(number / 1000).toFixed(number >= 10000 ? 0 : 1)}k`;
+  return String(Math.round(number));
+}
+
+function formatSignedPercent(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  return `${number > 0 ? "+" : ""}${Math.round(number)}%`;
 }
 
 function facilityClass(facility) {

@@ -32,8 +32,15 @@ ERP reports received on a date contain activity through the previous day. For ex
 4. If the primary key is unavailable, Facility + GRN Number + SKU is used as a controlled fallback, including SL Ambient-to-SL Rx and SL Mother Hub-to-OWN/EXPORT bridges.
 5. Ambiguous primary matches are excluded and logged; Putaway shelf rows are pivoted using the resolved ERP facility + GRN Number + SKU, with the latest completed timestamp retained.
 6. Complete records are used for all KPI averages; missing or negative records move to exceptions.
-7. The dashboard and MTD summary are refreshed.
-8. Stakeholders receive the KPI email, MTD trend, dashboard link, and CSV attachment.
+7. The dashboard and MTD summary are refreshed, including daily boxes unloaded and capacity utilisation.
+8. Stakeholders receive the KPI email, volume summary, MTD trend, dashboard link, and CSV attachment.
+
+## Volume and capacity
+
+- Daily volume is the sum of `No. of Boxes Recd` from Goods Inward, grouped by unloading date and combined across all facilities.
+- Daily capacity is controlled by `DAILY_UNLOADING_CAPACITY_BOXES` in Config and is currently 3,500 boxes.
+- The dashboard overlays volume bars with KPI1, KPI2, and KPI3 so a TAT spike can be reviewed against that day's workload.
+- Hover detail shows boxes unloaded, utilisation, and the percentage above or below capacity.
 
 ## Daily validation
 

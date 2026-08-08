@@ -1144,7 +1144,7 @@ function rebuildTatFacts_(config, runId) {
 
   replaceDataRows_(factSheet, factRows);
   replaceExceptions_(exceptions);
-  const mtdRows = rebuildMtdSummary_(factRows);
+  const mtdRows = rebuildMtdSummary_(factRows, goods, config);
   replaceDataRows_(getSheet_(INWARD_TAT.SHEETS.MTD), mtdRows);
 
   return {
@@ -1175,10 +1175,34 @@ function ensureFactMatchingSchema_() {
   return sheet;
 }
 
-function rebuildMtdSummary_(factRows) {
+function rebuildMtdSummary_(factRows, goodsRows, config) {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const groups = new Map();
+  const dailyVolume = new Map();
+  const capacity = Math.max(
+    Number(config.DAILY_UNLOADING_CAPACITY_BOXES) || 3500,
+    0
+  );
+
+  (goodsRows || []).forEach(function (row) {
+    const unloadingDate =
+      combineDateAndTime_(row["Unloading Date"], row["Unloading Time"]) ||
+      parseDateTime_(row["Unloading Date"]);
+    if (!(unloadingDate instanceof Date) || unloadingDate < monthStart) return;
+    const rawBoxes = String(row["No. of Boxes Recd"] || "")
+      .replace(/,/g, "")
+      .trim();
+    if (!rawBoxes) return;
+    const boxes = Number(rawBoxes);
+    if (!isFinite(boxes) || boxes < 0) return;
+    const dateKey = Utilities.formatDate(
+      unloadingDate,
+      "Asia/Kolkata",
+      "yyyy-MM-dd"
+    );
+    dailyVolume.set(dateKey, (dailyVolume.get(dateKey) || 0) + boxes);
+  });
 
   factRows.forEach(function (row) {
     const unloadingDate = row[10];
@@ -1221,6 +1245,14 @@ function rebuildMtdSummary_(factRows) {
       return a.date - b.date || a.facility.localeCompare(b.facility);
     })
     .map(function (group) {
+      const dateKey = Utilities.formatDate(
+        group.date,
+        "Asia/Kolkata",
+        "yyyy-MM-dd"
+      );
+      const isCombined = group.facility === "All Mother Facilities";
+      const boxes = isCombined ? dailyVolume.get(dateKey) || 0 : "";
+      const utilization = isCombined && capacity ? (boxes / capacity) * 100 : "";
       return [
         group.date,
         group.facility,
@@ -1231,6 +1263,11 @@ function rebuildMtdSummary_(factRows) {
         group.complete,
         group.exceptions,
         new Date(),
+        boxes,
+        isCombined ? capacity : "",
+        utilization,
+        isCombined ? boxes - capacity : "",
+        isCombined && capacity ? ((boxes - capacity) / capacity) * 100 : "",
       ];
     });
 }

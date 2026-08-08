@@ -277,6 +277,11 @@ function buildDashboardSnapshot_() {
         uniqueRecords: apiNumber_(row["Unique Records"]),
         completeRecords: apiNumber_(row["Complete Records"]),
         exceptionRecords: apiNumber_(row["Exception Records"]),
+        boxesUnloaded: apiNumber_(row["Boxes Unloaded"]),
+        dailyCapacityBoxes: apiNumber_(row["Daily Capacity Boxes"]),
+        capacityUtilizationPct: apiNumber_(row["Capacity Utilization %"]),
+        boxesVsCapacity: apiNumber_(row["Boxes Vs Capacity"]),
+        capacityVariancePct: apiNumber_(row["Capacity Variance %"]),
       };
     });
   const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
@@ -284,7 +289,7 @@ function buildDashboardSnapshot_() {
 
   return {
     ok: true,
-    apiVersion: "1.1.0",
+    apiVersion: "1.2.0",
     generatedAt: new Date().toISOString(),
     timeZone: textOrBlank_(config.TIME_ZONE) || "Asia/Kolkata",
     lastRefresh: apiDateTime_(config.LAST_SUCCESSFUL_REFRESH),
@@ -292,6 +297,12 @@ function buildDashboardSnapshot_() {
       kpi1: textOrBlank_(config.KPI1_LABEL) || "Unloading to Putaway",
       kpi2: textOrBlank_(config.KPI2_LABEL) || "GRN to Putaway",
       kpi3: textOrBlank_(config.KPI3_LABEL) || "Unloading to GRN",
+    },
+    volume: {
+      dailyCapacityBoxes:
+        apiNumber_(config.DAILY_UNLOADING_CAPACITY_BOXES) || 3500,
+      scope: "Combined across all facilities",
+      sourceField: "No. of Boxes Recd",
     },
     staticPeriods: {
       lastQuarter: {

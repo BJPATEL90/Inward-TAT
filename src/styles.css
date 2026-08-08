@@ -827,6 +827,39 @@ button {
   margin-top: 14px;
 }
 
+.volume-summary {
+  display: grid;
+  grid-template-columns: minmax(250px, 1.5fr) repeat(4, minmax(115px, .65fr));
+  align-items: stretch;
+  gap: 0;
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.volume-summary > div {
+  display: flex;
+  min-height: 94px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 16px 19px;
+  border-left: 1px solid #e4eaf3;
+}
+
+.volume-summary > div:first-child { border-left: 0; }
+.volume-summary-title { background: #f7f9ff; }
+.volume-summary h3 { margin: 5px 0 0; font-size: 15px; }
+.volume-summary span:not(.section-eyebrow) { color: #66758e; font-size: 9px; font-weight: 700; }
+.volume-summary strong { margin-top: 6px; color: #172d68; font-size: 21px; }
+.volume-summary small { margin-top: 4px; color: #7a879c; font-size: 8px; line-height: 1.4; }
+.volume-summary .over-capacity { background: #fff4f2; }
+.volume-summary .over-capacity strong { color: #bd352d; }
+.volume-summary .within-capacity { background: #f2fbf6; }
+.volume-summary .within-capacity strong { color: #0b7a48; }
+
 .panel {
   min-width: 0;
   border: 1px solid var(--line);
@@ -925,6 +958,20 @@ button {
   background: transparent;
 }
 
+.chart-legend .volume-legend {
+  width: 17px;
+  height: 10px;
+  border-radius: 3px;
+  background: #d9e3f5;
+}
+
+.chart-legend .capacity-legend {
+  height: 0;
+  border-top: 2px dashed #6f7f99;
+  border-radius: 0;
+  background: transparent;
+}
+
 .chart-legend em {
   color: #8490a4;
   font-style: normal;
@@ -952,6 +999,30 @@ button {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2.5;
+}
+
+.volume-bar {
+  fill: #d9e3f5;
+  opacity: .72;
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+
+.volume-bar:hover,
+.volume-bar:focus { opacity: 1; outline: none; }
+.volume-bar.over-capacity { fill: #f5b9b3; }
+
+.capacity-line {
+  stroke: #6f7f99;
+  stroke-width: 1.4;
+  stroke-dasharray: 4 4;
+}
+
+.line-chart .capacity-label,
+.line-chart .volume-axis-label {
+  fill: #64738c;
+  font-size: 8px;
+  font-weight: 700;
 }
 
 .trend-point {
@@ -1000,6 +1071,9 @@ button {
   fill: #b9cdfc;
   font-weight: 700;
 }
+
+.chart-tooltip .tooltip-volume { fill: #d9e3f5; }
+.chart-tooltip .tooltip-volume-over { fill: #f28b82; }
 
 .chart-date {
   font-weight: 600;
@@ -2216,6 +2290,10 @@ tbody tr:hover {
 }
 
 @media (max-width: 920px) {
+  .volume-summary { grid-template-columns: repeat(2, 1fr); }
+  .volume-summary-title { grid-column: 1 / -1; }
+  .volume-summary > div:nth-child(2),
+  .volume-summary > div:nth-child(4) { border-left: 0; }
   .facility-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2299,6 +2377,9 @@ tbody tr:hover {
 }
 
 @media (max-width: 680px) {
+  .volume-summary { grid-template-columns: 1fr; }
+  .volume-summary > div { min-height: 78px; border-top: 1px solid #e4eaf3; border-left: 0; }
+  .volume-summary > div:first-child { border-top: 0; }
   .chart-legend {
     align-items: flex-start;
     flex-direction: column;

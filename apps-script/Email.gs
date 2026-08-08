@@ -175,6 +175,13 @@ function buildInwardTatEmailPayload_(config) {
   }, null);
   const summary = summarizeEmailFacts_(mtdFacts);
   const pendingSummary = summarizePendingEmailFacts_(mtdFacts);
+  const volumeSummary = summarizeEmailVolume_(
+    daily,
+    monthStart,
+    nextMonth,
+    Number(config.DAILY_UNLOADING_CAPACITY_BOXES) || 3500,
+    timeZone
+  );
   const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
   const yesterdayKey = Utilities.formatDate(yesterday, timeZone, "yyyy-MM-dd");
   const yesterdaySummary = summarizeEmailFacts_(
@@ -223,6 +230,7 @@ function buildInwardTatEmailPayload_(config) {
         yesterday: yesterdaySummary,
       },
       pendingSummary,
+      volumeSummary,
       monthStart,
       periodEnd,
       yesterday,
@@ -443,6 +451,40 @@ function buildMonthlyWorkbook_(
   }
 }
 
+function summarizeEmailVolume_(daily, monthStart, nextMonth, capacity, timeZone) {
+  const rows = daily.filter(function (row) {
+    const date = parseDateTime_(row["Summary Date"]);
+    return (
+      date &&
+      date >= monthStart &&
+      date < nextMonth &&
+      String(row.Facility || "") === "All Mother Facilities" &&
+      isFinite(Number(row["Boxes Unloaded"]))
+    );
+  });
+  const total = rows.reduce(function (sum, row) {
+    return sum + Number(row["Boxes Unloaded"] || 0);
+  }, 0);
+  const peak = rows.reduce(function (current, row) {
+    return !current ||
+      Number(row["Boxes Unloaded"] || 0) > Number(current["Boxes Unloaded"] || 0)
+      ? row
+      : current;
+  }, null);
+  const peakBoxes = peak ? Number(peak["Boxes Unloaded"] || 0) : 0;
+  return {
+    totalBoxes: total,
+    averageBoxes: rows.length ? total / rows.length : 0,
+    reportingDays: rows.length,
+    peakBoxes: peakBoxes,
+    peakDate: peak
+      ? Utilities.formatDate(parseDateTime_(peak["Summary Date"]), timeZone, "dd MMM yyyy")
+      : "No data",
+    capacity: capacity,
+    peakUtilizationPct: capacity ? (peakBoxes / capacity) * 100 : 0,
+  };
+}
+
 function summarizePendingEmailFacts_(facts) {
   const pending = facts.filter(function (row) {
     return String(row["Record Status"] || "").toUpperCase() === "INCOMPLETE";
@@ -525,6 +567,7 @@ function buildMtdCsv_(facts, periodStart, periodEnd, timeZone) {
 function buildInwardTatEmailHtml_(
   periods,
   pendingSummary,
+  volumeSummary,
   periodStart,
   periodEnd,
   yesterday,
@@ -578,7 +621,7 @@ function buildInwardTatEmailHtml_(
     '.header-logo div{width:82px!important;height:57px!important;padding-top:19px!important}.email-title{font-size:24px!important;line-height:30px!important}' +
     '.email-content{display:block!important;width:100%!important;box-sizing:border-box!important;padding:24px 0 30px!important}.content-inner{display:block!important;width:calc(100% - 32px)!important;max-width:calc(100% - 32px)!important;min-width:0!important;margin:0 16px!important;overflow:hidden!important}.kpi-grid{max-width:100%!important;min-width:0!important;table-layout:auto!important;border-spacing:0!important}.kpi-grid,.kpi-grid tbody,.kpi-grid tr,.kpi-card{display:block!important;width:100%!important}' +
     '.kpi-card{box-sizing:border-box!important;margin:0 0 12px!important;padding:18px 14px!important}.alert-cell{padding:18px 16px!important}' +
-    '.trend-image{width:100%!important;max-width:100%!important;height:auto!important;box-sizing:border-box!important;object-fit:contain!important}.pending-grid,.pending-grid tbody,.pending-grid tr,.pending-cell{display:block!important;width:100%!important}.pending-cell{box-sizing:border-box!important;margin:0 0 9px!important}.pending-facilities span{display:block!important;margin:6px 0 0!important}.dashboard-button{display:block!important;box-sizing:border-box!important;width:100%!important;padding:14px 16px!important}.kpi-definitions span{display:block!important;margin-top:5px!important}.kpi-definitions .separator{display:none!important}.email-footer{max-width:100%!important;padding:0 8px!important;overflow-wrap:anywhere!important;word-break:break-word!important}' +
+    '.trend-image{width:100%!important;max-width:100%!important;height:auto!important;box-sizing:border-box!important;object-fit:contain!important}.volume-grid,.volume-grid tbody,.volume-grid tr,.volume-cell{display:block!important;width:100%!important}.volume-cell{box-sizing:border-box!important;margin:0 0 9px!important}.pending-grid,.pending-grid tbody,.pending-grid tr,.pending-cell{display:block!important;width:100%!important}.pending-cell{box-sizing:border-box!important;margin:0 0 9px!important}.pending-facilities span{display:block!important;margin:6px 0 0!important}.dashboard-button{display:block!important;box-sizing:border-box!important;width:100%!important;padding:14px 16px!important}.kpi-definitions span{display:block!important;margin-top:5px!important}.kpi-definitions .separator{display:none!important}.email-footer{max-width:100%!important;padding:0 8px!important;overflow-wrap:anywhere!important;word-break:break-word!important}' +
     '}' +
     '</style></head><body style="margin:0;padding:0;background:#f1f5fa">' +
     '<div class="email-shell" style="margin:0;background:#f1f5fa;padding:20px;font-family:Arial,Helvetica,sans-serif;color:#172033">' +
@@ -633,6 +676,7 @@ function buildInwardTatEmailHtml_(
     ) +
     "</tr></table>" +
     alertHtml +
+    buildEmailVolumeSummary_(volumeSummary) +
     '<div style="font-size:18px;font-weight:700;margin-top:28px">MTD KPI1 Daily Trend</div>' +
     '<div style="font-size:13px;color:#60718d;margin-top:5px">Unloading to Putaway average hours by unloading date.</div>' +
     '<div style="margin-top:14px"><img class="trend-image" src="cid:mtdTrend" alt="MTD KPI1 trend" style="display:block;width:100%;height:auto;max-width:824px;border:1px solid #d9e1ef;border-radius:12px"></div>' +
@@ -643,6 +687,44 @@ function buildInwardTatEmailHtml_(
     '<div class="email-footer" style="font-size:12px;line-height:18px;color:#71809a;margin-top:22px;text-align:center;box-sizing:border-box">The attached Excel workbook contains separate Last Month and Current MTD tabs at Facility + GRN + SKU level.<br>Dashboard access is restricted to Mosaic Wellness Google accounts.</div>' +
     "</div></td></tr></table></div></body></html>"
   );
+}
+
+function buildEmailVolumeSummary_(summary) {
+  const peakOver = summary.peakUtilizationPct > 100;
+  return (
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:24px;border:1px solid #d8e1ef;border-radius:13px;background:#f8faff"><tr><td style="padding:20px">' +
+    '<div style="font-size:18px;font-weight:700;color:#172033">MTD Volume Handled</div>' +
+    '<div style="margin-top:5px;font-size:12px;line-height:18px;color:#65758f">Combined across all facilities · Sum of No. of Boxes Recd · Daily capacity ' +
+    formatEmailBoxes_(summary.capacity) +
+    ' boxes</div><table class="volume-grid" role="presentation" width="100%" cellspacing="8" cellpadding="0" style="margin-top:12px;table-layout:fixed"><tr>' +
+    buildEmailVolumeCell_("TOTAL BOXES", formatEmailBoxes_(summary.totalBoxes), "Selected MTD", "#eef3ff", "#294fc0") +
+    buildEmailVolumeCell_("AVERAGE / DAY", formatEmailBoxes_(summary.averageBoxes), summary.reportingDays + " reporting days", "#eef3ff", "#294fc0") +
+    buildEmailVolumeCell_("PEAK VOLUME", formatEmailBoxes_(summary.peakBoxes), summary.peakDate, "#eef3ff", "#294fc0") +
+    buildEmailVolumeCell_("PEAK UTILISATION", Math.round(summary.peakUtilizationPct) + "%", peakOver ? Math.round(summary.peakUtilizationPct - 100) + "% above capacity" : Math.round(100 - summary.peakUtilizationPct) + "% spare capacity", peakOver ? "#fff0ee" : "#eaf8f1", peakOver ? "#b8322a" : "#0b7a48") +
+    "</tr></table></td></tr></table>"
+  );
+}
+
+function buildEmailVolumeCell_(label, value, note, background, color) {
+  return (
+    '<td class="volume-cell" width="25%" valign="top" style="padding:13px 9px;border-radius:9px;text-align:center;background:' +
+    background +
+    ';color:' +
+    color +
+    '"><div style="font-size:9px;font-weight:700;letter-spacing:.4px">' +
+    label +
+    '</div><div style="margin-top:6px;font-size:22px;line-height:27px;font-weight:800">' +
+    value +
+    '</div><div style="margin-top:4px;font-size:9px;line-height:14px;color:#65758f">' +
+    note +
+    "</div></td>"
+  );
+}
+
+function formatEmailBoxes_(value) {
+  const number = Number(value);
+  if (!isFinite(number)) return "—";
+  return Math.round(number).toLocaleString("en-IN");
 }
 
 function buildPendingEmailSummary_(summary) {

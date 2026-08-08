@@ -124,6 +124,8 @@ const SHEET_DEFINITIONS = Object.freeze([
       "Summary Date", "Facility", "KPI1 Unloading to Putaway Avg Hours",
       "KPI2 GRN to Putaway Avg Hours", "KPI3 Unloading to GRN Avg Hours",
       "Unique Records", "Complete Records", "Exception Records", "Last Refreshed At",
+      "Boxes Unloaded", "Daily Capacity Boxes", "Capacity Utilization %",
+      "Boxes Vs Capacity", "Capacity Variance %",
     ],
   },
   {
@@ -206,6 +208,7 @@ const CONFIG_DEFAULTS = Object.freeze([
   ["KPI1_LABEL", "Unloading to Putaway", "TEXT", "Primary/banner KPI."],
   ["KPI2_LABEL", "GRN to Putaway", "TEXT", "Secondary KPI."],
   ["KPI3_LABEL", "Unloading to GRN", "TEXT", "Secondary KPI."],
+  ["DAILY_UNLOADING_CAPACITY_BOXES", 3500, "NUMBER", "Combined daily unloading capacity across all facilities, measured in boxes."],
   ["LAST_QUARTER_KPI1_HOURS", 29.84, "NUMBER", "Published value; retained exactly as provided."],
   ["LAST_QUARTER_KPI2_HOURS", 13, "NUMBER", "Published value; retained exactly as provided."],
   ["LAST_QUARTER_KPI3_HOURS", 15.84, "NUMBER", "Published value; retained exactly as provided."],
