@@ -205,6 +205,8 @@ const CONFIG_DEFAULTS = Object.freeze([
   ["GOODS_ALLOWED_FACILITIES", "SL Mother Hub|SL Ambient", "TEXT", "Only these Goods Inward facilities are imported."],
   ["RX_BRIDGE_ENABLED", "TRUE", "TEXT", "Reclassifies SL Ambient unloading rows as SL Rx when GRN Number + SKU exists in the SL Rx GRN dump."],
   ["RX_BRIDGE_FIELDS", "GRN_NUMBER|SKU", "TEXT", "Bridge used between Goods Inward, GRN and Putaway."],
+  ["OWN_BRIDGE_ENABLED", "TRUE", "TEXT", "Reclassifies SL Mother Hub unloading rows as OWN when GRN Number + SKU exists in the OWN GRN dump."],
+  ["OWN_BRIDGE_FIELDS", "GRN_NUMBER|SKU", "TEXT", "OWN bridge used between Goods Inward, GRN and Putaway."],
   ["DASHBOARD_URL", "", "URL", "Production dashboard URL included in stakeholder email."],
   ["EMAIL_RECIPIENTS", "", "EMAIL_LIST", "Comma-separated stakeholder recipients."],
   ["EMAIL_SEND_TIME", "", "TIME", "Daily stakeholder email time in TIME_ZONE."],

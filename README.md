@@ -27,7 +27,7 @@ The dashboard covers:
 - SL Rx
 - OWN
 
-`Raw_Goods_Inward` imports only SL Mother Hub and SL Ambient unloading rows. The primary invoice key resolves the ERP facility across SL Ambient, SL Mother Hub, SL Rx, and OWN. When the primary key is unavailable, the existing SL Rx `GRN Number + SKU` bridge remains part of the controlled fallback.
+`Raw_Goods_Inward` imports only SL Mother Hub and SL Ambient unloading rows. The primary invoice key resolves the ERP facility across SL Ambient, SL Mother Hub, SL Rx, and OWN. When the primary key is unavailable, controlled `GRN Number + SKU` bridges map SL Ambient to SL Rx and SL Mother Hub to OWN.
 
 ## Data sources
 

@@ -21,6 +21,7 @@ function indexes(entries) {
   const grnMap = new Map();
   const primary = new Map();
   const rx = new Set();
+  const own = new Set();
   entries.forEach((item) => {
     grnMap.set(recordKey(item.facility, item.sku, item.grn), item);
     if (item.invoice) {
@@ -29,8 +30,24 @@ function indexes(entries) {
       primary.get(key).push(item);
     }
     if (item.facility === "SL Rx") rx.add(`${item.grn}|${item.sku}`);
+    if (item.facility === "OWN") own.add(`${item.grn}|${item.sku}`);
   });
-  return { grnMap, primary, rx };
+  return { grnMap, primary, rx, own };
+}
+
+function resolveWithBridges(goodsFacility, sku, invoice, grn, idx) {
+  return resolve(
+    goodsFacility,
+    sku,
+    invoice,
+    grn,
+    idx.grnMap,
+    idx.primary,
+    idx.rx,
+    true,
+    idx.own,
+    true,
+  );
 }
 
 const sku = "SKU-1";
@@ -39,22 +56,22 @@ const invoice = "INV/100";
 
 {
   const idx = indexes([entry("SL Mother Hub", sku, invoice, grn)]);
-  const result = resolve("SL Mother Hub", sku, invoice, grn, idx.grnMap, idx.primary, idx.rx, true);
+  const result = resolveWithBridges("SL Mother Hub", sku, invoice, grn, idx);
   assert.equal(result.method, "PRIMARY_MATCH");
   assert.equal(result.facility, "SL Mother Hub");
 }
 
 {
   const idx = indexes([entry("SL Ambient", sku, invoice, grn)]);
-  const result = resolve("SL Mother Hub", sku, invoice, grn, idx.grnMap, idx.primary, idx.rx, true);
+  const result = resolveWithBridges("SL Mother Hub", sku, invoice, grn, idx);
   assert.equal(result.method, "CROSS_FACILITY_MATCH");
   assert.equal(result.facility, "SL Ambient");
 }
 
 {
   const idx = indexes([entry("SL Mother Hub", sku, "INV/ERP", grn)]);
-  const blank = resolve("SL Mother Hub", sku, "", grn, idx.grnMap, idx.primary, idx.rx, true);
-  const mismatch = resolve("SL Mother Hub", sku, "INV/GOODS", grn, idx.grnMap, idx.primary, idx.rx, true);
+  const blank = resolveWithBridges("SL Mother Hub", sku, "", grn, idx);
+  const mismatch = resolveWithBridges("SL Mother Hub", sku, "INV/GOODS", grn, idx);
   assert.equal(blank.method, "FALLBACK_BLANK_INVOICE");
   assert.equal(mismatch.method, "FALLBACK_INVOICE_MISMATCH");
 }
@@ -64,23 +81,32 @@ const invoice = "INV/100";
     entry("SL Ambient", sku, invoice, grn),
     entry("SL Mother Hub", sku, invoice, grn),
   ]);
-  const result = resolve("SL Mother Hub", sku, invoice, grn, idx.grnMap, idx.primary, idx.rx, true);
+  const result = resolveWithBridges("SL Mother Hub", sku, invoice, grn, idx);
   assert.equal(result.method, "AMBIGUOUS_MATCH");
   assert.equal(result.blockGrnJoin, true);
 }
 
 {
   const idx = indexes([]);
-  const result = resolve("SL Mother Hub", sku, invoice, grn, idx.grnMap, idx.primary, idx.rx, true);
+  const result = resolveWithBridges("SL Mother Hub", sku, invoice, grn, idx);
   assert.equal(result.method, "NO_GRN_MATCH");
 }
 
 {
   const rxEntry = entry("SL Rx", sku, "INV/ERP", grn);
   const idx = indexes([rxEntry]);
-  const result = resolve("SL Ambient", sku, "INV/GOODS", grn, idx.grnMap, idx.primary, idx.rx, true);
+  const result = resolveWithBridges("SL Ambient", sku, "INV/GOODS", grn, idx);
   assert.equal(result.method, "FALLBACK_INVOICE_MISMATCH");
   assert.equal(result.facility, "SL Rx");
+}
+
+{
+  const ownEntry = entry("OWN", sku, "INV/ERP", grn);
+  const idx = indexes([ownEntry]);
+  const result = resolveWithBridges("SL Mother Hub", sku, "INV/GOODS", grn, idx);
+  assert.equal(result.method, "FALLBACK_INVOICE_MISMATCH");
+  assert.equal(result.facility, "OWN");
+  assert.match(result.detail, /controlled Facility \+ SKU \+ GRN fallback/);
 }
 
 assert.equal(context.normalizeInvoice_("  inv/100  "), "INV/100");

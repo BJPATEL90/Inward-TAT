@@ -29,7 +29,7 @@ ERP reports received on a date contain activity through the previous day. For ex
 1. The daily Apps Script trigger reads Goods Inward and finds the latest cumulative ERP emails.
 2. Source rows are normalized and deduplicated.
 3. Goods records are matched to GRN using SKU + Invoice Number + GRN Number across all facilities.
-4. If the primary key is unavailable, Facility + GRN Number + SKU is used as a controlled fallback, including the existing SL Ambient-to-SL Rx bridge.
+4. If the primary key is unavailable, Facility + GRN Number + SKU is used as a controlled fallback, including SL Ambient-to-SL Rx and SL Mother Hub-to-OWN bridges.
 5. Ambiguous primary matches are excluded and logged; Putaway shelf rows are pivoted using the resolved ERP facility + GRN Number + SKU, with the latest completed timestamp retained.
 6. Complete records are used for all KPI averages; missing or negative records move to exceptions.
 7. The dashboard and MTD summary are refreshed.

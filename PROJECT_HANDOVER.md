@@ -42,7 +42,7 @@ Calculation rules:
 - SL Rx
 - OWN
 
-Goods Inward records are initially filtered to SL Mother Hub and SL Ambient. The invoice-based primary match resolves the ERP facility across SL Ambient, SL Mother Hub, SL Rx, and OWN. The existing SL Ambient-to-SL Rx `GRN Number + SKU` bridge remains available inside the controlled fallback.
+Goods Inward records are initially filtered to SL Mother Hub and SL Ambient. The invoice-based primary match resolves the ERP facility across SL Ambient, SL Mother Hub, SL Rx, and OWN. Controlled `GRN Number + SKU` fallback bridges map SL Ambient to SL Rx and SL Mother Hub to OWN.
 
 ## Source data
 

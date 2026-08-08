@@ -473,7 +473,7 @@ function CalculationLogic() {
     {
       step: "03",
       title: "Controlled fallback",
-      text: "If the invoice key is blank or mismatched, Facility + SKU + GRN is used, including the approved SL Ambient-to-SL Rx bridge.",
+      text: "If the invoice key is blank or mismatched, Facility + SKU + GRN is used, including the approved SL Ambient-to-SL Rx and SL Mother Hub-to-OWN bridges.",
     },
     {
       step: "04",
@@ -821,7 +821,7 @@ function FacilityPanel({ facilities }) {
       </div>
       <div className="facility-note">
         <Clock3 size={17} />
-        <span>SL Rx is bridged from SL Ambient unloading entries using GRN Number + SKU.</span>
+        <span>ERP bridges: SL Ambient → SL Rx and SL Mother Hub → OWN using GRN Number + SKU.</span>
       </div>
     </article>
   );

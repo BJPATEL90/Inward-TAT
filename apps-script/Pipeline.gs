@@ -720,9 +720,13 @@ function rebuildTatFacts_(config, runId) {
   const putawayMap = new Map();
   const exceptions = [];
   const rxSkuGrnBridge = new Set();
+  const ownSkuGrnBridge = new Set();
   const rxBridgeEnabled =
     String(config.RX_BRIDGE_ENABLED || "TRUE").toUpperCase() === "TRUE";
+  const ownBridgeEnabled =
+    String(config.OWN_BRIDGE_ENABLED || "TRUE").toUpperCase() === "TRUE";
   let rxMappedGoodsRecords = 0;
+  let ownMappedGoodsRecords = 0;
   const hybridCounts = {
     primary: 0,
     crossFacility: 0,
@@ -780,6 +784,9 @@ function rebuildTatFacts_(config, runId) {
     if (entry.facility === "SL Rx") {
       rxSkuGrnBridge.add(entry.grn + "|" + entry.sku);
     }
+    if (entry.facility === "OWN") {
+      ownSkuGrnBridge.add(entry.grn + "|" + entry.sku);
+    }
   });
 
   goods.forEach(function (row) {
@@ -822,11 +829,16 @@ function rebuildTatFacts_(config, runId) {
         grnMap,
         grnPrimaryIndex,
         rxSkuGrnBridge,
-        rxBridgeEnabled
+        rxBridgeEnabled,
+        ownSkuGrnBridge,
+        ownBridgeEnabled
       );
       const facility = match.facility;
       if (facility === "SL Rx" && warehouseFacility === "SL Ambient") {
         rxMappedGoodsRecords += 1;
+      }
+      if (facility === "OWN" && warehouseFacility === "SL Mother Hub") {
+        ownMappedGoodsRecords += 1;
       }
       const key = match.key;
       const existing = goodsMap.get(key);
@@ -874,6 +886,18 @@ function rebuildTatFacts_(config, runId) {
         hybridCounts.fallbackBlankInvoice +
         hybridCounts.fallbackInvoiceMismatch,
       rowsSkipped: hybridCounts.ambiguous + hybridCounts.unresolved,
+    }
+  );
+  logExecution_(
+    runId,
+    "OWN_FACILITY_BRIDGE",
+    "COMPLETED",
+    ownMappedGoodsRecords +
+      " SL Mother Hub unloading record(s) mapped to ERP facility OWN using GRN Number + SKU.",
+    {
+      reportType: "GOODS_INWARD",
+      facility: "OWN",
+      rowsImported: ownMappedGoodsRecords,
     }
   );
   logExecution_(
@@ -1592,7 +1616,9 @@ function resolveHybridGrnMatch_(
   grnMap,
   grnPrimaryIndex,
   rxSkuGrnBridge,
-  rxBridgeEnabled
+  rxBridgeEnabled,
+  ownSkuGrnBridge,
+  ownBridgeEnabled
 ) {
   const primaryKey = makePrimaryMatchKey_(sku, invoice, grnNumber);
   const primaryCandidates = primaryKey
@@ -1639,12 +1665,23 @@ function resolveHybridGrnMatch_(
     };
   }
 
-  const fallbackFacility =
+  let fallbackFacility = warehouseFacility;
+  let bridgeDescription = "";
+  if (
     rxBridgeEnabled &&
     warehouseFacility === "SL Ambient" &&
     rxSkuGrnBridge.has(grnNumber + "|" + sku)
-      ? "SL Rx"
-      : warehouseFacility;
+  ) {
+    fallbackFacility = "SL Rx";
+    bridgeDescription = " using the SL Ambient-to-SL Rx bridge.";
+  } else if (
+    ownBridgeEnabled &&
+    warehouseFacility === "SL Mother Hub" &&
+    ownSkuGrnBridge.has(grnNumber + "|" + sku)
+  ) {
+    fallbackFacility = "OWN";
+    bridgeDescription = " using the SL Mother Hub-to-OWN bridge.";
+  }
   const fallbackKey = makeRecordKey_(fallbackFacility, sku, grnNumber);
   const fallbackGrn = grnMap.get(fallbackKey);
 
@@ -1656,9 +1693,7 @@ function resolveHybridGrnMatch_(
         method: "FALLBACK_BLANK_INVOICE",
         detail:
           "Goods Invoice Number is blank; matched by Facility + SKU + GRN" +
-          (fallbackFacility !== warehouseFacility
-            ? " using the SL Ambient-to-SL Rx bridge."
-            : "."),
+          (bridgeDescription || "."),
         blockGrnJoin: false,
         grnRow: fallbackGrn,
       };
