@@ -748,6 +748,12 @@ function MiniKpi({ kpi, label, value, note, primary = false }) {
 
 function TrendPanel({ daily }) {
   const [hovered, setHovered] = useState(null);
+  const [visibleSeries, setVisibleSeries] = useState({
+    kpi1Hours: true,
+    kpi2Hours: true,
+    kpi3Hours: true,
+    target: true,
+  });
   const rows = daily
     .filter((row) => row.facility === "All Mother Facilities" && row.kpi1Hours != null)
     .sort((a, b) => a.summaryDate.localeCompare(b.summaryDate));
@@ -757,10 +763,15 @@ function TrendPanel({ daily }) {
   const max = 40;
   const target = 14;
   const series = [
-    { key: "kpi1Hours", label: "KPI1 · Unloading to Putaway", shortLabel: "KPI1", color: "#16a65a" },
-    { key: "kpi2Hours", label: "KPI2 · GRN to Putaway", shortLabel: "KPI2", color: "#3158d4" },
-    { key: "kpi3Hours", label: "KPI3 · Unloading to GRN", shortLabel: "KPI3", color: "#e0a400" },
+    { key: "kpi1Hours", label: "KPI1 · Unloading to Putaway", shortLabel: "KPI1", description: "Unloading to Putaway", color: "#16a65a" },
+    { key: "kpi2Hours", label: "KPI2 · GRN to Putaway", shortLabel: "KPI2", description: "GRN to Putaway", color: "#3158d4" },
+    { key: "kpi3Hours", label: "KPI3 · Unloading to GRN", shortLabel: "KPI3", description: "Unloading to GRN", color: "#e0a400" },
   ];
+  const displayedSeries = series.filter((item) => visibleSeries[item.key]);
+  const toggleSeries = (key) => {
+    setHovered(null);
+    setVisibleSeries((current) => ({ ...current, [key]: !current[key] }));
+  };
   const x = (index) =>
     pad.left + (index * (width - pad.left - pad.right)) / Math.max(rows.length - 1, 1);
   const y = (value) => {
@@ -773,12 +784,12 @@ function TrendPanel({ daily }) {
     .map((point, index) => `${index ? "L" : "M"} ${x(point.index)} ${y(point.value)}`)
     .join(" ");
   const tooltipWidth = 142;
-  const tooltipHeight = 76;
+  const tooltipHeight = 31 + displayedSeries.length * 15;
   const tooltipX = hovered
     ? Math.min(Math.max(x(hovered.index) - tooltipWidth / 2, pad.left), width - pad.right - tooltipWidth)
     : 0;
   const tooltipY = hovered
-    ? Math.max(pad.top, Math.min(...series.map((item) => y(hovered.row[item.key]))) - tooltipHeight - 9)
+    ? Math.max(pad.top, Math.min(...displayedSeries.map((item) => y(hovered.row[item.key]))) - tooltipHeight - 9)
     : 0;
 
   return (
@@ -786,8 +797,29 @@ function TrendPanel({ daily }) {
       <PanelHeading title="MTD daily KPI trend" subtitle="Daily simple averages · Fixed 0–40 hour scale" />
       <div className="chart-legend">
         <div className="chart-series-legend">
-          {series.map((item) => <span key={item.key}><i style={{ background: item.color }} />{item.shortLabel}</span>)}
-          <span><i className="target-legend" />KPI1 target 14h</span>
+          {series.map((item) => (
+            <button
+              type="button"
+              key={item.key}
+              className={`chart-legend-button ${visibleSeries[item.key] ? "active" : "inactive"}`}
+              aria-pressed={visibleSeries[item.key]}
+              onClick={() => toggleSeries(item.key)}
+              title={`Show or hide ${item.label}`}
+            >
+              <i style={{ background: item.color }} />
+              <span><strong>{item.shortLabel}</strong><small>{item.description}</small></span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className={`chart-legend-button ${visibleSeries.target ? "active" : "inactive"}`}
+            aria-pressed={visibleSeries.target}
+            onClick={() => toggleSeries("target")}
+            title="Show or hide the KPI1 target"
+          >
+            <i className="target-legend" />
+            <span><strong>KPI1 target</strong><small>14-hour benchmark</small></span>
+          </button>
         </div>
         <em>{rows.length} reporting days</em>
       </div>
@@ -806,13 +838,13 @@ function TrendPanel({ daily }) {
             </g>
           );
         })}
-        <line x1={pad.left} x2={width - pad.right} y1={y(target)} y2={y(target)} className="target-line" />
-        <text x={width - pad.right - 3} y={y(target) - 5} textAnchor="end" className="target-label">KPI1 target 14h</text>
-        {series.map((item) => {
+        {visibleSeries.target && <line x1={pad.left} x2={width - pad.right} y1={y(target)} y2={y(target)} className="target-line" />}
+        {visibleSeries.target && <text x={width - pad.right - 3} y={y(target) - 5} textAnchor="end" className="target-label">KPI1 target 14h</text>}
+        {displayedSeries.map((item) => {
           const path = pathFor(item.key);
           return path ? <path key={item.key} d={path} className="trend-path" style={{ stroke: item.color }} /> : null;
         })}
-        {series.flatMap((item) => rows.map((row, index) => {
+        {displayedSeries.flatMap((item) => rows.map((row, index) => {
           const value = Number(row[item.key]);
           if (!Number.isFinite(value)) return [];
           return (
@@ -840,7 +872,7 @@ function TrendPanel({ daily }) {
           <g className="chart-tooltip" transform={`translate(${tooltipX} ${tooltipY})`}>
             <rect width={tooltipWidth} height={tooltipHeight} rx="7" />
             <text x="10" y="16" className="tooltip-date">{formatShortDate(hovered.row.summaryDate)}</text>
-            {series.map((item, index) => (
+            {displayedSeries.map((item, index) => (
               <g key={item.key} transform={`translate(0 ${28 + index * 15})`}>
                 <circle cx="11" cy="0" r="3" fill={item.color} />
                 <text x="19" y="3">{item.shortLabel}</text>
