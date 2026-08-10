@@ -1720,10 +1720,10 @@ function selectExportMessages_(messages, isGrn, config) {
   const latestByFacility = {};
   messages.forEach(function (message) {
     const exportJob = extractEmailField_(getEmailBodyText_(message), "Export");
-    const facility = facilityFromPutawayExport_(exportJob, config);
-    if (facility) latestByFacility[facility] = message;
+    const selectionKey = putawayExportSelectionKey_(exportJob, config);
+    if (selectionKey) latestByFacility[selectionKey] = message;
   });
-  return ["SL Rx", "SL Ambient", "SL Mother Hub", "OWN", "EXPORT"]
+  return ["SL Rx", "SL Ambient", "SL Mother Hub", "OWN", "EXPORT", "ARAMEX"]
     .map(function (facility) {
       return latestByFacility[facility];
     })
@@ -1819,12 +1819,29 @@ function facilityFromPutawayExport_(exportJob, config) {
     return "OWN";
   }
   if (
+    value.indexOf("PUTAWAY-ARAMEX") !== -1 ||
+    value.indexOf(String(config.PUTAWAY_EXPORT_ARAMEX || "GRN/Putaway-ARAMEX").toUpperCase().replace(/\s+/g, "")) !== -1
+  ) {
+    return "EXPORT";
+  }
+  if (
     value.indexOf("PUTAWAY-EXPORT") !== -1 ||
     value.indexOf(String(config.PUTAWAY_EXPORT_EXPORT || "GRN/Putaway-EXPORT").toUpperCase().replace(/\s+/g, "")) !== -1
   ) {
     return "EXPORT";
   }
   return "";
+}
+
+function putawayExportSelectionKey_(exportJob, config) {
+  const value = String(exportJob || "").toUpperCase().replace(/\s+/g, "");
+  if (
+    value.indexOf("PUTAWAY-ARAMEX") !== -1 ||
+    value.indexOf(String(config.PUTAWAY_EXPORT_ARAMEX || "GRN/Putaway-ARAMEX").toUpperCase().replace(/\s+/g, "")) !== -1
+  ) {
+    return "ARAMEX";
+  }
+  return facilityFromPutawayExport_(exportJob, config);
 }
 
 function normalizeFacility_(value) {

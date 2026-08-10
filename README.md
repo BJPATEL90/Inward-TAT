@@ -28,7 +28,7 @@ The dashboard covers:
 - OWN
 - EXPORT
 
-`Raw_Goods_Inward` imports only SL Mother Hub and SL Ambient unloading rows. The primary invoice key resolves the ERP facility across SL Ambient, SL Mother Hub, SL Rx, OWN, and EXPORT. When the primary key is unavailable, controlled `GRN Number + SKU` bridges map SL Ambient to SL Rx and SL Mother Hub to OWN or EXPORT. If the same fallback key appears in both OWN and EXPORT, the record is held as ambiguous instead of being assigned arbitrarily.
+`Raw_Goods_Inward` imports only SL Mother Hub and SL Ambient unloading rows. The primary invoice key resolves the ERP facility across SL Ambient, SL Mother Hub, SL Rx, OWN, and EXPORT. When the primary key is unavailable, controlled `GRN Number + SKU` bridges map SL Ambient to SL Rx and SL Mother Hub to OWN or EXPORT. ARAMEX GRN and Putaway exports are normalized to dashboard facility EXPORT, while ARAMEX and EXPORT cumulative Putaway emails are selected independently so neither report replaces the other. If the same fallback key appears in both OWN and EXPORT, the record is held as ambiguous instead of being assigned arbitrarily.
 
 ## Data sources
 
