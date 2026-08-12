@@ -879,9 +879,16 @@ function TrendPanel({ daily, capacity = 3500 }) {
   const pad = { left: 48, right: 54, top: 24, bottom: 34 };
   const max = 40;
   const target = 14;
-  const volumeMax = Math.max(
-    capacity * 1.25,
-    ...rows.map((row) => Number(row.boxesUnloaded || 0) * 1.1),
+  const volumeTickStep = 500;
+  const volumeMax = Math.ceil(
+    Math.max(
+      capacity * 1.25,
+      ...rows.map((row) => Number(row.boxesUnloaded || 0) * 1.1),
+    ) / volumeTickStep,
+  ) * volumeTickStep;
+  const volumeTicks = Array.from(
+    { length: Math.floor(volumeMax / volumeTickStep) + 1 },
+    (_, index) => index * volumeTickStep,
   );
   const series = [
     { key: "kpi1Hours", label: "KPI1 · Unloading to Putaway", shortLabel: "KPI1", description: "Unloading to Putaway", color: "#16a65a" },
@@ -992,9 +999,9 @@ function TrendPanel({ daily, capacity = 3500 }) {
             </g>
           );
         })}
-        {[0, 0.5, 1].map((ratio) => (
-          <text key={`volume-axis-${ratio}`} x={width - pad.right + 8} y={volumeY(volumeMax * ratio) + 4} textAnchor="start" className="volume-axis-label">
-            {formatCompactBoxes(volumeMax * ratio)}
+        {volumeTicks.map((value) => (
+          <text key={`volume-axis-${value}`} x={width - pad.right + 8} y={volumeY(value) + 4} textAnchor="start" className="volume-axis-label">
+            {formatCompactBoxes(value)}
           </text>
         ))}
         {visibleSeries.volume && rows.map((row, index) => {
@@ -1594,7 +1601,10 @@ function formatBoxes(value) {
 function formatCompactBoxes(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "—";
-  if (number >= 1000) return `${(number / 1000).toFixed(number >= 10000 ? 0 : 1)}k`;
+  if (number >= 1000) {
+    const thousands = number / 1000;
+    return `${Number.isInteger(thousands) ? thousands.toFixed(0) : thousands.toFixed(1)}k`;
+  }
   return String(Math.round(number));
 }
 
