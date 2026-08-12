@@ -65,17 +65,37 @@ export async function verifyGoogleCredential(credential) {
 }
 
 export async function postToAppsScript(parameters) {
-  const response = await fetch(APPS_SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-    body: new URLSearchParams(parameters),
-    redirect: "follow",
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw new Error(`Dashboard API returned ${response.status}`);
+  const retryDelays = [0, 400, 1000];
+  let lastError;
+
+  for (let attempt = 0; attempt < retryDelays.length; attempt += 1) {
+    if (retryDelays[attempt]) {
+      await new Promise((resolve) => window.setTimeout(resolve, retryDelays[attempt]));
+    }
+
+    try {
+      const url = new URL(APPS_SCRIPT_URL);
+      url.searchParams.set("_request", `${Date.now()}-${attempt}`);
+      const response = await fetch(url.toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+        body: new URLSearchParams(parameters),
+        redirect: "follow",
+        cache: "no-store",
+      });
+      if (response.ok) return response.json();
+
+      lastError = new Error(`Dashboard API returned ${response.status}`);
+      if (response.status !== 404 && response.status !== 429 && response.status < 500) {
+        throw lastError;
+      }
+    } catch (error) {
+      lastError = error;
+      if (/returned (400|401|403)/.test(String(error?.message || ""))) throw error;
+    }
   }
-  return response.json();
+
+  throw lastError || new Error("Dashboard API is temporarily unavailable");
 }
 
 export function loadGoogleIdentity() {
