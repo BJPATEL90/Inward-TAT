@@ -106,6 +106,8 @@ The React dashboard provides:
 - Facility filter
 - Interactive MTD KPI1/KPI2/KPI3 daily trend with combined unloaded-box volume bars
 - Capacity benchmark from `DAILY_UNLOADING_CAPACITY_BOXES` in Config (default: 3,500 boxes/day)
+- Daily volume is the sum of `No. of Boxes Recd` for SL Mother Hub and SL Ambient; it is not normalized or averaged
+- The chart's right axis is shown in 500-box intervals (`500`, `1k`, `1.5k`, and so on), with its upper limit rounded to the next 500 based on the capacity or observed peak
 - Hover detail showing daily boxes, utilisation, and percentage above or below capacity
 - Selected-range volume summary that follows the dashboard date filter
 - Published volume ribbon for Last Quarter, Last Month, MTD, and Yesterday from the corresponding Goods Inward monthly tabs
@@ -134,6 +136,7 @@ The public GitHub Pages URL displays Google Sign-In before loading operational d
 - Apps Script validates the token with Google.
 - The OAuth audience, token expiry, verified email, and `mosaicwellness.in` hosted domain are checked.
 - Dashboard data is not returned without a valid token.
+- The frontend adds a unique request parameter and automatically retries transient Apps Script `404`, `429`, and `5xx` responses.
 - The OAuth Client ID is public by design.
 - OAuth client secrets, local environment files, build output, and deployment credentials are excluded from Git.
 
@@ -156,9 +159,11 @@ The email contains:
 - Last Quarter, Last Month, MTD, and Yesterday cards
 - KPI1, KPI2, and KPI3 values
 - Yesterday pending-data status
-- MTD KPI1 daily trend chart
+- MTD combo chart with KPI1 actual, the 14-hour KPI1 target, daily unloaded-box volume, and the 3,500-box capacity target
 - GitHub dashboard link
 - MTD record-level CSV attachment
+
+The email chart uses hours on the left axis and boxes on the right axis. KPI1 is a green line, its target is a dotted green line, volume is shown as bars, and capacity is a dotted reference line. The right axis uses 500-box intervals. Change the targets through `KPI1_TARGET_HOURS` and `DAILY_UNLOADING_CAPACITY_BOXES` in the `Config` sheet.
 
 Run `activateInwardTatEmail` once to install the daily trigger and send a test email. Run `sendDailyInwardTatEmail` for an on-demand report.
 
@@ -172,6 +177,7 @@ Run these functions from the Apps Script editor as required:
 | `validateInwardTatWorkbook` | Validates the workbook structure |
 | `authorizeInwardTat` | Requests the required Sheets, Gmail, URL Fetch, and trigger permissions |
 | `runInwardTatPipeline` | Runs the complete import and KPI rebuild |
+| `rebuildHistoricalInwardTatFacts` | Rebuilds Fact, MTD, volume, and exceptions from the current backend raw sheets without re-importing external sources |
 | `installDailyInwardTatPipelineTrigger` | Installs the daily pipeline trigger near 08:30 IST, before the stakeholder email |
 | `installInwardTatTrigger(hour)` | Installs the pipeline trigger at a custom hour; defaults to 08:30 IST when run without an argument |
 | `activateInwardTatEmail` | Installs the email trigger and sends a test |
@@ -235,9 +241,22 @@ clasp push
 
 After backend changes, update the existing Apps Script deployment so the `/exec` URL remains stable.
 
+The dashboard Refresh button bypasses the normal 120-second API cache. Keep the existing deployment URL when publishing a new Apps Script version so GitHub Pages does not require a configuration change.
+
+## Correcting source data and refreshing the dashboard
+
+Use the following process after correcting an operational timestamp or matching field:
+
+1. If the correction was made in the external monthly Goods Inward tab (`FG-<Month>-<YY>`), run `runInwardTatPipeline`. This re-imports Goods Inward, checks the cumulative GRN and Putaway emails, and rebuilds Fact, MTD, volume, and exceptions.
+2. When the pipeline is complete, open the dashboard and click **Refresh** to bypass the API cache and load the rebuilt data.
+3. If the correction was made directly in a backend `Raw_*` sheet, run `rebuildHistoricalInwardTatFacts`, then refresh the dashboard.
+
+Do not run `setupInwardTatWorkbook` for routine data corrections. The Pending Tasks **Update fields** action can supply missing GRN or Putaway timestamps, but it does not override the unloading timestamp. Correct unloading timestamps in the monthly Goods Inward source and rerun the full pipeline.
+
 ## Operational notes
 
 - Yesterday may show `00:00` when the next-day ERP or unloading data has not yet arrived. This is shown as pending, not treated as a valid zero-duration KPI.
 - Missing GRN or putaway matches remain visible as exceptions and do not contribute false zero values to averages.
 - Negative timestamp sequences are marked as exceptions.
 - Update business rules and recipients through the `Config` sheet rather than hard-coding operational values.
+- `KPI1_TARGET_HOURS` defaults to `14`; `DAILY_UNLOADING_CAPACITY_BOXES` defaults to `3500` combined boxes per day.
