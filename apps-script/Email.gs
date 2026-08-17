@@ -363,7 +363,7 @@ function buildMtdTrendChart_(
       .setOption("width", 900)
       .setOption("height", 360)
       .setOption("backgroundColor", "#ffffff")
-      .setOption("chartArea", { left: 65, right: 75, top: 75, width: "80%", height: "62%" })
+      .setOption("chartArea", { left: 65, top: 75, width: "80%", height: "62%" })
       .setOption("legend", { position: "top", alignment: "center" })
       .setOption("seriesType", "line")
       .setOption("series", {
