@@ -317,31 +317,32 @@ function buildMtdTrendChart_(
   const chartSheet = spreadsheet.insertSheet(
     "_EmailChart_" + Utilities.getUuid().replace(/-/g, "").slice(0, 12)
   );
+  const chartRows = [[
+    "Date",
+    "KPI1",
+    "KPI1 target " + kpi1Target + "h",
+    "Volume",
+    "Volume target " + formatEmailBoxes_(volumeTarget),
+  ]];
+  rows.forEach(function (row) {
+    chartRows.push([
+      Utilities.formatDate(
+        parseDateTime_(row["Summary Date"]),
+        timeZone,
+        "dd MMM"
+      ),
+      Number(row["KPI1 Unloading to Putaway Avg Hours"]),
+      kpi1Target,
+      Number(row["Boxes Unloaded"] || 0),
+      volumeTarget,
+    ]);
+  });
   try {
-    chartSheet.hideSheet();
-    const chartRows = [[
-      "Date",
-      "KPI1",
-      "KPI1 target " + kpi1Target + "h",
-      "Volume",
-      "Volume target " + formatEmailBoxes_(volumeTarget),
-    ]];
-    rows.forEach(function (row) {
-      chartRows.push([
-        Utilities.formatDate(
-          parseDateTime_(row["Summary Date"]),
-          timeZone,
-          "dd MMM"
-        ),
-        Number(row["KPI1 Unloading to Putaway Avg Hours"]),
-        kpi1Target,
-        Number(row["Boxes Unloaded"] || 0),
-        volumeTarget,
-      ]);
-    });
     chartSheet
       .getRange(1, 1, chartRows.length, chartRows[0].length)
       .setValues(chartRows);
+    SpreadsheetApp.flush();
+    Utilities.sleep(750);
 
     const peakVolume = rows.reduce(function (peak, row) {
       return Math.max(peak, Number(row["Boxes Unloaded"] || 0));
@@ -363,7 +364,12 @@ function buildMtdTrendChart_(
       .setOption("width", 900)
       .setOption("height", 360)
       .setOption("backgroundColor", "#ffffff")
-      .setOption("chartArea", { left: 65, top: 75, width: "80%", height: "62%" })
+      .setOption("chartArea", {
+        left: 65,
+        top: 75,
+        width: "80%",
+        height: "62%",
+      })
       .setOption("legend", { position: "top", alignment: "center" })
       .setOption("seriesType", "line")
       .setOption("series", {
@@ -380,13 +386,39 @@ function buildMtdTrendChart_(
       .build();
     chartSheet.insertChart(chart);
     SpreadsheetApp.flush();
-    return chartSheet
-      .getCharts()[0]
-      .getAs("image/png")
-      .setName("inward-tat-mtd-kpi1-volume-trend.png");
+    Utilities.sleep(1500);
+    return getEmailChartPngWithRetry_(
+      chartSheet,
+      "inward-tat-mtd-kpi1-volume-trend.png"
+    );
   } finally {
-    spreadsheet.deleteSheet(chartSheet);
+    try {
+      spreadsheet.deleteSheet(chartSheet);
+    } catch (cleanupError) {
+      console.warn("Temporary email chart cleanup failed: " + cleanupError.message);
+    }
   }
+}
+
+function getEmailChartPngWithRetry_(chartSheet, fileName) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      SpreadsheetApp.flush();
+      const charts = chartSheet.getCharts();
+      if (!charts.length) {
+        throw new Error("The temporary email chart is not ready.");
+      }
+      return charts[0].getAs("image/png").setName(fileName);
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) Utilities.sleep(attempt * 1500);
+    }
+  }
+  throw new Error(
+    "Unable to render the email trend chart after 3 attempts: " +
+      (lastError && lastError.message ? lastError.message : String(lastError))
+  );
 }
 
 function monthlyWorkbookHeaders_() {
