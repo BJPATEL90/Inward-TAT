@@ -313,10 +313,12 @@ function buildMtdTrendChart_(
     throw new Error("No MTD KPI1 daily trend data is available for the email.");
   }
 
-  const spreadsheet = openInwardTatSpreadsheet_();
-  const chartSheet = spreadsheet.insertSheet(
-    "_EmailChart_" + Utilities.getUuid().replace(/-/g, "").slice(0, 12)
+  const temporary = SpreadsheetApp.create(
+    "TEMP_Inward_TAT_Email_Chart_" + Utilities.getUuid()
   );
+  const temporaryId = temporary.getId();
+  const chartSheet = temporary.getSheets()[0];
+  chartSheet.setName("Email Chart");
   const chartRows = [[
     "Date",
     "KPI1",
@@ -393,9 +395,21 @@ function buildMtdTrendChart_(
     );
   } finally {
     try {
-      spreadsheet.deleteSheet(chartSheet);
+      const cleanupResponse = UrlFetchApp.fetch(
+        "https://www.googleapis.com/drive/v3/files/" + temporaryId,
+        {
+          method: "delete",
+          headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() },
+          muteHttpExceptions: true,
+        }
+      );
+      if (cleanupResponse.getResponseCode() !== 204) {
+        throw new Error("HTTP " + cleanupResponse.getResponseCode());
+      }
     } catch (cleanupError) {
-      console.warn("Temporary email chart cleanup failed: " + cleanupError.message);
+      console.warn(
+        "Temporary email chart workbook cleanup failed: " + cleanupError.message
+      );
     }
   }
 }
