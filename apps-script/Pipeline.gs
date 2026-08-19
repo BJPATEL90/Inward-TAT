@@ -1857,7 +1857,9 @@ function normalizeFacility_(value) {
   if (["own"].indexOf(compact) !== -1) return "OWN";
   // Unicommerce uses Aramex as the GRN facility for export/UAE receipts,
   // while the corresponding Putaway export job is GRN/Putaway-EXPORT.
-  if (["export", "aramex"].indexOf(compact) !== -1) return "EXPORT";
+  if (["export", "slexport", "aramex"].indexOf(compact) !== -1) {
+    return "EXPORT";
+  }
   return "";
 }
 
