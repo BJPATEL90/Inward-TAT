@@ -155,6 +155,62 @@ function rebuildHistoricalInwardTatFacts() {
   }
 }
 
+/**
+ * One-time recovery for the previous calendar month. It reimports the final
+ * cumulative GRN export and the final named Putaway export for every facility
+ * from Gmail, then rebuilds all facts. Reports received on the first day of
+ * the current month are included because they contain the prior day's close.
+ */
+function backfillPreviousMonthFromGmail() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  const startedAt = new Date();
+  const runId = "HISTORICAL-GMAIL-" + Utilities.getUuid();
+  try {
+    seedConfig_(getSheet_(INWARD_TAT.SHEETS.CONFIG));
+    const config = getConfig_();
+    const targetStart = new Date(startedAt.getFullYear(), startedAt.getMonth() - 1, 1);
+    const reportCutoff = new Date(startedAt.getFullYear(), startedAt.getMonth(), 2);
+    const timeZone = String(config.TIME_ZONE || "Asia/Kolkata");
+    const targetLabel = Utilities.formatDate(targetStart, timeZone, "MMMM yyyy");
+    const searchEnd = new Date(reportCutoff.getFullYear(), reportCutoff.getMonth(), reportCutoff.getDate() + 1);
+    const options = {
+      forceReimport: true,
+      selectionStart: targetStart,
+      selectionCutoff: reportCutoff,
+      gmailAfter: Utilities.formatDate(targetStart, timeZone, "yyyy/MM/dd"),
+      gmailBefore: Utilities.formatDate(searchEnd, timeZone, "yyyy/MM/dd"),
+      selectionLabel: targetLabel + " historical close",
+    };
+    logExecution_(runId, "HISTORICAL_GMAIL_BACKFILL", "STARTED", "Previous-month Gmail backfill started for " + targetLabel + ".", {
+      targetMonth: targetLabel, selectionStart: targetStart, selectionCutoff: reportCutoff,
+    });
+    const results = {
+      goods: syncGoodsInward_(config, runId),
+      grn: importUnicommerceEmails_("GRN", config, runId, options),
+      putaway: importUnicommerceEmails_("PUTAWAY", config, runId, options),
+    };
+    logExecution_(runId, "HISTORICAL_DEDUPE", "STARTED", "Deduplicating raw rows after the historical Gmail reimport.", { targetMonth: targetLabel });
+    dedupeRawReportSheets_();
+    logExecution_(runId, "HISTORICAL_DEDUPE", "COMPLETED", "Historical raw report deduplication completed.", { targetMonth: targetLabel });
+    const processing = rebuildTatFacts_(config, runId);
+    updateConfigValue_("LAST_SUCCESSFUL_REFRESH", new Date());
+    CacheService.getScriptCache().remove("INWARD_TAT_DASHBOARD_V1");
+    logExecution_(runId, "HISTORICAL_GMAIL_BACKFILL", "COMPLETED", targetLabel + " Gmail backfill and KPI rebuild completed successfully.", {
+      targetMonth: targetLabel, rowsRead: processing.factRows, rowsImported: processing.completeRows,
+      rowsSkipped: processing.exceptionRows, durationSeconds: (new Date().getTime() - startedAt.getTime()) / 1000,
+    });
+    return { ok: true, targetMonth: targetLabel, imports: results, processing: processing, completedAt: new Date().toISOString() };
+  } catch (error) {
+    logExecution_(runId, "HISTORICAL_GMAIL_BACKFILL", "FAILED", error.message || String(error), {
+      durationSeconds: (new Date().getTime() - startedAt.getTime()) / 1000,
+    });
+    throw error;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function clearWronglyPulledPutawayData() {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -214,19 +270,23 @@ function clearWronglyPulledPutawayData() {
   }
 }
 
-function importUnicommerceEmails_(reportType, config, runId) {
+function importUnicommerceEmails_(reportType, config, runId, options) {
+  options = options || {};
   const isGrn = reportType === "GRN";
   const sender = isGrn ? config.GRN_EMAIL_FROM : config.PUTAWAY_EMAIL_FROM;
   const subject = isGrn ? config.GRN_EMAIL_SUBJECT : config.PUTAWAY_EMAIL_SUBJECT;
   const lookbackDays = Number(config.EMAIL_LOOKBACK_DAYS || 45);
+  const dateQuery = options.gmailAfter && options.gmailBefore
+    ? " after:" + options.gmailAfter + " before:" + options.gmailBefore
+    : " newer_than:" + lookbackDays + "d";
   const query =
     "from:" +
     sender +
     ' subject:"' +
     subject +
-    '" newer_than:' +
-    lookbackDays +
-    "d -in:trash -in:spam";
+    '"' +
+    dateQuery +
+    " -in:trash -in:spam";
   logExecution_(
     runId,
     reportType + "_EMAIL_SEARCH",
@@ -250,7 +310,8 @@ function importUnicommerceEmails_(reportType, config, runId) {
   const selectedMessages = selectExportMessages_(
     messages,
     isGrn,
-    config
+    config,
+    options
   );
   logExecution_(
     runId,
@@ -259,7 +320,9 @@ function importUnicommerceEmails_(reportType, config, runId) {
     messages.length +
       " matching email(s) found; " +
       selectedMessages.length +
-      " latest cumulative export(s) selected.",
+      " " +
+      (options.selectionLabel || "latest cumulative") +
+      " export(s) selected.",
     { reportType: reportType, emailSubject: subject }
   );
   const summary = {
@@ -307,7 +370,11 @@ function importUnicommerceEmails_(reportType, config, runId) {
         })
       : [];
     const requiresGrnFacilityBackfill = missingGrnFacilities.length > 0;
-    if (alreadyProcessed && !requiresGrnFacilityBackfill) {
+    if (
+      alreadyProcessed &&
+      !requiresGrnFacilityBackfill &&
+      !options.forceReimport
+    ) {
       logExecution_(
         runId,
         reportType + "_CSV",
@@ -317,6 +384,15 @@ function importUnicommerceEmails_(reportType, config, runId) {
       );
       summary.skipped += 1;
       return;
+    }
+    if (alreadyProcessed && options.forceReimport) {
+      logExecution_(
+        runId,
+        reportType + "_HISTORICAL_REIMPORT",
+        "STARTED",
+        "Force-reimporting the selected historical cumulative CSV.",
+        emailDetails
+      );
     }
     if (requiresGrnFacilityBackfill) {
       logExecution_(
@@ -1710,15 +1786,24 @@ function getExecutionLogSheet_() {
   return sheet;
 }
 
-function selectExportMessages_(messages, isGrn, config) {
+function selectExportMessages_(messages, isGrn, config, options) {
+  options = options || {};
+  const selectionStart = options.selectionStart ? options.selectionStart.getTime() : null;
+  const selectionCutoff = options.selectionCutoff ? options.selectionCutoff.getTime() : null;
+  const eligibleMessages = messages.filter(function (message) {
+    const timestamp = message.getDate().getTime();
+    if (selectionStart !== null && timestamp < selectionStart) return false;
+    if (selectionCutoff !== null && timestamp >= selectionCutoff) return false;
+    return true;
+  });
   const cumulative =
     String(config.ERP_EXPORT_MODE || "MTD_CUMULATIVE").toUpperCase() ===
     "MTD_CUMULATIVE";
-  if (!cumulative) return messages;
-  if (isGrn) return messages.length ? [messages[messages.length - 1]] : [];
+  if (!cumulative && selectionStart === null && selectionCutoff === null) return messages;
+  if (isGrn) return eligibleMessages.length ? [eligibleMessages[eligibleMessages.length - 1]] : [];
 
   const latestByFacility = {};
-  messages.forEach(function (message) {
+  eligibleMessages.forEach(function (message) {
     const exportJob = extractEmailField_(getEmailBodyText_(message), "Export");
     const selectionKey = putawayExportSelectionKey_(exportJob, config);
     if (selectionKey) latestByFacility[selectionKey] = message;
