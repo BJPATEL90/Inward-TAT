@@ -246,6 +246,11 @@ const CONFIG_DEFAULTS = Object.freeze([
   ["EMAIL_LOOKBACK_DAYS", 45, "NUMBER", "Gmail search window used by the ingestion pipeline."],
   ["ERP_EXPORT_MODE", "MTD_CUMULATIVE", "TEXT", "Uses the latest MTD GRN export and latest named Putaway export for each facility."],
   ["PIPELINE_BATCH_SIZE", 500, "NUMBER", "Maximum rows written to Sheets in one operation."],
+  ["FALLBACK_RECOVERY_ENABLED", "TRUE", "TEXT", "Runs a secondary freshness check and raw-sheet rebuild when MTD is behind the latest unloading date through yesterday."],
+  ["FALLBACK_RECOVERY_HOUR", 10, "NUMBER", "Hour in Asia/Kolkata for the secondary dashboard recovery check."],
+  ["LAST_FALLBACK_STATUS", "", "TEXT", "Latest fallback recovery result: CURRENT, RECOVERED, SKIPPED, or FAILED."],
+  ["LAST_FALLBACK_AT", "", "DATETIME", "Timestamp of the latest fallback freshness check."],
+  ["LAST_FALLBACK_DETAIL", "", "TEXT", "Expected and available dashboard coverage recorded by the fallback check."],
   ["LAST_SUCCESSFUL_REFRESH", "", "DATETIME", "Updated only after a complete successful pipeline run."],
 ]);
 
@@ -257,6 +262,7 @@ function onOpen() {
     .addSeparator()
     .addItem("Rebuild historical TAT facts", "rebuildHistoricalInwardTatFacts")
     .addItem("Install daily pipeline trigger", "installDailyInwardTatPipelineTrigger")
+    .addItem("Install fallback recovery trigger", "installInwardTatRecoveryTrigger")
     .addItem("Configure daily email", "configureInwardTatEmail")
     .addItem("Activate daily email + send test", "activateInwardTatEmail")
     .addItem("Send email now", "sendDailyInwardTatEmail")

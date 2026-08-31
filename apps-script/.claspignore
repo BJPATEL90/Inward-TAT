@@ -3,4 +3,5 @@
 !Pipeline.gs
 !Api.gs
 !Email.gs
+!Fallback.gs
 !appsscript.json

@@ -2324,8 +2324,11 @@ function installInwardTatTrigger(hour) {
 
 function installDailyInwardTatPipelineTrigger() {
   const result = installInwardTatTrigger(8);
+  const recovery = installInwardTatRecoveryTrigger();
   console.log(
-    "PIPELINE_TRIGGER | INSTALLED | runInwardTatPipeline scheduled daily near 08:30 IST."
+    "PIPELINE_TRIGGER | INSTALLED | runInwardTatPipeline scheduled daily near 08:30 IST; fallback freshness recovery scheduled near " +
+      String(recovery.hour).padStart(2, "0") +
+      ":00 IST."
   );
   return {
     ok: true,
@@ -2333,5 +2336,6 @@ function installDailyInwardTatPipelineTrigger() {
     schedule: "Daily near 08:30 IST",
     hour: result.hour,
     nearMinute: result.nearMinute,
+    recovery: recovery,
   };
 }
