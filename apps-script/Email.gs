@@ -641,7 +641,7 @@ function buildInwardTatEmailHtml_(
     " IST" +
     "</div></td></tr></table></td></tr>" +
     '<tr><td class="email-content" style="padding:32px 38px 36px"><div class="content-inner">' +
-    '<div style="font-size:20px;font-weight:700">Vehicle Arrival to Putaway TAT</div>' +
+    '<div style="font-size:20px;font-weight:700">Dock to Stock TAT</div>' +
     '<div style="font-size:14px;color:#60718d;margin-top:8px">Last Quarter, Last Month, Month to Date, and Yesterday.</div>' +
     '<div class="kpi-definitions" style="font-size:14px;color:#60718d;margin-top:5px"><span>KPI1: Unloading to Putaway</span><span class="separator"> &nbsp;&middot;&nbsp; </span><span>KPI2: GRN to Putaway</span><span class="separator"> &nbsp;&middot;&nbsp; </span><span>KPI3: Unloading to GRN</span></div>' +
     '<table class="kpi-grid" role="presentation" width="100%" cellspacing="8" cellpadding="0" style="margin-top:18px;table-layout:fixed"><tr>' +
