@@ -743,16 +743,20 @@ function resolveGoodsSourceSheets_(spreadsheet, config) {
     function (monthDate) {
       const monthLong = Utilities.formatDate(monthDate, timeZone, "MMMM");
       const monthShort = Utilities.formatDate(monthDate, timeZone, "MMM");
+      const monthAliases = [monthLong, monthShort];
+      if (Number(Utilities.formatDate(monthDate, timeZone, "M")) === 9) {
+        monthAliases.push("Sept");
+      }
       const yearShort = Utilities.formatDate(monthDate, timeZone, "yy");
       const yearLong = Utilities.formatDate(monthDate, timeZone, "yyyy");
-      const candidates = [
-        prefix + monthLong + "-" + yearShort,
-        prefix + monthShort + "-" + yearShort,
-        prefix + monthLong + "-" + yearLong,
-        prefix + monthShort + "-" + yearLong,
-      ].map(normalizeTabName_);
-      for (let index = 0; index < candidates.length; index += 1) {
-        const sheet = sheetsByNormalizedName[candidates[index]];
+      const candidates = [];
+      monthAliases.forEach(function (monthName) {
+        candidates.push(prefix + monthName + "-" + yearShort);
+        candidates.push(prefix + monthName + "-" + yearLong);
+      });
+      const normalizedCandidates = candidates.map(normalizeTabName_);
+      for (let index = 0; index < normalizedCandidates.length; index += 1) {
+        const sheet = sheetsByNormalizedName[normalizedCandidates[index]];
         if (sheet && resolved.indexOf(sheet) === -1) {
           resolved.push(sheet);
           break;
@@ -924,16 +928,22 @@ function resolveGoodsSourceSheetForMonth_(spreadsheet, config, monthDate) {
   });
   const monthLong = Utilities.formatDate(monthDate, timeZone, "MMMM");
   const monthShort = Utilities.formatDate(monthDate, timeZone, "MMM");
+  const monthAliases = [monthLong, monthShort];
+  if (Number(Utilities.formatDate(monthDate, timeZone, "M")) === 9) {
+    monthAliases.push("Sept");
+  }
   const yearShort = Utilities.formatDate(monthDate, timeZone, "yy");
   const yearLong = Utilities.formatDate(monthDate, timeZone, "yyyy");
-  const candidates = [
-    prefix + monthLong + "-" + yearShort,
-    prefix + monthShort + "-" + yearShort,
-    prefix + monthLong + "-" + yearLong,
-    prefix + monthShort + "-" + yearLong,
-  ].map(normalizeTabName_);
-  for (let index = 0; index < candidates.length; index += 1) {
-    if (normalizedSheets[candidates[index]]) return normalizedSheets[candidates[index]];
+  const candidates = [];
+  monthAliases.forEach(function (monthName) {
+    candidates.push(prefix + monthName + "-" + yearShort);
+    candidates.push(prefix + monthName + "-" + yearLong);
+  });
+  const normalizedCandidates = candidates.map(normalizeTabName_);
+  for (let index = 0; index < normalizedCandidates.length; index += 1) {
+    if (normalizedSheets[normalizedCandidates[index]]) {
+      return normalizedSheets[normalizedCandidates[index]];
+    }
   }
   return null;
 }
