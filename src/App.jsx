@@ -980,9 +980,12 @@ function TrendPanel({ daily, capacity = 3500, title = "MTD daily KPI trend" }) {
     const bounded = Math.min(Math.max(Number(value) || 0, 0), volumeMax);
     return height - pad.bottom - (bounded / volumeMax) * (height - pad.top - pad.bottom);
   };
+  const hasTrendValue = (value) =>
+    value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
   const pathFor = (key) => rows
-    .map((row, index) => ({ index, value: Number(row[key]) }))
-    .filter((point) => Number.isFinite(point.value))
+    .map((row, index) => ({ index, rawValue: row[key] }))
+    .filter((point) => hasTrendValue(point.rawValue))
+    .map((point) => ({ index: point.index, value: Number(point.rawValue) }))
     .map((point, index) => `${index ? "L" : "M"} ${x(point.index)} ${y(point.value)}`)
     .join(" ");
   const tooltipWidth = 174;
@@ -1105,8 +1108,8 @@ function TrendPanel({ daily, capacity = 3500, title = "MTD daily KPI trend" }) {
           return path ? <path key={item.key} d={path} className="trend-path" style={{ stroke: item.color }} /> : null;
         })}
         {displayedSeries.flatMap((item) => rows.map((row, index) => {
+          if (!hasTrendValue(row[item.key])) return [];
           const value = Number(row[item.key]);
-          if (!Number.isFinite(value)) return [];
           return (
             <circle
               key={`${item.key}-${row.summaryDate}`}
