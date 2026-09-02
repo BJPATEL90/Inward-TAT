@@ -3,7 +3,7 @@ import { getStoredSession, postToAppsScript } from "./auth";
 
 const API_URL = String(import.meta.env.VITE_APPS_SCRIPT_URL || "/api/dashboard").trim();
 
-export async function loadDashboard({ refresh = false } = {}) {
+export async function loadDashboard({ refresh = false, month = "" } = {}) {
   if (!API_URL) {
     return { data: fallbackSnapshot, source: "preview" };
   }
@@ -11,12 +11,14 @@ export async function loadDashboard({ refresh = false } = {}) {
   const url = new URL(API_URL, window.location.origin);
   url.searchParams.set("action", "dashboard");
   if (refresh) url.searchParams.set("refresh", "1");
+  if (month) url.searchParams.set("month", month);
   url.searchParams.set("_", String(Date.now()));
 
   if (url.hostname === "script.google.com") {
     const data = await postToAppsScript({
       action: "dashboard",
       refresh: refresh ? "1" : "0",
+      month,
       credential: getStoredSession()?.credential || "",
     });
     if (!data.ok) {

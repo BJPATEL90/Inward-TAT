@@ -58,9 +58,13 @@ function handleApiRequest_(event) {
 
     const bypassCache =
       String((event && event.parameter && event.parameter.refresh) || "") === "1";
+    const requestedMonth = String(
+      (event && event.parameter && event.parameter.month) || ""
+    ).trim();
+    const cacheKey = "INWARD_TAT_DASHBOARD_V2_" + (requestedMonth || "CURRENT");
     const cache = CacheService.getScriptCache();
     if (!bypassCache) {
-      const cached = cache.get("INWARD_TAT_DASHBOARD_V1");
+      const cached = cache.get(cacheKey);
       if (cached) {
         return apiResponse_(
           attachDashboardUserContext_(JSON.parse(cached), auth.user),
@@ -69,10 +73,10 @@ function handleApiRequest_(event) {
       }
     }
 
-    const payload = buildDashboardSnapshot_();
+    const payload = buildDashboardSnapshot_(requestedMonth);
     const json = JSON.stringify(payload);
     if (json.length < 90000) {
-      cache.put("INWARD_TAT_DASHBOARD_V1", json, 120);
+      cache.put(cacheKey, json, 120);
     }
     return apiResponse_(attachDashboardUserContext_(payload, auth.user), event);
   } catch (error) {
@@ -222,7 +226,7 @@ function parseApiManualDateTime_(value) {
   return text ? parseDateTime_(text) : null;
 }
 
-function buildDashboardSnapshot_() {
+function buildDashboardSnapshot_(requestedMonth) {
   const config = getConfig_();
   const facts = sheetObjects_(getSheet_(INWARD_TAT.SHEETS.FACT));
   const daily = sheetObjects_(getSheet_(INWARD_TAT.SHEETS.MTD));
@@ -245,14 +249,14 @@ function buildDashboardSnapshot_() {
       })
     : [];
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthMatch = String(requestedMonth || "").match(/^(\d{4})-(\d{2})$/);
+  const monthStart = monthMatch
+    ? new Date(Number(monthMatch[1]), Number(monthMatch[2]) - 1, 1)
+    : currentMonthStart;
+  const nextMonth = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
 
-  const currentMonthFacts = facts
-    .filter(function (row) {
-      const unloadingDate = parseDateTime_(row["Unloading Date"]);
-      return unloadingDate && unloadingDate >= monthStart && unloadingDate < nextMonth;
-    })
+  const apiFacts = facts
     .map(function (row) {
       return {
         recordKey: textOrBlank_(row["Record Key"]),
@@ -279,8 +283,24 @@ function buildDashboardSnapshot_() {
         manualActionReason: textOrBlank_(row["Manual Action Reason"]),
       };
     });
+  const monthStartKey = Utilities.formatDate(monthStart, "Asia/Kolkata", "yyyy-MM-dd");
+  const nextMonthKey = Utilities.formatDate(nextMonth, "Asia/Kolkata", "yyyy-MM-dd");
+  const periodFacts = apiFacts.filter(function (row) {
+    return row.unloadingDate >= monthStartKey && row.unloadingDate < nextMonthKey;
+  });
+  const isCurrentMonth = monthStart.getTime() === currentMonthStart.getTime();
+  const availableMonths = Array.from(
+    new Set(
+      apiFacts
+        .map(function (row) {
+          return String(row.unloadingDate || "").slice(0, 7);
+        })
+        .filter(Boolean)
+        .concat([Utilities.formatDate(currentMonthStart, "Asia/Kolkata", "yyyy-MM")])
+    )
+  ).sort().reverse();
 
-  const currentMonthDaily = daily
+  const sheetDaily = daily
     .filter(function (row) {
       const summaryDate = parseDateTime_(row["Summary Date"]);
       return summaryDate && summaryDate >= monthStart && summaryDate < nextMonth;
@@ -302,14 +322,43 @@ function buildDashboardSnapshot_() {
         capacityVariancePct: apiNumber_(row["Capacity Variance %"]),
       };
     });
+  const selectedDaily = isCurrentMonth
+    ? sheetDaily
+    : buildDashboardDaily_(periodFacts, monthStart, nextMonth, config);
   const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  const yesterdayKey = Utilities.formatDate(yesterday, "Asia/Kolkata", "yyyy-MM-dd");
+  const lastAvailableDate = periodFacts
+    .map(function (row) {
+      return row.unloadingDate;
+    })
+    .filter(Boolean)
+    .sort()
+    .pop();
+  const referenceDateKey = isCurrentMonth
+    ? Utilities.formatDate(yesterday, "Asia/Kolkata", "yyyy-MM-dd")
+    : lastAvailableDate || Utilities.formatDate(
+        new Date(nextMonth.getTime() - 86400000),
+        "Asia/Kolkata",
+        "yyyy-MM-dd"
+      );
 
   return {
     ok: true,
     apiVersion: "1.2.0",
     generatedAt: new Date().toISOString(),
     timeZone: textOrBlank_(config.TIME_ZONE) || "Asia/Kolkata",
+    view: {
+      month: Utilities.formatDate(monthStart, "Asia/Kolkata", "yyyy-MM"),
+      label: Utilities.formatDate(monthStart, "Asia/Kolkata", "MMMM yyyy"),
+      periodStart: monthStartKey,
+      periodEnd: Utilities.formatDate(
+        new Date(nextMonth.getTime() - 86400000),
+        "Asia/Kolkata",
+        "yyyy-MM-dd"
+      ),
+      referenceDate: referenceDateKey,
+      isCurrentMonth: isCurrentMonth,
+    },
+    availableMonths: availableMonths,
     lastRefresh: apiDateTime_(config.LAST_SUCCESSFUL_REFRESH),
     labels: {
       kpi1: textOrBlank_(config.KPI1_LABEL) || "Unloading to Putaway",
@@ -336,26 +385,93 @@ function buildDashboardSnapshot_() {
       },
     },
     summary: {
-      mtd: summarizeApiFacts_(currentMonthFacts),
+      mtd: summarizeApiFacts_(periodFacts),
       yesterday: summarizeApiFacts_(
-        currentMonthFacts.filter(function (row) {
-          return row.unloadingDate === yesterdayKey;
+        periodFacts.filter(function (row) {
+          return row.unloadingDate === referenceDateKey;
         })
       ),
       facilities: ["SL Ambient", "SL Mother Hub", "SL Rx", "OWN", "EXPORT"].map(function (facility) {
         return Object.assign(
           { facility: facility },
           summarizeApiFacts_(
-            currentMonthFacts.filter(function (row) {
+            periodFacts.filter(function (row) {
               return row.facility === facility;
             })
           )
         );
       }),
     },
-    facts: currentMonthFacts,
-    daily: currentMonthDaily,
+    facts: periodFacts,
+    daily: selectedDaily,
   };
+}
+
+function buildDashboardDaily_(periodFacts, monthStart, nextMonth, config) {
+  const groups = new Map();
+  const volumeByDate = new Map();
+  const capacity = Math.max(
+    Number(config.DAILY_UNLOADING_CAPACITY_BOXES) || 3500,
+    0
+  );
+
+  sheetObjects_(getSheet_(INWARD_TAT.SHEETS.RAW_GOODS)).forEach(function (row) {
+    const unloading =
+      combineDateAndTime_(row["Unloading Date"], row["Unloading Time"]) ||
+      parseDateTime_(row["Unloading Date"]);
+    if (!unloading || unloading < monthStart || unloading >= nextMonth) return;
+    const boxes = Number(
+      String(row["No. of Boxes Recd"] || "").replace(/,/g, "").trim()
+    );
+    if (!isFinite(boxes) || boxes < 0) return;
+    const dateKey = Utilities.formatDate(unloading, "Asia/Kolkata", "yyyy-MM-dd");
+    volumeByDate.set(dateKey, (volumeByDate.get(dateKey) || 0) + boxes);
+  });
+
+  periodFacts.forEach(function (fact) {
+    if (!fact.unloadingDate) return;
+    [fact.facility, "All Mother Facilities"].forEach(function (facility) {
+      const groupKey = fact.unloadingDate + "|" + facility;
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, {
+          summaryDate: fact.unloadingDate,
+          facility: facility,
+          facts: [],
+        });
+      }
+      groups.get(groupKey).facts.push(fact);
+    });
+  });
+
+  return Array.from(groups.values())
+    .map(function (group) {
+      const summary = summarizeApiFacts_(group.facts);
+      const boxes =
+        group.facility === "All Mother Facilities"
+          ? volumeByDate.get(group.summaryDate) || 0
+          : 0;
+      return {
+        summaryDate: group.summaryDate,
+        facility: group.facility,
+        kpi1Hours: summary.kpi1Hours,
+        kpi2Hours: summary.kpi2Hours,
+        kpi3Hours: summary.kpi3Hours,
+        uniqueRecords: summary.records,
+        completeRecords: summary.completeRecords,
+        exceptionRecords: summary.exceptionRecords,
+        boxesUnloaded: boxes,
+        dailyCapacityBoxes: capacity,
+        capacityUtilizationPct: capacity ? (boxes / capacity) * 100 : 0,
+        boxesVsCapacity: boxes - capacity,
+        capacityVariancePct: capacity ? ((boxes - capacity) / capacity) * 100 : 0,
+      };
+    })
+    .sort(function (a, b) {
+      return (
+        a.summaryDate.localeCompare(b.summaryDate) ||
+        a.facility.localeCompare(b.facility)
+      );
+    });
 }
 
 function summarizeApiFacts_(facts) {

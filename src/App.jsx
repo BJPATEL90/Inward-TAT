@@ -144,25 +144,31 @@ function DashboardApp({ authUser, onSignOut }) {
   const [facility, setFacility] = useState("All facilities");
   const [status, setStatus] = useState("All status");
   const [query, setQuery] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
+  const [loadingMonth, setLoadingMonth] = useState("");
+  const loadedMonthRef = useRef("");
 
-  const hydrate = async (refresh = false) => {
+  const hydrate = useCallback(async (refresh = false, month = "") => {
     refresh ? setRefreshing(true) : setLoading(true);
     setError("");
     try {
-      const result = await loadDashboard({ refresh });
+      const result = await loadDashboard({ refresh, month });
       setSnapshot(result.data);
       setSource(result.source);
+      setSelectedMonth(result.data?.view?.month || month);
+      return result.data;
     } catch (loadError) {
       setError(loadError.message || "Unable to load dashboard data.");
+      return null;
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    hydrate(false);
-  }, []);
+    hydrate(false, "");
+  }, [hydrate]);
 
   const availableDates = useMemo(
     () =>
@@ -172,23 +178,46 @@ function DashboardApp({ authUser, onSignOut }) {
         .sort(),
     [snapshot],
   );
-  const defaultFrom = availableDates[0] || monthStartIso(snapshot?.generatedAt);
+  const viewMonthStart = snapshot?.view?.periodStart || monthStartIso(snapshot?.generatedAt);
+  const viewMonthDates = availableDates.filter((date) => date >= viewMonthStart);
+  const defaultFrom = viewMonthStart;
   const defaultTo =
     [...(snapshot?.daily || [])]
       .filter((row) => row.facility === "All Mother Facilities" && row.kpi1Hours != null)
       .map((row) => row.summaryDate)
       .sort()
       .at(-1) ||
-    availableDates.at(-1) ||
+    viewMonthDates.at(-1) ||
+    snapshot?.view?.periodEnd ||
     yesterdayIso(snapshot?.generatedAt);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
   useEffect(() => {
-    if (snapshot && !fromDate) setFromDate(defaultFrom);
-    if (snapshot && !toDate) setToDate(defaultTo);
+    const viewMonth = snapshot?.view?.month;
+    if (!snapshot) return;
+    if (viewMonth && loadedMonthRef.current !== viewMonth) {
+      loadedMonthRef.current = viewMonth;
+      setFromDate(defaultFrom);
+      setToDate(defaultTo);
+      return;
+    }
+    if (!fromDate) setFromDate(defaultFrom);
+    if (!toDate) setToDate(defaultTo);
   }, [snapshot, defaultFrom, defaultTo, fromDate, toDate]);
 
+  const changePerformanceMonth = async (month) => {
+    if (!month || month === selectedMonth || loadingMonth) return;
+    setLoadingMonth(month);
+    const loaded = await hydrate(false, month);
+    if (loaded) {
+      setFacility("All facilities");
+      setStatus("All status");
+      setQuery("");
+      setPage("dashboard");
+    }
+    setLoadingMonth("");
+  };
   const filteredFacts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return (snapshot?.facts || []).filter((row) => {
@@ -320,6 +349,7 @@ function DashboardApp({ authUser, onSignOut }) {
 
   return (
     <div className="app-shell">
+      {loadingMonth && <MonthLoadingDialog month={loadingMonth} />}
       {sidebarOpen && (
         <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} />
       )}
@@ -336,7 +366,7 @@ function DashboardApp({ authUser, onSignOut }) {
           page={page}
           openMenu={() => setSidebarOpen(true)}
           exportCsv={exportCsv}
-          refresh={() => hydrate(true)}
+          refresh={() => hydrate(true, selectedMonth)}
           refreshing={refreshing}
           lastRefresh={snapshot?.lastRefresh}
           source={source}
@@ -347,7 +377,7 @@ function DashboardApp({ authUser, onSignOut }) {
           <div className="error-banner">
             <AlertCircle size={18} />
             <span>{error}</span>
-            <button onClick={() => hydrate(false)}>Try again</button>
+            <button onClick={() => hydrate(false, selectedMonth)}>Try again</button>
           </div>
         )}
         {page === "dashboard" ? (
@@ -360,6 +390,9 @@ function DashboardApp({ authUser, onSignOut }) {
             facility={facility}
             setFacility={setFacility}
             selectedSummary={selectedSummary}
+            selectedMonth={selectedMonth}
+            availableMonths={snapshot?.availableMonths || []}
+            onMonthChange={changePerformanceMonth}
             openDetails={() => setPage("details")}
           />
         ) : page === "details" ? (
@@ -391,7 +424,7 @@ function DashboardApp({ authUser, onSignOut }) {
             generatedAt={snapshot?.generatedAt}
             onExport={exportCsv}
             canManage={Boolean(snapshot?.permissions?.canManagePendingTasks)}
-            onTaskUpdated={() => hydrate(true)}
+            onTaskUpdated={() => hydrate(true, selectedMonth)}
           />
         ) : (
           <CalculationLogic />
@@ -627,12 +660,17 @@ function Dashboard({
   facility,
   setFacility,
   selectedSummary,
+  selectedMonth,
+  availableMonths,
+  onMonthChange,
   openDetails,
 }) {
   const labels = snapshot?.labels || {};
   const mtd = snapshot?.summary?.mtd || {};
   const yesterday = snapshot?.summary?.yesterday || {};
-  const yesterdayDate = yesterdayIso(snapshot?.generatedAt);
+  const view = snapshot?.view || {};
+  const historicalView = view.isCurrentMonth === false;
+  const yesterdayDate = view.referenceDate || yesterdayIso(snapshot?.generatedAt);
   const yesterdayFacts = (snapshot?.facts || []).filter(
     (row) => row.unloadingDate === yesterdayDate,
   );
@@ -648,12 +686,43 @@ function Dashboard({
   const periodCards = [
     { title: "Last Quarter", data: staticPeriods.lastQuarter, dates: previousQuarterRange(snapshot?.generatedAt), tone: "green" },
     { title: "Last Month", data: staticPeriods.lastMonth, dates: previousMonthRange(snapshot?.generatedAt), tone: "amber" },
-    { title: "Month to Date", data: mtd, dates: `${monthStartIso(snapshot?.generatedAt)} to ${latestCompleteDate(snapshot)}`, tone: "green" },
-    { title: "Yesterday", data: yesterday, dates: yesterdayIso(snapshot?.generatedAt), tone: yesterday.kpi1Hours == null ? "red" : "blue" },
+    {
+      title: historicalView ? String(view.label || "Selected month").toUpperCase() : "Month to Date",
+      data: mtd,
+      dates: historicalView
+        ? `${view.periodStart} to ${view.periodEnd}`
+        : `${monthStartIso(snapshot?.generatedAt)} to ${latestCompleteDate(snapshot)}`,
+      tone: "green",
+    },
+    {
+      title: historicalView ? "Latest reporting day" : "Yesterday",
+      data: yesterday,
+      dates: yesterdayDate,
+      tone: yesterday.kpi1Hours == null ? "red" : "blue",
+    },
   ];
 
   return (
     <div className="page-content">
+      <section className="month-view-toolbar" aria-label="Performance month">
+        <div>
+          <span className="section-eyebrow">Performance archive</span>
+          <h3>{historicalView ? `Viewing ${view.label}` : "Current performance"}</h3>
+          <p>Select a month to load its KPI cards, trend, facility performance, pending tasks, and detailed records.</p>
+        </div>
+        <label>
+          <span>Performance month</span>
+          <select value={selectedMonth} onChange={(event) => onMonthChange(event.target.value)}>
+            {availableMonths.map((month) => (
+              <option key={month} value={month}>
+                {formatMonthLabel(month)}{month === snapshot?.view?.month && !historicalView ? " · Current" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+        {historicalView && <span className="historical-view-badge">Historical view</span>}
+      </section>
+
       <section className="executive-ribbon">
         <div className="ribbon-heading">
           <span>Executive KPI</span>
@@ -736,6 +805,7 @@ function Dashboard({
         <TrendPanel
           daily={snapshot?.daily || []}
           capacity={snapshot?.volume?.dailyCapacityBoxes || 3500}
+          title={historicalView ? `${view.label} daily KPI trend` : "MTD daily KPI trend"}
         />
         <FacilityPanel facilities={snapshot?.summary?.facilities || []} />
       </section>
@@ -861,7 +931,7 @@ function PeriodVolumeSummary({ periods }) {
   );
 }
 
-function TrendPanel({ daily, capacity = 3500 }) {
+function TrendPanel({ daily, capacity = 3500, title = "MTD daily KPI trend" }) {
   const [hovered, setHovered] = useState(null);
   const [visibleSeries, setVisibleSeries] = useState({
     kpi1Hours: true,
@@ -935,7 +1005,7 @@ function TrendPanel({ daily, capacity = 3500 }) {
 
   return (
     <article className="panel trend-panel">
-      <PanelHeading title="MTD daily KPI trend" subtitle="Daily simple averages · Fixed 0–40 hour scale" />
+      <PanelHeading title={title} subtitle="Daily simple averages · Fixed 0–40 hour scale" />
       <div className="chart-legend">
         <div className="chart-series-legend">
           {series.map((item) => (
@@ -988,7 +1058,7 @@ function TrendPanel({ daily, capacity = 3500 }) {
         viewBox={`0 0 ${width} ${height}`}
         className="line-chart"
         role="img"
-        aria-label="Daily MTD KPI trend and combined unloading volume"
+        aria-label={`${title} and combined unloading volume`}
         onMouseLeave={() => setHovered(null)}
       >
         {[0, 10, 20, 30, 40].map((value) => {
@@ -1436,6 +1506,20 @@ function PanelHeading({ title, subtitle }) {
   return <header className="panel-heading"><div><h3>{title}</h3><p>{subtitle}</p></div></header>;
 }
 
+function MonthLoadingDialog({ month }) {
+  return (
+    <div className="month-loading-backdrop" role="presentation">
+      <section className="month-loading-dialog" role="dialog" aria-modal="true" aria-live="polite">
+        <div className="month-loading-icon"><RefreshCw size={24} /></div>
+        <span className="section-eyebrow">Historical performance</span>
+        <h2>Loading {formatMonthLabel(month)}</h2>
+        <p>Data is loading. Please wait while KPI cards, daily trends, facility performance, pending tasks, and detailed records are prepared.</p>
+        <div className="month-loading-progress"><span /></div>
+        <small>Please keep this window open.</small>
+      </section>
+    </div>
+  );
+}
 function LoadingScreen() {
   return (
     <div className="loading-screen">
@@ -1542,6 +1626,14 @@ function snapshotDate(value) {
   return Number.isNaN(date.getTime()) ? new Date() : date;
 }
 
+function formatMonthLabel(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})$/);
+  if (!match) return "Selected month";
+  return new Intl.DateTimeFormat("en-IN", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(Number(match[1]), Number(match[2]) - 1, 1));
+}
 function monthStartIso(value) {
   const date = snapshotDate(value);
   return toIsoDate(new Date(date.getFullYear(), date.getMonth(), 1));
