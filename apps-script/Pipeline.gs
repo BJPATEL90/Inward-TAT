@@ -34,6 +34,11 @@ function runInwardTatPipeline() {
       grn: importUnicommerceEmails_("GRN", config, runId),
       putaway: importUnicommerceEmails_("PUTAWAY", config, runId),
     };
+    try {
+      results.skuMaster = syncDelaySkuMaster_(runId);
+    } catch (masterError) {
+      logExecution_(runId, "SKU_MASTER_SYNC", "FAILED", masterError.message || String(masterError), {});
+    }
 
     logExecution_(runId, "DEDUPE", "STARTED", "Removing duplicate GRN and shelf-level Putaway rows.", {});
     dedupeRawReportSheets_();

@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { hasLiveApi, loadDashboard, submitManualTaskAction } from "./api";
+import PutawayDelayAnalysis from "./PutawayDelayAnalysis";
 import {
   clearSession,
   getAuthConfig,
@@ -395,6 +396,8 @@ function DashboardApp({ authUser, onSignOut }) {
             onMonthChange={changePerformanceMonth}
             openDetails={() => setPage("details")}
           />
+        ) : page === "delay" ? (
+          <PutawayDelayAnalysis />
         ) : page === "details" ? (
           <Details
             rows={filteredFacts}
@@ -439,6 +442,7 @@ function Sidebar({ page, setPage, open }) {
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "pending", label: "Pending Tasks", icon: ClipboardList },
     { id: "details", label: "Detailed Records", icon: TableProperties },
+    { id: "delay", label: "Putaway Delay Analysis", icon: Clock3 },
     { id: "logic", label: "Calculation Logic", icon: BookOpen },
   ];
   return (
@@ -473,7 +477,7 @@ function Sidebar({ page, setPage, open }) {
 
 function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, source, authUser, onSignOut }) {
   const pageTitle =
-    page === "dashboard"
+    page === "delay" ? "Putaway Delay Analysis" : page === "dashboard"
       ? "Vehicle Arrival to Putaway TAT"
       : page === "pending"
         ? "Pending Tasks"
@@ -481,7 +485,7 @@ function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, s
         ? "Detailed TAT Records"
         : "Calculation & Publication Logic";
   const pageSubtitle =
-    page === "dashboard"
+    page === "delay" ? "Shelf workload, SKU class and historical KPI2 comparison" : page === "dashboard"
       ? "Mother-facility inbound performance"
       : page === "pending"
         ? "Open GRN, Putaway, timestamp, and matching actions"

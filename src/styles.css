@@ -2677,6 +2677,49 @@ tbody tr:hover {
 }
 .month-loading-dialog small { color: #7a879d; font-size: 10px; }
 @keyframes month-loading-spin { to { transform: rotate(360deg); } }
+.delay-page { padding: 24px; color: var(--text); }
+.delay-toolbar, .delay-tabs { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 18px; }
+.delay-toolbar label { display: grid; gap: 6px; font-size: 12px; }
+.delay-page button, .delay-page input, .delay-page select { padding: 9px 12px; border: 1px solid #cad5e5; border-radius: 7px; background: white; color: #172033; font: inherit; }
+.delay-page button { cursor: pointer; }
+.delay-page button:disabled { opacity: .6; cursor: wait; }
+.delay-tabs button.active { background: #2443c4; color: white; }
+.delay-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.delay-metric, .delay-panel { padding: 20px; border: 1px solid #d9e1ef; background: white; border-radius: 12px; margin-bottom: 18px; }
+.delay-metric span, .delay-metric small { display: block; font-size: 12px; line-height: 1.5; color: #5c6b85; }
+.delay-metric strong { display: block; font-size: 25px; color: #1d3475; margin: 12px 0; }
+.delay-note, .delay-panel p { color: #5c6b85; font-size: 13px; line-height: 1.65; }
+.delay-panel h2 { font-size: 18px; margin: 0 0 12px; }
+.delay-table { overflow: auto; max-height: 650px; }
+.delay-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.delay-table th, .delay-table td { padding: 12px; border-bottom: 1px solid #e5eaf2; text-align: left; vertical-align: top; }
+.delay-table th { white-space: nowrap; background: #f2f5fb; position: sticky; top: 0; }
+.delay-table small { display: block; font-size: 11px; margin-top: 5px; color: #5c6b85; overflow-wrap: anywhere; }
+.delay-table .delay-warning { color: #9a5800; }
+.delay-search { width: min(100%, 420px); margin: 0 0 15px; }
+.delay-table .delay-link { padding: 0; border: none; color: #2443c4; text-decoration: underline; }
+.delay-modal-backdrop { position: fixed; inset: 0; z-index: 100; background: #17203399; display: grid; place-items: center; padding: 24px; }
+.delay-modal { width: min(850px, 100%); max-height: 90vh; overflow: auto; background: white; border-radius: 12px; padding: 24px; }
+.delay-cause-grid { display: grid; gap: 10px; margin-top: 14px; }
+.delay-cause-row { display: grid; grid-template-columns: minmax(210px, 1.1fr) 1fr 130px; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid #edf0f2; }
+.delay-cause-row > div:first-child b, .delay-cause-row > div:first-child small { display: block; }
+.delay-cause-row > div:first-child small { margin-top: 4px; color: #5c6b85; font-size: 11px; }
+.delay-cause-bar { height: 10px; background: #edf1f5; border-radius: 8px; overflow: hidden; }
+.delay-cause-bar span { display: block; height: 100%; border-radius: 8px; }
+.delay-cause-row > strong { text-align: right; font-size: 12px; color: #1d3475; }
+.delay-action-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+.delay-action-list > div { padding: 11px 12px; border-left: 3px solid #d89416; background: #fffaf0; color: #624f28; font-size: 12px; }
+.delay-action-grid { display: grid; gap: 0; }
+.delay-action-card { display: grid; grid-template-columns: 30px 1fr auto; gap: 11px; align-items: center; padding: 12px 0; border-bottom: 1px solid #edf0f2; }
+.delay-action-card:last-child { border-bottom: 0; }
+.delay-action-card small { display: block; margin-top: 4px; color: #5c6b85; font-size: 11px; }
+.delay-rank { width: 23px; height: 23px; border-radius: 50%; background: #eef2f5; display: grid; place-items: center; color: #48606f; font-weight: 700; }
+.delay-priority { padding: 4px 8px; border-radius: 12px; font-size: 10px; font-weight: 700; background: #fff0cf; color: #946b0b; }
+.delay-priority.p1 { background: #fde5e5; color: #a33b3b; }
+.delay-priority.p2 { background: #e4edff; color: #315fb9; }
+.delay-priority.p3 { background: #e0f5eb; color: #087b4f; }
+@media (max-width: 1000px) { .delay-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .delay-cards { grid-template-columns: 1fr; } .delay-page { padding: 12px; } .delay-cause-row { grid-template-columns: 1fr; gap: 6px; } .delay-cause-row > strong { text-align: left; } .delay-action-list { grid-template-columns: 1fr; } }
 @keyframes month-loading-slide {
   0% { transform: translateX(-115%); }
   100% { transform: translateX(260%); }

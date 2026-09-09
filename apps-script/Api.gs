@@ -42,7 +42,7 @@ function handleApiRequest_(event) {
       );
       return apiResponse_(auth, event);
     }
-    if (["dashboard", "manualtaskaction"].indexOf(action) === -1) {
+    if (["dashboard", "manualtaskaction", "putawayanalysis"].indexOf(action) === -1) {
       return jsonResponse_({ ok: false, error: "Unsupported action: " + action });
     }
 
@@ -55,6 +55,7 @@ function handleApiRequest_(event) {
     if (action === "manualtaskaction") {
       return apiResponse_(submitManualTaskAction_(event, auth.user), event);
     }
+    if (action === "putawayanalysis") return apiResponse_(buildPutawayAnalysis_(), event);
 
     const bypassCache =
       String((event && event.parameter && event.parameter.refresh) || "") === "1";

@@ -47,6 +47,15 @@ export function hasLiveApi() {
   return Boolean(API_URL);
 }
 
+export async function loadPutawayAnalysis() {
+  if (!API_URL || new URL(API_URL, window.location.origin).hostname !== "script.google.com") {
+    throw new Error("Putaway analysis requires the live Apps Script connection.");
+  }
+  const data = await postToAppsScript({ action: "putawayAnalysis", credential: getStoredSession()?.credential || "" });
+  if (!data.ok) throw new Error(data.error || "Unable to load putaway analysis");
+  return data;
+}
+
 export async function submitManualTaskAction(payload) {
   if (!API_URL || !new URL(API_URL, window.location.origin).hostname.includes("script.google.com")) {
     throw new Error("Manual task updates require the live Apps Script API.");
