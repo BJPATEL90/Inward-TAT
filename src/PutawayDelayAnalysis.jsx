@@ -25,7 +25,8 @@ export default function PutawayDelayAnalysis() {
     const url = URL.createObjectURL(blob), a = document.createElement("a"); a.href = url; a.download = `putaway-analysis-${from}-${to}.csv`; a.click(); URL.revokeObjectURL(url);
   }
   const change = result?.average !== null && result?.previousAverage !== null ? result.average - result.previousAverage : null;
-  const signals = useMemo(() => buildDelaySignals(result?.eligible || []), [result]);`r`n  const master = data?.master || {};
+  const signals = useMemo(() => buildDelaySignals(result?.eligible || []), [result]);
+  const master = data?.master || {};
   return <div className="delay-page">
     <div className="delay-toolbar">
       <label>From<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
