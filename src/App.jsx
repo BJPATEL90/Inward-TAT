@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createElement, Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -458,7 +458,7 @@ function Sidebar({ page, setPage, open }) {
         <p>Workspace</p>
         {items.map((item) => (
           <button key={item.id} className={page === item.id ? "active" : ""} onClick={() => setPage(item.id)}>
-            {React.createElement(item.icon, { size: 19 })}
+            {createElement(item.icon, { size: 19 })}
             <span>{item.label}</span>
             {page === item.id && <ChevronRight size={16} />}
           </button>
@@ -582,14 +582,14 @@ function CalculationLogic() {
 
       <section className="logic-flow" aria-label="Calculation flow">
         {stages.map((stage, index) => (
-          <React.Fragment key={stage.step}>
+          <Fragment key={stage.step}>
             <article className="logic-stage">
               <span>{stage.step}</span>
               <h3>{stage.title}</h3>
               <p>{stage.text}</p>
             </article>
             {index < stages.length - 1 && <ArrowRight className="logic-arrow" size={20} />}
-          </React.Fragment>
+          </Fragment>
         ))}
       </section>
 
