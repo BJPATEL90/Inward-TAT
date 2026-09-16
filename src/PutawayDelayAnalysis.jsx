@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { loadPutawayAnalysis } from "./api";
 import { analyzePutaway, groupPutaway, levelBand, numeric, dateOffset } from "./putawayAnalysis";
 
