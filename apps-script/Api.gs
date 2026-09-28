@@ -77,7 +77,10 @@ function handleApiRequest_(event) {
     const payload = buildDashboardSnapshot_(requestedMonth);
     const json = JSON.stringify(payload);
     if (json.length < 90000) {
-      cache.put(cacheKey, json, 120);
+      // Keep the dashboard response warm for five minutes. The payload is
+      // deliberately limited to the current and immediately previous month
+      // below, so this does not serve stale long-term history.
+      cache.put(cacheKey, json, 300);
     }
     return apiResponse_(attachDashboardUserContext_(payload, auth.user), event);
   } catch (error) {
@@ -251,6 +254,19 @@ function buildDashboardSnapshot_(requestedMonth) {
     : [];
   const now = new Date();
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  // The dashboard is an operational view, not the historical archive. Keep
+  // only the current month and one previous month in the API payload. Raw and
+  // fact sheets remain the system of record for deeper historical work.
+  const archiveStart = new Date(
+    currentMonthStart.getFullYear(),
+    currentMonthStart.getMonth() - 1,
+    1
+  );
+  const archiveStartKey = Utilities.formatDate(
+    archiveStart,
+    "Asia/Kolkata",
+    "yyyy-MM-dd"
+  );
   const monthMatch = String(requestedMonth || "").match(/^(\d{4})-(\d{2})$/);
   const monthStart = monthMatch
     ? new Date(Number(monthMatch[1]), Number(monthMatch[2]) - 1, 1)
@@ -286,13 +302,16 @@ function buildDashboardSnapshot_(requestedMonth) {
     });
   const monthStartKey = Utilities.formatDate(monthStart, "Asia/Kolkata", "yyyy-MM-dd");
   const nextMonthKey = Utilities.formatDate(nextMonth, "Asia/Kolkata", "yyyy-MM-dd");
-  const periodFacts = apiFacts.filter(function (row) {
+  const retainedFacts = apiFacts.filter(function (row) {
+    return row.unloadingDate >= archiveStartKey;
+  });
+  const periodFacts = retainedFacts.filter(function (row) {
     return row.unloadingDate >= monthStartKey && row.unloadingDate < nextMonthKey;
   });
   const isCurrentMonth = monthStart.getTime() === currentMonthStart.getTime();
   const availableMonths = Array.from(
     new Set(
-      apiFacts
+      retainedFacts
         .map(function (row) {
           return String(row.unloadingDate || "").slice(0, 7);
         })
@@ -371,7 +390,14 @@ function buildDashboardSnapshot_(requestedMonth) {
         apiNumber_(config.DAILY_UNLOADING_CAPACITY_BOXES) || 3500,
       scope: "Combined across all facilities",
       sourceField: "No. of Boxes Recd",
-      periods: volumePeriods,
+      periods: volumePeriods.filter(function (row) {
+        return row.periodStart >= archiveStartKey;
+      }),
+    },
+    archive: {
+      retainedMonths: 2,
+      start: archiveStartKey,
+      note: "Current month plus the immediately previous month",
     },
     staticPeriods: {
       lastQuarter: {

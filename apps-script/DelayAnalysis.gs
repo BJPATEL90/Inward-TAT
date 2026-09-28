@@ -78,12 +78,24 @@ function buildPutawayAnalysis_() {
   const sheet = openInwardTatSpreadsheet_().getSheetByName("SKU_MASTER");
   if (!sheet) throw new Error("SKU_MASTER sheet is missing.");
   const rows = delaySheetObjects_(sheet), master = delayMasterIndex_(rows);
-  const facts = delaySheetObjects_(getSheet_(INWARD_TAT.SHEETS.FACT));
-  const goods = new Map(delaySheetObjects_(getSheet_(INWARD_TAT.SHEETS.RAW_GOODS)).map(function (r) { return [r.__row, r]; }));
+  const now = new Date();
+  const archiveStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const facts = delaySheetObjects_(getSheet_(INWARD_TAT.SHEETS.FACT)).filter(function (r) {
+    const date = parseDateTime_(r["Unloading Date"]);
+    return date && date >= archiveStart;
+  });
+  const goods = new Map(delaySheetObjects_(getSheet_(INWARD_TAT.SHEETS.RAW_GOODS)).filter(function (r) {
+    const date = parseDateTime_(r["Unloading Date"]);
+    return date && date >= archiveStart;
+  }).map(function (r) { return [r.__row, r]; }));
+  const rawPutaway = delaySheetObjects_(getSheet_(INWARD_TAT.SHEETS.RAW_PUTAWAY)).filter(function (r) {
+    const date = parseDateTime_(r["Last Updated"]);
+    return !date || date >= archiveStart;
+  });
   return {
     ok: true, generatedAt: new Date().toISOString(), targetHours: 7,
     benchmarkStart: "2026-08-01", benchmarkDays: 90,
-    records: delayJoinRows_(facts, delaySheetObjects_(getSheet_(INWARD_TAT.SHEETS.RAW_PUTAWAY)), goods, master),
+    records: delayJoinRows_(facts, rawPutaway, goods, master),
     master: { rows: rows.length, uniqueSkus: master.size,
       missingPackRows: rows.filter(function (r) { return !delayPack_(r["Pack Size"]); }).length,
       conflictingPackSkus: Array.from(master.values()).filter(function (r) { return r.packs.size > 1; }).length,
