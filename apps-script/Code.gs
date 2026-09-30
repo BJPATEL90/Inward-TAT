@@ -202,6 +202,7 @@ const CONFIG_DEFAULTS = Object.freeze([
   ["PUTAWAY_TIMESTAMP_FIELD", "LAST_UPDATED", "TEXT", "Putaway completion timestamp; latest value wins for partial putaway."],
   ["PUTAWAY_TYPE_FILTER", "PUTAWAY_GRN_ITEM", "TEXT", "Only this putaway row type is processed."],
   ["PUTAWAY_STATUS_FILTER", "COMPLETE", "TEXT", "Only completed putaway rows contribute to completed KPIs."],
+  ["EXCLUDED_SKUS", "OWNAPP.00040|OWNAPP.00013|OWNAPP.00054|OWNAPP.00055|OWNAPP.00056|OWNAPP.00010", "TEXT", "Pipe-separated SKUs excluded from inward KPI matching and rebuilds."],
   ["FACILITY_SL_AMBIENT", "SL Ambient", "TEXT", "Canonical facility name for GRN and dashboard output."],
   ["FACILITY_SL_MOTHER_HUB", "SL Mother Hub", "TEXT", "Canonical facility name for GRN and dashboard output."],
   ["FACILITY_SL_RX", "SL Rx", "TEXT", "Canonical facility name for GRN and dashboard output."],

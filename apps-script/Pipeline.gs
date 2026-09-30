@@ -974,9 +974,21 @@ function rebuildTatFacts_(config, runId) {
   const grnSheet = getSheet_(INWARD_TAT.SHEETS.RAW_GRN);
   const putawaySheet = getSheet_(INWARD_TAT.SHEETS.RAW_PUTAWAY);
   const factSheet = ensureFactMatchingSchema_();
-  const goods = sheetObjects_(goodsSheet);
-  const grn = sheetObjects_(grnSheet);
-  const putaway = sheetObjects_(putawaySheet);
+  const excludedSkus = new Set(
+    String(config.EXCLUDED_SKUS || "")
+      .split(/[|,;\n]/)
+      .map(function (value) { return normalizeSku_(value); })
+      .filter(Boolean)
+  );
+  const goods = sheetObjects_(goodsSheet).filter(function (row) {
+    return !excludedSkus.has(normalizeSku_(row.SKU));
+  });
+  const grn = sheetObjects_(grnSheet).filter(function (row) {
+    return !excludedSkus.has(normalizeSku_(row["Item SkuCode"]));
+  });
+  const putaway = sheetObjects_(putawaySheet).filter(function (row) {
+    return !excludedSkus.has(normalizeSku_(row["SKU Code"]));
+  });
 
   const goodsMap = new Map();
   const grnMap = new Map();
