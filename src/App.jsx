@@ -31,6 +31,7 @@ import {
 } from "./auth";
 
 const FACILITIES = ["All facilities", "SL Ambient", "SL Mother Hub", "SL Rx", "OWN", "EXPORT"];
+const OWN_GRN_EXCLUDED_SKUS = ["OWNAPP.00040", "OWNAPP.00013", "OWNAPP.00054", "OWNAPP.00055", "OWNAPP.00056", "OWNAPP.00010", "OWNAPP.00034"];
 
 function App() {
   const [session, setSession] = useState(null);
@@ -646,6 +647,7 @@ function CalculationLogic() {
             <li><CheckCircle2 size={17} /> GRN Received Timestamp and completed Putaway Last Updated must exist.</li>
             <li><CheckCircle2 size={17} /> Putaway type must be PUTAWAY_GRN_ITEM and all consolidated shelf rows must be complete.</li>
             <li><CheckCircle2 size={17} /> Negative timestamp sequences are excluded and sent to exceptions.</li>
+            <li><CheckCircle2 size={17} /> OWN-series SKUs excluded from GRN matching and KPI averages: <code>{OWN_GRN_EXCLUDED_SKUS.join(", ")}</code>.</li>
             <li><CheckCircle2 size={17} /> Date selection is based on Vehicle Unloading Date.</li>
             <li><CheckCircle2 size={17} /> A simple average is calculated only across COMPLETE records.</li>
           </ul>
