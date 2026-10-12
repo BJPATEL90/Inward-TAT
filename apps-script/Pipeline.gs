@@ -974,21 +974,15 @@ function rebuildTatFacts_(config, runId) {
   const grnSheet = getSheet_(INWARD_TAT.SHEETS.RAW_GRN);
   const putawaySheet = getSheet_(INWARD_TAT.SHEETS.RAW_PUTAWAY);
   const factSheet = ensureFactMatchingSchema_();
-  const excludedSkus = new Set(
-    String(config.EXCLUDED_SKUS || "")
+  const ownExcludedSkus = new Set(
+    String(config.OWN_EXCLUDED_SKUS || config.EXCLUDED_SKUS || "")
       .split(/[|,;\n]/)
       .map(function (value) { return normalizeSku_(value); })
       .filter(Boolean)
   );
-  const goods = sheetObjects_(goodsSheet).filter(function (row) {
-    return !excludedSkus.has(normalizeSku_(row.SKU));
-  });
-  const grn = sheetObjects_(grnSheet).filter(function (row) {
-    return !excludedSkus.has(normalizeSku_(row["Item SkuCode"]));
-  });
-  const putaway = sheetObjects_(putawaySheet).filter(function (row) {
-    return !excludedSkus.has(normalizeSku_(row["SKU Code"]));
-  });
+  const goods = sheetObjects_(goodsSheet);
+  const grn = sheetObjects_(grnSheet);
+  const putaway = sheetObjects_(putawaySheet);
 
   const goodsMap = new Map();
   const grnMap = new Map();
@@ -1007,6 +1001,7 @@ function rebuildTatFacts_(config, runId) {
     String(config.EXPORT_BRIDGE_ENABLED || "TRUE").toUpperCase() === "TRUE";
   let rxMappedGoodsRecords = 0;
   let ownMappedGoodsRecords = 0;
+  let ownExcludedGoodsRecords = 0;
   let exportMappedGoodsRecords = 0;
   const hybridCounts = {
     primary: 0,
@@ -1120,6 +1115,10 @@ function rebuildTatFacts_(config, runId) {
         exportBridgeEnabled
       );
       const facility = match.facility;
+      if (facility === "OWN" && ownExcludedSkus.has(sku)) {
+        ownExcludedGoodsRecords += 1;
+        return;
+      }
       if (facility === "SL Rx" && warehouseFacility === "SL Ambient") {
         rxMappedGoodsRecords += 1;
       }
@@ -1187,6 +1186,18 @@ function rebuildTatFacts_(config, runId) {
       reportType: "GOODS_INWARD",
       facility: "OWN",
       rowsImported: ownMappedGoodsRecords,
+    }
+  );
+  logExecution_(
+    runId,
+    "OWN_SKU_EXCLUSION",
+    "COMPLETED",
+    ownExcludedGoodsRecords +
+      " OWN record(s) excluded from GRN matching and KPI averages using the approved SKU list.",
+    {
+      reportType: "FACT_JOIN",
+      facility: "OWN",
+      rowsSkipped: ownExcludedGoodsRecords,
     }
   );
   logExecution_(
