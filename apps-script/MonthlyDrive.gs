@@ -68,6 +68,9 @@ function monthlyDrive_() {
 
 /** Run once from the Apps Script editor; does not enable or change daily triggers. */
 function setupMonthlyReportingArchive() {
+  // The editor can run with granular consent that omitted this manifest scope.
+  // Request only the archive permission before acquiring a lock or writing data.
+  ScriptApp.requireScopes(ScriptApp.AuthMode.FULL, ["https://www.googleapis.com/auth/drive.file"]);
   const lock = LockService.getScriptLock(); lock.waitLock(30000);
   try {
     const config = getConfig_();
