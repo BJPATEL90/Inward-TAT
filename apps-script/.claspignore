@@ -5,4 +5,8 @@
 !Email.gs
 !Fallback.gs
 !DelayAnalysis.gs
+!MonthlyClosure.gs
+!MonthlyIngestion.gs
+!MonthlyReport.gs
+!MonthlyDrive.gs
 !appsscript.json

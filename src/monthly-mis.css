@@ -1,0 +1,25 @@
+.monthly-mis { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; max-width: 100%; gap: 20px; padding: 24px; color: #172033; }
+.monthly-mis > *, .mis-cards article, .mis-table, .mis-table > div, .mis-upload fieldset { min-width: 0; }
+.mis-toolbar, .mis-status { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; }
+.monthly-mis label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
+.monthly-mis input, .monthly-mis select { min-width: 0; padding: 10px; border: 1px solid #cad3e4; border-radius: 6px; background: white; color: #172033; }
+.monthly-mis button { padding: 11px 16px; border: 0; border-radius: 6px; background: #2443c4; color: white; cursor: pointer; }
+.monthly-mis button:disabled { opacity: .5; cursor: default; }
+.mis-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.mis-cards article, .mis-upload, .mis-table { background: white; border: 1px solid #d9e1ef; border-radius: 10px; padding: 18px; }
+.mis-cards article { display: grid; gap: 10px; }
+.mis-cards strong { font-size: 24px; }
+.mis-cards span, .mis-status span { font-size: 13px; color: #52627e; }
+.mis-upload h2, .mis-table h2 { margin: 0 0 12px; font-size: 18px; }
+.mis-upload p, .monthly-mis > p { font-size: 13px; line-height: 1.6; }
+.mis-upload fieldset { border: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.mis-upload .mis-confirm { display: flex; align-items: center; grid-column: 1 / -1; font-weight: 400; }
+.mis-table > div { overflow: auto; }
+.mis-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.mis-table th { text-align: left; background: #eef2fb; white-space: nowrap; }
+.mis-table th, .mis-table td { padding: 10px; border-bottom: 1px solid #e1e7f0; }
+.mis-error { padding: 14px; background: #fff1f0; color: #a32727; border-radius: 8px; }
+.mis-error button { margin-left: 15px; }
+.mis-notice { color: #0b7a48; }
+.monthly-mis a { color: #2443c4; text-decoration: underline; }
+@media (max-width: 600px) { .monthly-mis { padding: 12px; } .mis-toolbar button { width: 100%; } }

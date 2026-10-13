@@ -73,3 +73,19 @@ function authHeaders() {
   const credential = getStoredSession()?.credential;
   return credential ? { Authorization: `Bearer ${credential}` } : {};
 }
+
+async function requestMonthly(action, month, source, extra = {}) {
+  if (!API_URL || new URL(API_URL, window.location.origin).hostname !== "script.google.com") {
+    throw new Error("Monthly reporting requires the live Apps Script connection.");
+  }
+  const payload = { action, month, credential: getStoredSession()?.credential || "", ...extra };
+  if (source) payload.source = JSON.stringify(source);
+  const result = await postToAppsScript(payload);
+  if (!result.ok) throw new Error(result.error || "Monthly processing failed");
+  return result;
+}
+
+export function loadMonthlyStatus(month) { return requestMonthly("monthlyStatus", month); }
+export function refreshMonthlySources(month) { return requestMonthly("monthlyRefresh", month); }
+export function uploadMonthlySource(month, source) { return requestMonthly("monthlyUpload", month, source); }
+export function downloadMonthlyReport(month, revision) { return requestMonthly("monthlyReport", month, null, { revision: String(revision) }); }

@@ -969,26 +969,28 @@ function latestManualTaskActions_() {
   return latest;
 }
 
-function rebuildTatFacts_(config, runId) {
-  const goodsSheet = getSheet_(INWARD_TAT.SHEETS.RAW_GOODS);
-  const grnSheet = getSheet_(INWARD_TAT.SHEETS.RAW_GRN);
-  const putawaySheet = getSheet_(INWARD_TAT.SHEETS.RAW_PUTAWAY);
-  const factSheet = ensureFactMatchingSchema_();
+function rebuildTatFacts_(config, runId, monthlyInputs) {
+  // Monthly callers provide isolated sources and receive calculations without writes.
+  const goodsSheet = monthlyInputs ? null : getSheet_(INWARD_TAT.SHEETS.RAW_GOODS);
+  const grnSheet = monthlyInputs ? null : getSheet_(INWARD_TAT.SHEETS.RAW_GRN);
+  const putawaySheet = monthlyInputs ? null : getSheet_(INWARD_TAT.SHEETS.RAW_PUTAWAY);
+  const factSheet = monthlyInputs ? null : ensureFactMatchingSchema_();
   const ownExcludedSkus = new Set(
     String(config.OWN_EXCLUDED_SKUS || config.EXCLUDED_SKUS || "")
       .split(/[|,;\n]/)
       .map(function (value) { return normalizeSku_(value); })
       .filter(Boolean)
   );
-  const goods = sheetObjects_(goodsSheet);
-  const grn = sheetObjects_(grnSheet);
-  const putaway = sheetObjects_(putawaySheet);
+  const goods = monthlyInputs ? monthlyInputs.goods : sheetObjects_(goodsSheet);
+  const grn = monthlyInputs ? monthlyInputs.grn : sheetObjects_(grnSheet);
+  const putaway = monthlyInputs ? monthlyInputs.putaway : sheetObjects_(putawaySheet);
 
   const goodsMap = new Map();
   const grnMap = new Map();
   const grnPrimaryIndex = new Map();
   const putawayMap = new Map();
-  const manualActionMap = latestManualTaskActions_();
+  const manualActionMap = monthlyInputs ? (monthlyInputs.manualActions || new Map()) : latestManualTaskActions_();
+  const reportMatching = monthlyInputs ? function () {} : logExecution_;
   const exceptions = [];
   const rxSkuGrnBridge = new Set();
   const ownSkuGrnBridge = new Set();
@@ -1117,7 +1119,7 @@ function rebuildTatFacts_(config, runId) {
       const facility = match.facility;
       if (facility === "OWN" && ownExcludedSkus.has(sku)) {
         ownExcludedGoodsRecords += 1;
-        return;
+        if (!monthlyInputs) return;
       }
       if (facility === "SL Rx" && warehouseFacility === "SL Ambient") {
         rxMappedGoodsRecords += 1;
@@ -1160,7 +1162,7 @@ function rebuildTatFacts_(config, runId) {
     if (entry.matchMethod === "AMBIGUOUS_MATCH") hybridCounts.ambiguous += 1;
     if (entry.matchMethod === "NO_GRN_MATCH") hybridCounts.unresolved += 1;
   });
-  logExecution_(
+  reportMatching(
     runId,
     "HYBRID_MATCHING",
     "COMPLETED",
@@ -1176,7 +1178,7 @@ function rebuildTatFacts_(config, runId) {
       rowsSkipped: hybridCounts.ambiguous + hybridCounts.unresolved,
     }
   );
-  logExecution_(
+  reportMatching(
     runId,
     "OWN_FACILITY_BRIDGE",
     "COMPLETED",
@@ -1188,7 +1190,7 @@ function rebuildTatFacts_(config, runId) {
       rowsImported: ownMappedGoodsRecords,
     }
   );
-  logExecution_(
+  reportMatching(
     runId,
     "OWN_SKU_EXCLUSION",
     "COMPLETED",
@@ -1200,7 +1202,7 @@ function rebuildTatFacts_(config, runId) {
       rowsSkipped: ownExcludedGoodsRecords,
     }
   );
-  logExecution_(
+  reportMatching(
     runId,
     "EXPORT_FACILITY_BRIDGE",
     "COMPLETED",
@@ -1212,7 +1214,7 @@ function rebuildTatFacts_(config, runId) {
       rowsImported: exportMappedGoodsRecords,
     }
   );
-  logExecution_(
+  reportMatching(
     runId,
     "HYBRID_MATCH_DETAIL",
     "COMPLETED",
@@ -1226,7 +1228,7 @@ function rebuildTatFacts_(config, runId) {
     ].join(" | "),
     { reportType: "FACT_JOIN" }
   );
-  logExecution_(
+  reportMatching(
     runId,
     "RX_FACILITY_BRIDGE",
     "COMPLETED",
@@ -1406,6 +1408,7 @@ function rebuildTatFacts_(config, runId) {
     });
   });
 
+  if (monthlyInputs) return { facts: factRows, exceptions: exceptions };
   replaceDataRows_(factSheet, factRows);
   replaceExceptions_(exceptions);
   const mtdRows = rebuildMtdSummary_(factRows, goods, config);

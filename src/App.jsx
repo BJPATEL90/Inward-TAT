@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { hasLiveApi, loadDashboard, submitManualTaskAction } from "./api";
 import PutawayDelayAnalysis from "./PutawayDelayAnalysis";
+import MonthlyMis from "./MonthlyMis";
 import {
   clearSession,
   getAuthConfig,
@@ -397,6 +398,8 @@ function DashboardApp({ authUser, onSignOut }) {
             onMonthChange={changePerformanceMonth}
             openDetails={() => setPage("details")}
           />
+        ) : page === "monthly" ? (
+          <MonthlyMis />
         ) : page === "delay" ? (
           <PutawayDelayAnalysis />
         ) : page === "details" ? (
@@ -441,6 +444,7 @@ function DashboardApp({ authUser, onSignOut }) {
 function Sidebar({ page, setPage, open }) {
   const items = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { id: "monthly", label: "Monthly MIS", icon: CalendarRange },
     { id: "pending", label: "Pending Tasks", icon: ClipboardList },
     { id: "details", label: "Detailed Records", icon: TableProperties },
     { id: "delay", label: "Putaway Delay Analysis", icon: Clock3 },
@@ -478,7 +482,7 @@ function Sidebar({ page, setPage, open }) {
 
 function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, source, authUser, onSignOut }) {
   const pageTitle =
-    page === "delay" ? "Putaway Delay Analysis" : page === "dashboard"
+    page === "monthly" ? "Monthly MIS" : page === "delay" ? "Putaway Delay Analysis" : page === "dashboard"
       ? "Vehicle Arrival to Putaway TAT"
       : page === "pending"
         ? "Pending Tasks"
@@ -486,7 +490,7 @@ function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, s
         ? "Detailed TAT Records"
         : "Calculation & Publication Logic";
   const pageSubtitle =
-    page === "delay" ? "Shelf workload, SKU class and historical KPI2 comparison" : page === "dashboard"
+    page === "monthly" ? "Monthly source coverage, corrections and Excel reporting" : page === "delay" ? "Shelf workload, SKU class and historical KPI2 comparison" : page === "dashboard"
       ? "Mother-facility inbound performance"
       : page === "pending"
         ? "Open GRN, Putaway, timestamp, and matching actions"
@@ -505,20 +509,20 @@ function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, s
         </div>
       </div>
       <div className="topbar-actions">
-        <div className="refresh-meta">
+        {page !== "monthly" && <div className="refresh-meta">
           <span className={source === "live" ? "live-dot" : "preview-dot"} />
           <div>
             <small>{source === "live" ? "Live data" : hasLiveApi() ? "Connecting" : "Preview data"}</small>
             <strong>Updated {formatDateTime(lastRefresh)}</strong>
           </div>
-        </div>
-        <button className={`icon-action ${refreshing ? "spinning" : ""}`} onClick={refresh} aria-label="Refresh data">
+        </div>}
+        {page !== "monthly" && <button className={`icon-action ${refreshing ? "spinning" : ""}`} onClick={refresh} aria-label="Refresh data">
           <RefreshCw size={18} />
-        </button>
-        <button className="download-button" onClick={exportCsv}>
+        </button>}
+        {page !== "monthly" && <button className="download-button" onClick={exportCsv}>
           <Download size={17} />
           <span>Download CSV</span>
-        </button>
+        </button>}
         <button className="user-action" onClick={onSignOut} title={`Sign out ${authUser?.email || ""}`}>
           <span>{(authUser?.name || authUser?.email || "User").slice(0, 1).toUpperCase()}</span>
           <LogOut size={16} />
