@@ -100,3 +100,13 @@ Test Excel: https://drive.google.com/file/d/18eGOIXzDDrzQXzWC3LC5pwDO1lZrYdjC/vi
 Downloaded backup: outputs/Inward_TAT_MIS_2026-09_r1_TEST_ONLY.xlsx (16,844 bytes).
 
 Downloaded OpenXML verified exactly Summary and Detailed Data tabs, four chart objects, cached formula results 33/31/2 and numeric separate unloading/GRN/Putaway date/time cells. The source cohort is synthetic, not September operational MIS. Actual month import, UI upload and dashboard download against operational data remain to be validated before issuing MIS; monthly workflow remains disabled. Synthetic files are retained in the labelled folder for traceability.
+
+## Monthly feature enabled — 13 October 2026
+
+After the user accepted the live test and approved proceeding, verified archive folder 1CwK3ZxEriURZstKVjocxo4ihz9ZMZX6M and existing Config in spreadsheet 1vTWxEboW_4-9RBJEr0gvKTOQmgM2XEBh1onhDU4mzZI. Changed only Config!B67 (MONTHLY_WORKFLOW_ENABLED) from FALSE to text TRUE and verified by read-back. Existing daily configuration, source records, exclusions and triggers were untouched. This enables authorised manual monthly refresh/upload/export, not scheduled closing imports or pending-owner emails. Actual September/quarterly MIS remains pending verified operational source imports; synthetic test files are not operational reports.
+
+## Manual inbox import
+
+User encountered the browser's 5 MB GRN upload guard and requested inbox import. Monthly MIS now offers Import from Inbox. Authorised users search a bounded email date range in the script owner's configured mailbox, select a successful recognised Uniware GRN/Putaway job and explicitly confirm the real extraction range/time. Received timestamps are not assumed to be export generation times or coverage. The server revalidates sender, exact subject, status, job and facility and downloads the email's HTTPS CSV link itself. Private download URLs and email bodies are not exposed in the listing.
+
+Browser uploads retain existing 5 MB / 20,000-row caps. Verified inbox imports allow up to 25 million characters / 200,000 source rows, with explicit errors beyond those bounds; no unlimited-volume claim. Same archive/reconciliation/calculation engine and monthly revision pointers are used, with message ID stored as provenance. No closing scheduler, arbitrary URL import, mailbox mutation, new scope or daily-pipeline changes. Only manual confirmed imports are enabled. Backend security/size tests and mocked browser inbox import tests passed; real inbox source import still requires the user's chosen email and confirmed coverage. Expired Uniware export links will return a download error and require a fresh export.

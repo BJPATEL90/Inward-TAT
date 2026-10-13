@@ -62,6 +62,13 @@ const grn = { month: "2026-09", type: "GRN", facility: "ALL", filename: "grn.csv
   extractedAt: "2026-10-01T08:00:00+05:30",
   content: "Facility,GRN Code,Item SkuCode,GRN Received Timestamp,Batch Code,Vendor Batch Number,GRN Invoice No\nOWN,G1,SKU1,2026-09-30 23:00:00,B1,V1,INV1\nEXPORT,G1,SKU1,2026-09-30 23:00:00,B1,V1,INV2\n" };
 const ingest = source => context.submitMonthlyUpload_({ parameter: { source: JSON.stringify(source) } }, user);
+const largerGrn = { ...grn, content: grn.content + "\n" + " ".repeat(5000001) };
+assert.throws(() => context.monthlyParseCsv_(largerGrn), /Import from Inbox/);
+assert.equal(context.monthlyParseCsv_({ ...largerGrn, channel: "EMAIL" }).records.length, 2);
+assert.throws(() => context.monthlyParseCsv_({ ...grn, channel: "EMAIL", content: "X".repeat(25000001) }), /25 million/);
+const manyRows = { ...grn, content: grn.content.split("\n")[0] + "\n" + (grn.content.split("\n")[1] + "\n").repeat(20001) };
+assert.throws(() => context.monthlyParseCsv_(manyRows), /20,000 rows/);
+assert.equal(context.monthlyParseCsv_({ ...manyRows, channel: "EMAIL" }).records.length, 1);
 const first = ingest(grn);
 assert.equal(first.revision, 1);
 assert.equal(first.records, 2);
@@ -191,7 +198,12 @@ assert.equal(called, 0);
 assert.equal(context.doPost({ parameter: { action: "monthlyupload", month: "2026-09", source: JSON.stringify(grn) } }).ok, true);
 assert.equal(called, 1);
 assert.equal(context.doPost({ parameter: { action: "monthlyupload", month: "2026-08", source: JSON.stringify(grn) } }).ok, false);
+context.listMonthlyInbox_ = () => { called++; return { ok: true }; };
+assert.equal(context.doGet({ parameter: { action: "monthlyinbox" } }).ok, false);
+assert.equal(context.doPost({ parameter: { action: "monthlyinbox", month: grn.month, source: JSON.stringify(grn) } }).ok, true);
+assert.equal(called, 2);
+assert.equal(context.doPost({ parameter: { action: "monthlyemailimport", month: "2026-08", source: JSON.stringify(grn) } }).ok, false);
 context.verifyGoogleCredential_ = () => ({ ok: false, error: "expired" });
 assert.equal(context.doPost({ parameter: { action: "monthlyupload" } }).error, "expired");
-assert.equal(called, 1);
+assert.equal(called, 2);
 console.log("Monthly ingestion validated: authorisation, POST guards, isolated revisions, corrections, duplicate uploads, facility checks and failed-write recovery.");

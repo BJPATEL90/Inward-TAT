@@ -21,8 +21,9 @@ try {
     if (action === "authVerify") response = { ok: true, user: { email: "owner@mosaicwellness.in", name: "Test user" } };
     else if (action === "dashboard") response = { ...fallbackSnapshot, ok: true };
     else if (action === "monthlyReport") response = { ok: true, filename: `Inward_TAT_MIS_2026-09_r${revision}_PROVISIONAL.xlsx`, fileId: "archive", revision, status: "PROVISIONAL", base64: "UEsDBAE=", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
+    else if (action === "monthlyInbox") response = { ok: true, emails: [{ messageId: "a123", exportJob: "GRN", facility: "ALL", receivedAt: "2026-10-01T02:30:00Z" }] };
     else {
-      if (action === "monthlyUpload") revision++;
+      if (action === "monthlyUpload" || action === "monthlyEmailImport") revision++;
       response = { ok: true, month: parameters.get("month"), revision, status: "PROVISIONAL", updatedAt: "2026-10-13T03:00:00Z",
         summary: { eligibleRecords: 100, completeRecords: 98, pendingRecords: 2, excludedRecords: 7, kpi1Hours: 21.29, kpi2Hours: 12.32, kpi3Hours: 8.97 },
         sourceExceptionCount: 1, totalBoxes: 2000, missingBoxValues: 0,
@@ -46,7 +47,7 @@ try {
   await page.getByText("Unloading refreshed and stored reports recalculated.", { exact: false }).waitFor();
   assert.ok(calls.some(call => call.action === "monthlyRefresh" && call.parameters.get("month") === "2026-09"));
   await page.getByLabel("Export generated at (IST)").fill("2026-10-01T08:00");
-  await page.getByLabel("CSV file").setInputFiles({ name: "closing.csv", mimeType: "text/csv", buffer: Buffer.from("Facility,GRN Code,Item SkuCode,GRN Received Timestamp,Batch Code,Vendor Batch Number\nOWN,G1,SKU1,2026-09-30 23:00:00,B1,V1\n") });
+  await page.getByLabel("CSV file", { exact: true }).setInputFiles({ name: "closing.csv", mimeType: "text/csv", buffer: Buffer.from("Facility,GRN Code,Item SkuCode,GRN Received Timestamp,Batch Code,Vendor Batch Number\nOWN,G1,SKU1,2026-09-30 23:00:00,B1,V1\n") });
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Upload and Recalculate" }).click();
   await page.getByText("Imported revision 2.", { exact: false }).waitFor();
@@ -54,9 +55,20 @@ try {
   assert.equal(source.month, "2026-09");
   assert.equal(source.periodStart, "2026-09-01T00:00:00+05:30");
   assert.equal(source.periodEndExclusive, "2026-10-01T00:00:00+05:30");
+  await page.getByLabel("Import method").selectOption("EMAIL");
+  await page.getByRole("button", { name: "Find Export Emails" }).click();
+  await page.getByText("1 successful export emails found.", { exact: false }).waitFor();
+  await page.getByRole("combobox", { name: /^Export email/ }).selectOption("a123");
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Import Email and Recalculate" }).click();
+  await page.getByText("Imported revision 3.", { exact: false }).waitFor();
+  const emailSource = JSON.parse(calls.find(call => call.action === "monthlyEmailImport").parameters.get("source"));
+  assert.equal(emailSource.messageId, "a123");
+  assert.equal(emailSource.facility, "ALL");
+  assert.equal(emailSource.content, undefined); // Export is downloaded server-side, not sent by the browser.
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download Monthly MIS (.xlsx)", exact: true }).click();
-  assert.equal((await download).suggestedFilename(), "Inward_TAT_MIS_2026-09_r2_PROVISIONAL.xlsx");
+  assert.equal((await download).suggestedFilename(), "Inward_TAT_MIS_2026-09_r3_PROVISIONAL.xlsx");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: "work/monthly-mis-mobile.png", fullPage: true, animations: "disabled" });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);

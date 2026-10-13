@@ -88,4 +88,6 @@ async function requestMonthly(action, month, source, extra = {}) {
 export function loadMonthlyStatus(month) { return requestMonthly("monthlyStatus", month); }
 export function refreshMonthlySources(month) { return requestMonthly("monthlyRefresh", month); }
 export function uploadMonthlySource(month, source) { return requestMonthly("monthlyUpload", month, source); }
+export function loadMonthlyInbox(month, source) { return requestMonthly("monthlyInbox", month, source); }
+export function importMonthlyInbox(month, source) { return requestMonthly("monthlyEmailImport", month, source); }
 export function downloadMonthlyReport(month, revision) { return requestMonthly("monthlyReport", month, null, { revision: String(revision) }); }

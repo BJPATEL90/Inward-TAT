@@ -44,7 +44,7 @@ function handleApiRequest_(event) {
       );
       return apiResponse_(auth, event);
     }
-    if (["dashboard", "manualtaskaction", "putawayanalysis", "monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport"].indexOf(action) === -1) {
+    if (["dashboard", "manualtaskaction", "putawayanalysis", "monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport", "monthlyinbox", "monthlyemailimport"].indexOf(action) === -1) {
       return jsonResponse_({ ok: false, error: "Unsupported action: " + action });
     }
 
@@ -54,9 +54,14 @@ function handleApiRequest_(event) {
     if (!auth.ok) {
       return apiResponse_(auth, event);
     }
-    if (["monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport"].indexOf(action) !== -1) {
+    if (["monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport", "monthlyinbox", "monthlyemailimport"].indexOf(action) !== -1) {
       if (!event.monthlyPost) throw new Error("Monthly workflow requires POST.");
       const month = String(event.parameter.month || "").trim();
+      if (action === "monthlyinbox" || action === "monthlyemailimport") {
+        const request = JSON.parse(String(event.parameter.source || "{}"));
+        if (request.month !== month) throw new Error("Email request month differs from the selected month.");
+        return apiResponse_(action === "monthlyinbox" ? listMonthlyInbox_(request, auth.user) : importMonthlyInbox_(request, auth.user), event);
+      }
       if (action === "monthlyreport") return apiResponse_(createMonthlyMis_(month, event.parameter.revision, auth.user), event);
       if (action === "monthlyupload") {
         const sourceMonth = JSON.parse(String(event.parameter.source || "{}")).month;

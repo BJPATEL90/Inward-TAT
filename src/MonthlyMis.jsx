@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { loadMonthlyStatus, refreshMonthlySources, uploadMonthlySource, downloadMonthlyReport } from "./api";
+import { loadMonthlyStatus, refreshMonthlySources, uploadMonthlySource, downloadMonthlyReport, loadMonthlyInbox, importMonthlyInbox } from "./api";
 import "./monthly-mis.css";
 
 function previousMonth() {
@@ -23,6 +23,11 @@ export default function MonthlyMis() {
   const [through, setThrough] = useState("");
   const [extracted, setExtracted] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const [importMode, setImportMode] = useState("FILE");
+  const [emails, setEmails] = useState([]);
+  const [messageId, setMessageId] = useState("");
+  const [receivedFrom, setReceivedFrom] = useState("");
+  const [receivedThrough, setReceivedThrough] = useState("");
   const fileRef = useRef(null);
   const selection = useRef(month);
   useEffect(() => {
@@ -30,6 +35,8 @@ export default function MonthlyMis() {
     selection.current = month;
     setData(null); setError(""); setNotice(""); setReportLink(null); setConfirmed(false);
     setFrom(`${month}-01T00:00`);
+    setEmails([]); setMessageId(""); setReceivedFrom(`${month}-01`);
+    setReceivedThrough(new Date(Date.now() + 86400000).toISOString().slice(0, 10));
     const [year, index] = month.split("-").map(Number);
     const end = new Date(Date.UTC(year, index, 1)).toISOString().slice(0, 10);
     setThrough(`${end}T00:00`); setExtracted("");
@@ -52,12 +59,16 @@ export default function MonthlyMis() {
   async function upload(event) {
     event.preventDefault();
     const file = fileRef.current?.files?.[0];
-    if (!file) { setError("Select a CSV file."); return; }
-    if (file.size > 5000000) { setError("File exceeds 5 MB. Split the report into smaller CSVs."); return; }
+    if (importMode === "FILE" && !file) { setError("Select a CSV file."); return; }
+    if (importMode === "FILE" && file.size > 5000000) { setError("File exceeds 5 MB. Choose Import from Inbox below, or split the CSV."); return; }
+    if (importMode === "EMAIL" && !messageId) { setError("Find and select a Uniware export email."); return; }
     await run(async selected => {
-      const result = await uploadMonthlySource(selected, { month: selected, type, facility,
+      const source = { month: selected, type, facility,
         periodStart: `${from}:00+05:30`, periodEndExclusive: `${through}:00+05:30`, extractedAt: `${extracted}:00+05:30`,
-        filename: file.name, content: await file.text() });
+      };
+      const result = importMode === "EMAIL"
+        ? await importMonthlyInbox(selected, { ...source, messageId })
+        : await uploadMonthlySource(selected, { ...source, filename: file.name, content: await file.text() });
       setNotice(result.duplicate ? "This report was already imported." : `Imported revision ${result.revision}. Monthly KPIs recalculated.`);
       if (fileRef.current) fileRef.current.value = "";
       setConfirmed(false);
@@ -94,14 +105,26 @@ export default function MonthlyMis() {
       <h2>Upload Missing / Corrected Reports</h2>
       <p>Enter the actual report filter and generation time in IST. “Through” is exclusive. A report received on the 1st does not necessarily cover the previous month.</p>
       <fieldset disabled={busy || !data}>
-        <label>Report type<select value={type} onChange={event => { setType(event.target.value); setFacility(event.target.value === "PUTAWAY" ? "SL Mother Hub" : "ALL"); setConfirmed(false); }}><option>GRN</option><option>PUTAWAY</option></select></label>
-        <label>Facility<select value={facility} onChange={event => setFacility(event.target.value)}>{(type === "GRN" ? ["ALL", "SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"] : ["SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"]).map(value => <option key={value}>{value}</option>)}</select></label>
+        <label>Import method<select value={importMode} onChange={event => { setImportMode(event.target.value); setConfirmed(false); setMessageId(""); }}><option value="FILE">Upload CSV file (up to 5 MB)</option><option value="EMAIL">Import from Inbox (larger exports)</option></select></label>
+        <label>Report type<select value={type} onChange={event => { setType(event.target.value); setFacility(event.target.value === "PUTAWAY" ? "SL Mother Hub" : "ALL"); setConfirmed(false); setEmails([]); setMessageId(""); }}><option>GRN</option><option>PUTAWAY</option></select></label>
+        {importMode === "EMAIL" && <>
+          <p>Imports from the script owner’s configured Uniware mailbox. Only successful export emails are listed. Search a narrower email date range if a report is missing. Supports up to 25 million CSV characters and 200,000 rows; this is not an unlimited import.</p>
+          <label>Email received from (IST)<input type="date" value={receivedFrom} onChange={event => { setReceivedFrom(event.target.value); setEmails([]); setMessageId(""); setConfirmed(false); }} /></label>
+          <label>Email received through, exclusive (IST)<input type="date" value={receivedThrough} onChange={event => { setReceivedThrough(event.target.value); setEmails([]); setMessageId(""); setConfirmed(false); }} /></label>
+          <button type="button" onClick={() => run(async selected => {
+            const result = await loadMonthlyInbox(selected, { month: selected, type, receivedFrom, receivedThrough });
+            setEmails(result.emails); setMessageId(""); setConfirmed(false);
+            setNotice(result.truncated ? "Showing limited results. Narrow the email date range to find older exports." : `${result.emails.length} successful export emails found. Verify coverage before importing.`);
+          })}>Find Export Emails</button>
+          <label>Export email<select value={messageId} required onChange={event => { setMessageId(event.target.value); const email = emails.find(item => item.messageId === event.target.value); if (email) setFacility(email.facility); setConfirmed(false); }}><option value="">Select an export email</option>{emails.map(email => <option key={email.messageId} value={email.messageId}>{email.exportJob} — {email.facility} — received {new Date(email.receivedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</option>)}</select></label>
+        </>}
+        <label>Facility<select value={facility} disabled={importMode === "EMAIL"} onChange={event => { setFacility(event.target.value); setConfirmed(false); }}>{(type === "GRN" ? ["ALL", "SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"] : ["SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"]).map(value => <option key={value}>{value}</option>)}</select></label>
         <label>From (IST)<input type="datetime-local" required value={from} onChange={event => setFrom(event.target.value)} /></label>
         <label>Through, exclusive (IST)<input type="datetime-local" required value={through} onChange={event => setThrough(event.target.value)} /></label>
         <label>Export generated at (IST)<input type="datetime-local" required value={extracted} onChange={event => setExtracted(event.target.value)} /></label>
-        <label>CSV file<input type="file" ref={fileRef} accept=".csv,text/csv" required /></label>
+        {importMode === "FILE" && <label>CSV file<input type="file" ref={fileRef} accept=".csv,text/csv" required onChange={() => setConfirmed(false)} /></label>}
         <label className="mis-confirm"><input type="checkbox" checked={confirmed} required onChange={event => setConfirmed(event.target.checked)} />I verified the date filter, facility and generation time against this export.</label>
-        <button type="submit" disabled={!confirmed}>Upload and Recalculate</button>
+        <button type="submit" disabled={!confirmed || (importMode === "EMAIL" && !messageId)}>{importMode === "EMAIL" ? "Import Email and Recalculate" : "Upload and Recalculate"}</button>
       </fieldset>
     </form>
     <MisTable title="Source coverage" headers={["Report", "Facility", "Coverage", "Generated (UTC)", "Accepted rows", "Archive"]} rows={(data?.sources || []).map(source => [source.type, source.facility, source.completeMonthCoverage ? "Full month declared" : "Partial", source.extractedAt, source.acceptedRows, <a href={`https://drive.google.com/file/d/${source.fileId}/view`} target="_blank" rel="noreferrer">Source</a>])} />
