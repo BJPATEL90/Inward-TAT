@@ -121,10 +121,15 @@ function monthlyWriteTable_(sheet, row, values) {
 
 function createMonthlyMis_(month, expectedRevision, user) {
   const config = monthlyAccess_(user);
+  return createMonthlyMisWithConfig_(month, expectedRevision, config);
+}
+
+/** Shared exporter; testState is only supplied by the editor-only smoke test. */
+function createMonthlyMisWithConfig_(month, expectedRevision, config, testState) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    const state = readMonthlyState_(month);
+    const state = testState || readMonthlyState_(month);
     if (!state.revision || !state.calculations) throw new Error("Refresh this month and import its reports before generating MIS.");
     if (String(expectedRevision) !== String(state.revision)) throw new Error("Monthly data changed. Reload the month before downloading MIS.");
     const folder = monthlyDrive_().getFolderById(config.MONTHLY_ARCHIVE_FOLDER_ID);
@@ -218,4 +223,50 @@ function createMonthlyMis_(month, expectedRevision, user) {
     return { ok: true, filename: filename, month: month, revision: state.revision, status: state.status,
       fileId: output.getId(), base64: Utilities.base64Encode(bytes), mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
   } finally { lock.releaseLock(); }
+}
+
+/** Editor-only integration test. No monthly state pointers, daily writes or flag changes. */
+function testMonthlyReportingArchive() {
+  ScriptApp.requireScopes(ScriptApp.AuthMode.FULL, ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/spreadsheets"]);
+  const config = getConfig_();
+  if (String(config.MONTHLY_WORKFLOW_ENABLED || "FALSE").toUpperCase() !== "FALSE") throw new Error("Run this isolated test with monthly workflow disabled.");
+  if (!config.MONTHLY_ARCHIVE_FOLDER_ID) throw new Error("Run archive setup first.");
+  const id = Utilities.getUuid();
+  const folderResponse = monthlyDriveRequest_("https://www.googleapis.com/drive/v3/files?fields=id", {
+    method: "post", contentType: "application/json", payload: JSON.stringify({
+      name: "TEST ONLY - Inward TAT MIS - " + id, mimeType: "application/vnd.google-apps.folder", parents: [config.MONTHLY_ARCHIVE_FOLDER_ID],
+    }),
+  });
+  const folderId = JSON.parse(folderResponse.getContentText()).id;
+  console.log("Isolated test folder: https://drive.google.com/drive/folders/" + folderId);
+  const testConfig = Object.assign({}, config, { MONTHLY_ARCHIVE_FOLDER_ID: folderId });
+  const state = { schemaVersion: 1, month: "2026-09", revision: 1, status: "TEST_ONLY", updatedAt: new Date().toISOString(), records: [], sources: [], calculationConfig: testConfig };
+  const samples = [
+    { type: "GOODS_INWARD", facility: "ALL", sheetId: "TEST_ONLY:" + id,
+      content: "SR NO.,Received at,SKU,GRN no.,Invoice number,No. of Boxes Recd,Unloading Date,Unloading Time\n1,SL Mother Hub,TEST_SKU,TEST_GRN,TEST_INV,20,2026-09-30,23:00:00\n" },
+    { type: "GRN", facility: "ALL",
+      content: "Facility,GRN Code,Item SkuCode,GRN Received Timestamp,Batch Code,Vendor Batch Number,GRN Invoice No\nOWN,TEST_GRN,TEST_SKU,2026-10-01 01:00:00,TEST_BATCH,TEST_VENDOR,TEST_INV\n" },
+    { type: "PUTAWAY", facility: "OWN",
+      content: "Putaway Item Id,SKU Code,GRN Number,Type,Status Code,Last Updated\nTEST_ITEM,TEST_SKU,TEST_GRN,PUTAWAY_GRN_ITEM,COMPLETE,2026-10-02 08:00:00\n" },
+  ];
+  samples.forEach(function (sample) {
+    const source = Object.assign({ month: state.month, periodStart: "2026-09-01T00:00:00+05:30",
+      periodEndExclusive: "2026-10-01T00:00:00+05:30", extractedAt: state.updatedAt }, sample);
+    const parsed = monthlyParseCsv_(source);
+    const archived = archiveMonthlySource_(folderId, source);
+    const restored = JSON.parse(monthlyDrive_().getFileById(archived.fileId).getBlob().getDataAsString("UTF-8"));
+    if (restored.content !== source.content) throw new Error("Test source archive read-back failed.");
+    parsed.records.forEach(function (record) { record.sourceId = archived.fileId; state.records.push(record); });
+    state.sources.push(Object.assign({}, archived.metadata, { fileId: archived.fileId }));
+  });
+  state.calculations = calculateMonthlyRevision_(state.month, state.records, testConfig);
+  if (state.calculations.summary.completeRecords !== 1 || state.calculations.summary.kpi1Hours !== 33) throw new Error("Test KPI reconciliation failed.");
+  const report = createMonthlyMisWithConfig_(state.month, 1, testConfig, state);
+  const repeated = createMonthlyMisWithConfig_(state.month, 1, testConfig, state);
+  if (repeated.fileId !== report.fileId || repeated.base64 !== report.base64) throw new Error("Repeat export did not reuse the archived workbook.");
+  const result = { ok: true, testOnly: true, archivedSources: 3, completeRecords: 1, kpi1Hours: 33,
+    folderId: folderId, fileId: report.fileId, filename: report.filename,
+    downloadUrl: "https://drive.google.com/file/d/" + report.fileId + "/view", monthlyWorkflowEnabled: false };
+  console.log(JSON.stringify(result));
+  return result;
 }

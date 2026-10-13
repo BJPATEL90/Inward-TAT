@@ -88,3 +88,15 @@ Archive initialization could not be executed remotely: clasp run setupMonthlyRep
 The owner ran setup and received HTTP 403 at the folder-creation request. The original error omitted Google's response details, so the exact cause is not yet known. MonthlyDrive now surfaces the API reason and message, with specific guidance for SERVICE_DISABLED/accessNotConfigured versus ACCESS_TOKEN_SCOPE_INSUFFICIENT. Existing scopes and daily triggers remain unchanged. Diagnostic cases are covered by scripts/validate-monthly-drive.mjs. The next owner setup attempt must supply the detailed error before any scope or Cloud-project changes are considered.
 
 The next owner execution confirmed insufficientPermissions / ACCESS_TOKEN_SCOPE_INSUFFICIENT. Archive setup now calls ScriptApp.requireScopes for the existing drive.file permission before acquiring a lock or changing data. Running setup in the Apps Script editor can request the omitted granular consent; the owner must grant that permission and rerun setup. No authorization is revoked, no scope is broadened and no daily trigger is changed. Syntax, lint and missing/granted-consent guard tests passed. Live folder creation and Excel export remain unverified until owner consent succeeds.
+
+## Live isolated validation — 13 October 2026
+
+Owner enabled Drive v3 under Services in the existing Default Cloud project and completed archive setup. The enabled service is now also preserved in the repository manifest; no Cloud-project switch or extra OAuth scope was needed.
+
+Editor-only testMonthlyReportingArchive passed at 15:40 IST with MONTHLY_WORKFLOW_ENABLED=FALSE. It parsed and archived three synthetic Goods/GRN/Putaway sources in a separate TEST ONLY folder, verified exact read-back, calculated one receipt crossing month-end (KPI1 33h, KPI2 31h, KPI3 2h) and used the same shared exporter as production. A repeated export returned the identical archived file and bytes. It did not publish monthly state pointers, import operational data or alter daily triggers/configuration.
+
+Test folder: https://drive.google.com/drive/folders/1RfkAO86geVr8KTVQmNqZPsUWnRDNVA0t
+Test Excel: https://drive.google.com/file/d/18eGOIXzDDrzQXzWC3LC5pwDO1lZrYdjC/view
+Downloaded backup: outputs/Inward_TAT_MIS_2026-09_r1_TEST_ONLY.xlsx (16,844 bytes).
+
+Downloaded OpenXML verified exactly Summary and Detailed Data tabs, four chart objects, cached formula results 33/31/2 and numeric separate unloading/GRN/Putaway date/time cells. The source cohort is synthetic, not September operational MIS. Actual month import, UI upload and dashboard download against operational data remain to be validated before issuing MIS; monthly workflow remains disabled. Synthetic files are retained in the labelled folder for traceability.

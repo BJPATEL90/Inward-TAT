@@ -93,6 +93,12 @@ assert.equal(grids[1].cells.get("4:5").startsWith("'="), true);
 assert.equal(grids[1].formats.some(f => f.col === 8 && f.format === "hh:mm:ss"), true);
 assert.equal(context.createMonthlyMis_(state.month, 3, { email: "owner" }).filename, report.filename);
 assert.equal(exports, 1); // Repeated request returns the archived XLSX.
+context.readMonthlyState_ = () => { throw new Error("Test exporter read operational monthly state"); };
+assert.equal(context.createMonthlyMisWithConfig_(state.month, 3, config, state).fileId, report.fileId);
+context.monthlyAccess_ = () => { throw new Error("Monthly workflow is not enabled yet."); };
+assert.throws(() => context.createMonthlyMis_(state.month, 3, { email: "owner" }), /not enabled/);
+context.monthlyAccess_ = () => config;
+context.readMonthlyState_ = () => state;
 state.revision = 4; failExport = true;
 assert.throws(() => context.createMonthlyMis_(state.month, 4, { email: "owner" }), /export failed/);
 assert.equal(archived.size, 1);
