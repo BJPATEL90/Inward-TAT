@@ -4,7 +4,21 @@ function monthlyDriveRequest_(url, options) {
     headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() }, muteHttpExceptions: true,
   }));
   const code = response.getResponseCode();
-  if (code < 200 || code >= 300) throw new Error("Monthly Drive request failed (HTTP " + code + "). Verify archive access.");
+  if (code < 200 || code >= 300) {
+    let error = {};
+    try { error = JSON.parse(response.getContentText()).error || {}; } catch (ignored) { /* Non-JSON response. */ }
+    const reasons = (error.errors || []).map(function (entry) { return entry.reason; }).concat(
+      (error.details || []).map(function (entry) { return entry.reason; })
+    ).filter(Boolean);
+    let help = "";
+    if (reasons.some(function (reason) { return /accessNotConfigured|SERVICE_DISABLED/i.test(reason); })) {
+      help = " Enable Google Drive API in the Apps Script project's linked Google Cloud project, then rerun setupMonthlyReportingArchive.";
+    } else if (reasons.some(function (reason) { return /insufficientPermissions|ACCESS_TOKEN_SCOPE_INSUFFICIENT/i.test(reason); })) {
+      help = " Reauthorise the script owner for the existing drive.file permission, then rerun setupMonthlyReportingArchive.";
+    }
+    throw new Error("Monthly Drive request failed (HTTP " + code + "; " + (reasons.join(", ") || error.status || "unknown reason") + "): " +
+      String(error.message || "Google returned no diagnostic message.").slice(0, 1500) + help);
+  }
   return response;
 }
 

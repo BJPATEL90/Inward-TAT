@@ -76,3 +76,13 @@ Verification passed: monthly foundation and ingestion suites, MIS model/export w
 No production deployment or live source changes occurred. Owner mapping, manual-override closure review, final approval and reminders remain Phase 4. Pending owner displays Unassigned until mapping is configured. Source extraction jobs must explicitly cover the previous month and later completions; this cannot be inferred from email arrival date.
 
 Resume Phase 4 from this workspace. Configure archive access, verify explicit Uniware closing jobs and reminder delivery policy, integrate closure ownership/approval, then deploy and validate with actual sources. Preserve outputs/, work/ and apps-script/clasp.cmd.
+
+## Deployment — 13 October 2026
+
+Phases 1–3 published to GitHub main in ff43c03. GitHub Pages run 38354936828 completed successfully. Apps Script web endpoint was updated in place to version 38 and its health check returned ok=true.
+
+Preserved the live backend's 120-second dashboard cache and historical month availability instead of introducing the repository's earlier two-month restriction. Deployment staged from the live project, retaining the unrelated SkuPacksizeAnalysis script and unchanged manifest/scopes. Native DriveApp calls in the monthly modules were replaced by a REST adapter using the existing drive.file scope, avoiding a broader permission request that could interrupt the daily trigger.
+
+Archive initialization could not be executed remotely: clasp run setupMonthlyReportingArchive returned a permission error. Monthly workflow remains disabled. Required one-time action by the Apps Script owner: run setupMonthlyReportingArchive from the script editor. It creates/reuses an app-accessible private archive folder and stores its Config ID, but deliberately leaves MONTHLY_WORKFLOW_ENABLED=FALSE. After that, validate actual archive writes and XLSX export, then enable the monthly flag. Daily reporting remains independent. No monthly data has been imported or changed by this deployment.
+
+The owner ran setup and received HTTP 403 at the folder-creation request. The original error omitted Google's response details, so the exact cause is not yet known. MonthlyDrive now surfaces the API reason and message, with specific guidance for SERVICE_DISABLED/accessNotConfigured versus ACCESS_TOKEN_SCOPE_INSUFFICIENT. Existing scopes and daily triggers remain unchanged. Diagnostic cases are covered by scripts/validate-monthly-drive.mjs. The next owner setup attempt must supply the detailed error before any scope or Cloud-project changes are considered.
