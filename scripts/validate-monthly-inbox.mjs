@@ -64,6 +64,13 @@ context.importMonthlyInbox_({ month: "2026-09", messageId: "a123", simple: true 
 assert.equal(imported.extractionTimeBasis, "EMAIL_RECEIVED_PROXY");
 assert.equal(imported.coverageDeclared, false);
 assert.equal(imported.facility, "ALL");
+context.importMonthlyInbox_({ month: "2026-09", messageId: "a123", simple: true, facility: "SL Mother Hub" }, user);
+assert.equal(imported.facility, "SL Mother Hub");
+assert.throws(() => context.importMonthlyInbox_({ month: "2026-09", messageId: "a123", simple: true, facility: "Wrong facility" }, user), /supported facility/);
+const previousJob = job;
+job = "GRN/Putaway-OWN";
+assert.throws(() => context.importMonthlyInbox_({ month: "2026-09", messageId: "a123", simple: true, facility: "EXPORT" }, user), /cannot override/);
+job = previousJob;
 const todayQuery = { month: "2026-09", type: "AUTO", receivedFrom: "2026-10-14", receivedThrough: "2026-10-15" };
 const todayListing = context.listMonthlyInbox_(todayQuery, user);
 assert.equal(todayListing.emails.length, 1);

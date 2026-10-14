@@ -18,7 +18,8 @@ export default function MonthlyMis() {
   const [notice, setNotice] = useState("");
   const [reportLink, setReportLink] = useState(null);
   const [type, setType] = useState("GRN");
-  const [facility, setFacility] = useState("ALL");
+  const [facility, setFacility] = useState("");
+  const [emailFacility, setEmailFacility] = useState("");
   const [from, setFrom] = useState("");
   const [through, setThrough] = useState("");
   const [extracted, setExtracted] = useState("");
@@ -38,6 +39,7 @@ export default function MonthlyMis() {
     setData(null); setError(""); setNotice(""); setReportLink(null); setConfirmed(false);
     setFrom(`${month}-01T00:00`);
     setEmails([]); setMessageId(""); setNextOffset(null); setReceivedFrom(`${month}-01`);
+    setFacility(""); setEmailFacility("");
     setReceivedThrough(new Date(Date.now() + 86400000).toISOString().slice(0, 10));
     const [year, index] = month.split("-").map(Number);
     const end = new Date(Date.UTC(year, index, 1)).toISOString().slice(0, 10);
@@ -62,16 +64,18 @@ export default function MonthlyMis() {
     event.preventDefault();
     const file = fileRef.current?.files?.[0];
     if (importMode === "FILE" && !file) { setError("Select a CSV file."); return; }
+    if (importMode === "FILE" && !facility) { setError("Select the facility for this file."); return; }
     if (importMode === "FILE" && file.size > 5000000) { setError("File exceeds 5 MB. Choose Import from Inbox below, or split the CSV."); return; }
     if (importMode === "EMAIL" && !messageId) { setError("Find and select a Uniware export email."); return; }
+    if (importMode === "EMAIL" && selectedEmail?.type === "PUTAWAY" && selectedEmail.facility === "ALL" && !emailFacility) { setError("Select the facility for this unnamed export."); return; }
     await run(async selected => {
       const source = { month: selected, type, facility,
         periodStart: `${from}:00+05:30`, periodEndExclusive: `${through}:00+05:30`, extractedAt: `${extracted}:00+05:30`,
       };
       const result = importMode === "EMAIL"
-        ? await importMonthlyInbox(selected, { month: selected, messageId, simple: true })
+        ? await importMonthlyInbox(selected, { month: selected, messageId, simple: true, ...(emailFacility ? { facility: emailFacility } : {}) })
         : await uploadMonthlySource(selected, { ...source, filename: file.name, content: await file.text() });
-      setNotice(result.duplicate ? "This report was already imported." : `Imported revision ${result.revision}. Monthly KPIs recalculated.`);
+      setNotice(result.duplicate ? "This report was already imported." : `Imported revision ${result.revision}. Monthly KPIs recalculated.${importMode === "FILE" ? ` Facility: ${facility}.` : ""}`);
       if (fileRef.current) fileRef.current.value = "";
       setConfirmed(false);
     });
@@ -119,8 +123,8 @@ export default function MonthlyMis() {
       <h2>Upload Missing / Corrected Reports</h2>
       <p>Select the reporting month above, find an export email and fetch it. Automatic imports remain provisional: an email timestamp does not prove full-month source coverage.</p>
       <fieldset disabled={busy || !data}>
-        <label>Import method<select value={importMode} onChange={event => { setImportMode(event.target.value); setConfirmed(false); setMessageId(""); }}><option value="FILE">Upload CSV file (up to 5 MB)</option><option value="EMAIL">Import from Inbox (larger exports)</option></select></label>
-        {importMode === "FILE" && <label>Report type<select value={type} onChange={event => { setType(event.target.value); setFacility(event.target.value === "PUTAWAY" ? "SL Mother Hub" : "ALL"); setConfirmed(false); setEmails([]); setMessageId(""); }}><option>GRN</option><option>PUTAWAY</option></select></label>}
+        <label>Import method<select value={importMode} onChange={event => { setImportMode(event.target.value); setConfirmed(false); setMessageId(""); setFacility(""); setEmailFacility(""); }}><option value="FILE">Upload CSV file (up to 5 MB)</option><option value="EMAIL">Import from Inbox (larger exports)</option></select></label>
+        {importMode === "FILE" && <label>Report type<select value={type} onChange={event => { setType(event.target.value); setFacility(""); setConfirmed(false); setEmails([]); setMessageId(""); }}><option>GRN</option><option>PUTAWAY</option></select></label>}
         {importMode === "EMAIL" && <>
           <p>Searches the last seven days, including today, in the script owner's Uniware mailbox. All-facility and manually generated reports are visible too. Unsupported reports show a reason instead of disappearing.</p>
           <button type="button" onClick={() => findEmails()}>Find Export Emails</button>
@@ -130,20 +134,22 @@ export default function MonthlyMis() {
             <label>Email received through, exclusive (IST)<input type="date" value={receivedThrough} onChange={event => { setReceivedThrough(event.target.value); setEmails([]); setMessageId(""); setConfirmed(false); }} /></label>
           </>}
           {nextOffset != null && <button type="button" onClick={() => findEmails(nextOffset)}>Load more email results</button>}
-          <label>Export email<select value={messageId} required onChange={event => { setMessageId(event.target.value); setConfirmed(false); }}><option value="">Select an export email</option>{emails.map(email => <option key={email.messageId} value={email.messageId}>{email.type || ""} {email.exportJob} — {email.facility} — received {new Date(email.receivedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}{email.issue ? " — needs different export" : ""}</option>)}</select></label>
-          {selectedEmail && <p>{selectedEmail.type} · {selectedEmail.facility === "ALL" ? "Facility will be read from the CSV" : selectedEmail.facility} · {selectedEmail.filename || selectedEmail.exportJob}</p>}
+          <label>Export email<select value={messageId} required onChange={event => { setMessageId(event.target.value); setEmailFacility(""); setConfirmed(false); }}><option value="">Select an export email</option>{emails.map(email => <option key={email.messageId} value={email.messageId}>{email.type || ""} {email.exportJob} — {email.facility} — received {new Date(email.receivedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}{email.issue ? " — needs different export" : ""}</option>)}</select></label>
+          {selectedEmail && <p>{selectedEmail.type} · {selectedEmail.facility === "ALL" ? "Choose a facility below, or use the CSV facility column" : `Detected facility: ${selectedEmail.facility}`} · {selectedEmail.filename || selectedEmail.exportJob}</p>}
+          {selectedEmail?.type === "PUTAWAY" && selectedEmail.facility === "ALL" && selectedEmail.processable !== false && <label>Facility for this email export<select required value={emailFacility} onChange={event => setEmailFacility(event.target.value)}><option value="">Select facility</option><option value="ALL">Read Facility column from CSV</option>{["SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"].map(value => <option key={value}>{value}</option>)}</select></label>}
           {selectedEmail?.issue && <p role="alert">{selectedEmail.issue}</p>}
-          <button type="submit" disabled={!selectedEmail || selectedEmail.processable === false}>Fetch and Process</button>
+          <button type="submit" disabled={!selectedEmail || selectedEmail.processable === false || (selectedEmail.type === "PUTAWAY" && selectedEmail.facility === "ALL" && !emailFacility)}>Fetch and Process</button>
         </>}
         {importMode === "FILE" && <>
         <p>For file upload only: verify the report filter, facility and actual generation time.</p>
-        <label>Facility<select value={facility} onChange={event => { setFacility(event.target.value); setConfirmed(false); }}>{(type === "GRN" ? ["ALL", "SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"] : ["SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"]).map(value => <option key={value}>{value}</option>)}</select></label>
+        <label>Facility for this file<select required value={facility} onChange={event => { setFacility(event.target.value); setConfirmed(false); }}><option value="">Select facility</option>{(type === "GRN" ? ["ALL", "SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"] : ["SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"]).map(value => <option key={value}>{value}</option>)}</select></label>
+        <p>When the CSV has no Facility column, this selection assigns its records to that facility for GRN/Putaway matching. If the CSV contains a different facility, it is rejected. Named email exports retain their detected facility.</p>
         <label>From (IST)<input type="datetime-local" required value={from} onChange={event => setFrom(event.target.value)} /></label>
         <label>Through, exclusive (IST)<input type="datetime-local" required value={through} onChange={event => setThrough(event.target.value)} /></label>
         <label>Export generated at (IST)<input type="datetime-local" required value={extracted} onChange={event => setExtracted(event.target.value)} /></label>
         {importMode === "FILE" && <label>CSV file<input type="file" ref={fileRef} accept=".csv,text/csv" required onChange={() => setConfirmed(false)} /></label>}
         <label className="mis-confirm"><input type="checkbox" checked={confirmed} required onChange={event => setConfirmed(event.target.checked)} />I verified the date filter, facility and generation time against this export.</label>
-        <button type="submit" disabled={!confirmed}>Upload and Recalculate</button>
+        <button type="submit" disabled={!confirmed || !facility}>Upload and Recalculate</button>
         </>}
       </fieldset>
     </form>

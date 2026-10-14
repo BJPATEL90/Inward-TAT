@@ -65,7 +65,7 @@ function monthlyParseCsv_(source) {
     throw new Error("CSV headers must be unique and nonblank.");
   }
   const required = source.type === "GRN"
-    ? ["Facility", "GRN Code", "Item SkuCode", "GRN Received Timestamp", "Batch Code", "Vendor Batch Number"]
+    ? (metadata.facility === "ALL" ? ["Facility"] : []).concat(["GRN Code", "Item SkuCode", "GRN Received Timestamp", "Batch Code", "Vendor Batch Number"])
     : source.type === "PUTAWAY"
       ? ["Putaway Item Id", "SKU Code", "GRN Number", "Type", "Status Code", "Last Updated"]
       : ["SR NO.", "Received at", "SKU", "GRN no.", "Unloading Date", "Unloading Time"];
@@ -238,20 +238,27 @@ function listMonthlyInbox_(request, user) {
 
 function importMonthlyInbox_(request, user) {
   const config = monthlyAccess_(user);
+  const simpleImport = request.simple === true;
   if (!/^[a-fA-F0-9]+$/.test(String(request.messageId || ""))) throw new Error("Select a listed export email.");
   // Revalidate the message server-side; never trust client-supplied sender, URL or facility.
-  const descriptor = monthlyInboxDescriptor_(GmailApp.getMessageById(request.messageId), request.simple ? "AUTO" : request.type, config);
+  const descriptor = monthlyInboxDescriptor_(GmailApp.getMessageById(request.messageId), simpleImport ? "AUTO" : request.type, config);
   if (!descriptor.processable) throw new Error(descriptor.issue);
-  if (request.simple) {
+  if (simpleImport) {
+    let facility = descriptor.facility;
+    const requestedFacility = String(request.facility || "").trim();
+    if (descriptor.type === "PUTAWAY" && facility === "ALL" && requestedFacility) {
+      if (!["ALL", "SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"].includes(requestedFacility)) throw new Error("Select a supported facility for this unnamed export.");
+      facility = requestedFacility;
+    } else if (requestedFacility && requestedFacility !== facility) throw new Error("Facility cannot override the named email export facility.");
     const window = monthlyWindow_(request.month);
     const extracted = descriptor.extractedAt || descriptor.receivedAt;
     const end = new Date(Math.min(window.end.getTime(), Date.parse(extracted)));
     if (end <= window.start) throw new Error("This export predates the selected reporting month.");
-    request = { month: request.month, type: descriptor.type, facility: descriptor.facility, messageId: descriptor.messageId,
+    request = { month: request.month, type: descriptor.type, facility: facility, messageId: descriptor.messageId,
       periodStart: window.start.toISOString(), periodEndExclusive: end.toISOString(), extractedAt: extracted,
       extractionTimeBasis: descriptor.extractedAt ? "EXPORT_FILENAME" : "EMAIL_RECEIVED_PROXY", coverageDeclared: false };
   }
-  if (request.facility !== descriptor.facility) throw new Error("Selected facility differs from the email export facility.");
+  if (!simpleImport && request.facility !== descriptor.facility) throw new Error("Selected facility differs from the email export facility.");
   validateMonthlySource_(Object.assign({}, request, { content: "PREFLIGHT" }));
   const source = Object.assign({}, request, { content: downloadCsv_(descriptor.url), channel: "EMAIL", filename: descriptor.exportJob, messageId: descriptor.messageId });
   return ingestMonthlySource_(source, user, config);

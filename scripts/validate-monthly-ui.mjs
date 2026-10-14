@@ -23,7 +23,8 @@ try {
     else if (action === "monthlyReport") response = { ok: true, filename: `Inward_TAT_MIS_2026-09_r${revision}_PROVISIONAL.xlsx`, fileId: "archive", revision, status: "PROVISIONAL", base64: "UEsDBAE=", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
     else if (action === "monthlyInbox") response = { ok: true, nextOffset: null, receivedFrom: "2026-10-07", receivedThrough: "2026-10-15", emails: [
       { messageId: "b456", type: "PUTAWAY", exportJob: "Copy of Putaway All facility", facility: "ALL", receivedAt: "2026-10-14T05:39:19Z", processable: false, issue: "This export has no GRN Number." },
-      { messageId: "a123", type: "GRN", exportJob: "GRN", facility: "ALL", receivedAt: "2026-10-14T05:30:00Z", processable: true } ] };
+      { messageId: "a123", type: "GRN", exportJob: "GRN", facility: "ALL", receivedAt: "2026-10-14T05:30:00Z", processable: true },
+      { messageId: "c789", type: "PUTAWAY", exportJob: "GRN/Gatepass to Putaway", facility: "ALL", receivedAt: "2026-10-14T05:31:00Z", processable: true } ] };
     else {
       if (action === "monthlyUpload" || action === "monthlyEmailImport") revision++;
       response = { ok: true, month: parameters.get("month"), revision, status: "PROVISIONAL", updatedAt: "2026-10-13T03:00:00Z",
@@ -49,6 +50,8 @@ try {
   await page.getByText("Unloading refreshed and stored reports recalculated.", { exact: false }).waitFor();
   assert.ok(calls.some(call => call.action === "monthlyRefresh" && call.parameters.get("month") === "2026-09"));
   await page.getByLabel("Import method").selectOption("FILE");
+  assert.equal(await page.getByLabel("Facility for this file").inputValue(), "");
+  await page.getByLabel("Facility for this file").selectOption("ALL");
   await page.getByLabel("Export generated at (IST)").fill("2026-10-01T08:00");
   await page.getByLabel("CSV file", { exact: true }).setInputFiles({ name: "closing.csv", mimeType: "text/csv", buffer: Buffer.from("Facility,GRN Code,Item SkuCode,GRN Received Timestamp,Batch Code,Vendor Batch Number\nOWN,G1,SKU1,2026-09-30 23:00:00,B1,V1\n") });
   await page.getByRole("checkbox").check();
@@ -60,11 +63,15 @@ try {
   assert.equal(source.periodEndExclusive, "2026-10-01T00:00:00+05:30");
   await page.getByLabel("Import method").selectOption("EMAIL");
   await page.getByRole("button", { name: "Find Export Emails" }).click();
-  await page.getByText("2 export emails found on this page.", { exact: false }).waitFor();
+  await page.getByText("3 export emails found on this page.", { exact: false }).waitFor();
   assert.equal(await page.getByLabel("Export generated at (IST)").count(), 0);
   await page.getByRole("combobox", { name: /^Export email/ }).selectOption("b456");
   assert.equal(await page.getByRole("button", { name: "Fetch and Process" }).isDisabled(), true);
   await page.getByText("This export has no GRN Number.").waitFor();
+  await page.getByRole("combobox", { name: /^Export email/ }).selectOption("c789");
+  assert.equal(await page.getByRole("button", { name: "Fetch and Process" }).isDisabled(), true);
+  await page.getByLabel("Facility for this email export").selectOption("OWN");
+  assert.equal(await page.getByRole("button", { name: "Fetch and Process" }).isEnabled(), true);
   await page.getByRole("combobox", { name: /^Export email/ }).selectOption("a123");
   await page.getByRole("button", { name: "Fetch and Process" }).click();
   await page.getByText("Imported revision 3.", { exact: false }).waitFor();

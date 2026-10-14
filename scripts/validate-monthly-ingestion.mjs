@@ -98,6 +98,12 @@ config.MONTHLY_WORKFLOW_ENABLED = "TRUE";
 const putaway = { ...grn, type: "PUTAWAY", facility: "OWN",
   content: 'Putaway Item Id,SKU Code,GRN Number,Type,Status Code,Last Updated\n123,SKU1,G1,PUTAWAY_GRN_ITEM,COMPLETE,2026-10-02 08:00:00\n' };
 assert.equal(ingest(putaway).recordCounts.PUTAWAY, 1);
+assert.equal(context.monthlyParseCsv_(putaway).records[0].values.Facility, "OWN");
+assert.equal(context.monthlyParseCsv_({ ...putaway, facility: "SL Mother Hub" }).records[0].values.Facility, "SL Mother Hub");
+assert.throws(() => context.monthlyParseCsv_({ ...putaway, facility: "" }), /facility is required/i);
+const standaloneGrn = { ...grn, facility: "OWN", content: "GRN Code,Item SkuCode,GRN Received Timestamp,Batch Code,Vendor Batch Number\nG1,SKU1,2026-09-30 23:00:00,B1,V1\n" };
+assert.equal(context.monthlyParseCsv_(standaloneGrn).records[0].values.Facility, "OWN");
+assert.throws(() => context.monthlyParseCsv_({ ...standaloneGrn, facility: "ALL" }), /Missing CSV column: Facility/);
 assert.throws(() => context.monthlyParseCsv_({ ...putaway, content: putaway.content.split("\n")[0] + "\n" }), /headers only/);
 assert.throws(() => context.monthlyParseCsv_({ ...putaway, content: "Putaway Item Id,Item Type skuCode,Type,Status Code,Updated,Facility Name\n123,SKU1,PUTAWAY_GRN_ITEM,COMPLETE,2026-10-02 08:00:00,OWN\n" }), /Missing CSV column/);
 const multiFacility = { ...putaway, facility: "ALL", content: putaway.content.split("\n")[0] + ",Facility\n" + putaway.content.split("\n")[1] + ",OWN\n" };
@@ -120,6 +126,8 @@ const dataset = [
 ];
 const calculated = context.calculateMonthlyRevision_("2026-09", dataset, {});
 assert.equal(calculated.summary.completeRecords, 1);
+const wrongPutawayFacility = dataset.map(row => row.values._sourceType === "PUTAWAY" ? record("PUTAWAY", { ...row.values, Facility: "SL Mother Hub" }) : row);
+assert.equal(context.calculateMonthlyRevision_("2026-09", wrongPutawayFacility, {}).summary.completeRecords, 0);
 assert.equal(calculated.summary.kpi1Hours, 33);
 assert.equal(calculated.summary.kpi2Hours, 31);
 assert.equal(calculated.summary.kpi3Hours, 2);
