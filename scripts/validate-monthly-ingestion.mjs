@@ -148,6 +148,7 @@ context.resolveGoodsSourceSheetForMonth_ = (_, __, date) => {
     getDataRange: () => ({ getValues: () => [
       ["F", "Received at", "SKU", "GRN no.", "Invoice number ", "Unloading Date", "Unloading Time", "", ""],
       [1, "SL Mother Hub", "SKU1", "G1", "INV1", "2026-09-30", "23:00:00", "source note", ""],
+      ["", "MM Beyond NCR", "OTHER", "", "", "2026-09-30", "23:00:00", "out-of-scope preserved in archive", ""],
     ] }), getName: () => "FG-Sept-26", getSheetId: () => 123,
   };
 };

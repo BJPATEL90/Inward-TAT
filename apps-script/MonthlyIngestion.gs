@@ -84,6 +84,7 @@ function monthlyParseCsv_(source) {
     if (source.type === "PUTAWAY" && String(values.Type).trim() !== "PUTAWAY_GRN_ITEM") return;
     const rawFacility = source.type === "GOODS_INWARD" ? values["Received at"] : values.Facility;
     const facility = normalizeFacility_(rawFacility || metadata.facility);
+    if (source.type === "GOODS_INWARD" && String(source.goodsAllowedFacilities || "SL Mother Hub|SL Ambient").split("|").map(normalizeFacility_).indexOf(facility) === -1) return;
     if (!["SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"].includes(facility)) {
       if (source.type === "PUTAWAY" && metadata.facility === "ALL") return;
       throw new Error("Invalid facility at source row " + (index + 2));
@@ -292,6 +293,7 @@ function refreshMonthlySources_(month, user) {
     month: month, type: "GOODS_INWARD", facility: "ALL", content: output,
     periodStart: window.start.toISOString(), periodEndExclusive: new Date(Math.min(now.getTime(), window.end.getTime())).toISOString(),
     extractedAt: now.toISOString(), channel: "GOOGLE_SHEET", filename: sheet.getName(),
+    goodsAllowedFacilities: String(config.GOODS_ALLOWED_FACILITIES || "SL Mother Hub|SL Ambient"),
     sheetId: spreadsheet.getId() + ":" + sheet.getSheetId(),
   };
   const result = ingestMonthlySource_(source, user, config);
