@@ -70,6 +70,8 @@ const manyRows = { ...grn, content: grn.content.split("\n")[0] + "\n" + (grn.con
 assert.throws(() => context.monthlyParseCsv_(manyRows), /20,000 rows/);
 assert.equal(context.monthlyParseCsv_({ ...manyRows, channel: "EMAIL" }).records.length, 1);
 const first = ingest(grn);
+const withReturns = { ...grn, content: grn.content + grn.content.split("\n")[1].replace("OWN,", "SL Returns,") + "\n" };
+assert.equal(context.monthlyParseCsv_(withReturns).records.length, 2);
 assert.equal(first.revision, 1);
 assert.equal(first.records, 2);
 assert.equal(first.status, "PROVISIONAL");
@@ -98,7 +100,26 @@ config.MONTHLY_WORKFLOW_ENABLED = "TRUE";
 const putaway = { ...grn, type: "PUTAWAY", facility: "OWN",
   content: 'Putaway Item Id,SKU Code,GRN Number,Type,Status Code,Last Updated\n123,SKU1,G1,PUTAWAY_GRN_ITEM,COMPLETE,2026-10-02 08:00:00\n' };
 assert.equal(ingest(putaway).recordCounts.PUTAWAY, 1);
+const savedRevisionFile = files.get(properties.get("INWARD_TAT_MONTHLY_STATE_2026-09"));
+const savedGetBlob = savedRevisionFile.getBlob;
+const legacyRevision = JSON.parse(savedGetBlob().getDataAsString());
+legacyRevision.records.filter(row => row.values._sourceType === "PUTAWAY").forEach(row => {
+  row.key = JSON.stringify(["PUTAWAY", row.values.Facility, row.values["Putaway Item Id"]]);
+});
+const legacyText = JSON.stringify(legacyRevision);
+savedRevisionFile.getBlob = () => ({ getDataAsString: () => legacyText });
+const migratedRecords = context.readMonthlyState_("2026-09").records.filter(row => row.values._sourceType === "PUTAWAY");
+assert.equal(JSON.parse(migratedRecords[0].key).length, 5);
+assert.equal(JSON.parse(legacyRevision.records.find(row => row.values._sourceType === "PUTAWAY").key).length, 3);
+savedRevisionFile.getBlob = savedGetBlob;
 assert.equal(context.monthlyParseCsv_(putaway).records[0].values.Facility, "OWN");
+const multiGrnItem = { ...putaway, content: putaway.content + putaway.content.split("\n")[1].replace(",G1,", ",G2,") + "\n" };
+const multiGrnParsed = context.monthlyParseCsv_(multiGrnItem);
+assert.equal(multiGrnParsed.records.length, 2);
+assert.notEqual(multiGrnParsed.records[0].key, multiGrnParsed.records[1].key);
+assert.throws(() => context.monthlyParseCsv_({ ...putaway, type: "GRN" }), /PUTAWAY CSV/);
+assert.throws(() => context.monthlyParseCsv_({ ...grn, type: "PUTAWAY", facility: "OWN" }), /GRN CSV/);
+assert.throws(() => context.monthlyParseCsv_({ ...putaway, content: putaway.content + putaway.content.split("\n")[1].replace(",COMPLETE,", ",PENDING,") + "\n" }), /Conflicting values/);
 assert.equal(context.monthlyParseCsv_({ ...putaway, facility: "SL Mother Hub" }).records[0].values.Facility, "SL Mother Hub");
 assert.throws(() => context.monthlyParseCsv_({ ...putaway, facility: "" }), /facility is required/i);
 const standaloneGrn = { ...grn, facility: "OWN", content: "GRN Code,Item SkuCode,GRN Received Timestamp,Batch Code,Vendor Batch Number\nG1,SKU1,2026-09-30 23:00:00,B1,V1\n" };

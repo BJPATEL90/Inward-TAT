@@ -14,6 +14,12 @@ function monthlyStateKey_(month) {
   return "INWARD_TAT_MONTHLY_STATE_" + month;
 }
 
+/** Matches the daily raw-Putaway identity; one item can reference multiple GRNs. */
+function monthlyPutawaySourceKey_(values) {
+  return JSON.stringify(["PUTAWAY", normalizeFacility_(values.Facility), String(values["Putaway Item Id"] || "").trim(),
+    normalizeSku_(values["SKU Code"]), normalizeGrn_(values["GRN Number"])]);
+}
+
 function readMonthlyState_(month) {
   const fileId = PropertiesService.getScriptProperties().getProperty(monthlyStateKey_(month));
   if (!fileId) return { schemaVersion: 1, month: month, revision: 0, status: "PROVISIONAL", records: [], sources: [] };
@@ -22,6 +28,15 @@ function readMonthlyState_(month) {
     throw new Error("Monthly stored revision is invalid.");
   }
   state.fileId = fileId;
+  // Older monthly revisions used only facility + item ID. Upgrade in memory;
+  // the archived revision stays immutable and the next import publishes new keys.
+  state.records.forEach(function (record) {
+    if (record.values && record.values._sourceType === "PUTAWAY") {
+      let parts = [];
+      try { parts = JSON.parse(record.key); } catch (ignored) { /* Preserve unrelated identities. */ }
+      if (Array.isArray(parts) && parts.length === 3 && parts[0] === "PUTAWAY") record.key = monthlyPutawaySourceKey_(record.values);
+    }
+  });
   return state;
 }
 
@@ -69,6 +84,8 @@ function monthlyParseCsv_(source) {
     : source.type === "PUTAWAY"
       ? ["Putaway Item Id", "SKU Code", "GRN Number", "Type", "Status Code", "Last Updated"]
       : ["SR NO.", "Received at", "SKU", "GRN no.", "Unloading Date", "Unloading Time"];
+  if (source.type === "GRN" && headers.includes("Putaway Item Id") && !headers.includes("GRN Code")) throw new Error("This is a PUTAWAY CSV, not a GRN report. Select PUTAWAY, or choose the actual GRN export containing GRN Code and GRN Received Timestamp.");
+  if (source.type === "PUTAWAY" && headers.includes("GRN Code") && !headers.includes("Putaway Item Id")) throw new Error("This is a GRN CSV. Select GRN as the report type.");
   required.forEach(function (header) {
     if (!headers.includes(header)) throw new Error("Missing CSV column: " + header);
   });
@@ -86,7 +103,7 @@ function monthlyParseCsv_(source) {
     const facility = normalizeFacility_(rawFacility || metadata.facility);
     if (source.type === "GOODS_INWARD" && String(source.goodsAllowedFacilities || "SL Mother Hub|SL Ambient").split("|").map(normalizeFacility_).indexOf(facility) === -1) return;
     if (!["SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"].includes(facility)) {
-      if (source.type === "PUTAWAY" && metadata.facility === "ALL") return;
+      if ((source.type === "PUTAWAY" || source.type === "GRN") && metadata.facility === "ALL" && String(rawFacility || "").trim()) return;
       throw new Error("Invalid facility at source row " + (index + 2));
     }
     if (metadata.facility !== "ALL" && facility !== metadata.facility) throw new Error("Source facility does not match its declared facility.");
@@ -96,7 +113,7 @@ function monthlyParseCsv_(source) {
     if (source.type === "PUTAWAY") {
       if (!String(values["Putaway Item Id"]).trim()) throw new Error("Missing Putaway Item Id at row " + (index + 2));
       if (!normalizeGrn_(values["GRN Number"]) || !normalizeSku_(values["SKU Code"])) throw new Error("Missing Putaway GRN Number or SKU Code at row " + (index + 2));
-      parts = [source.type, facility, String(values["Putaway Item Id"]).trim()];
+      parts = [source.type, facility, String(values["Putaway Item Id"]).trim(), normalizeSku_(values["SKU Code"]), normalizeGrn_(values["GRN Number"])];
     } else if (source.type === "GRN") {
       if (!normalizeGrn_(values["GRN Code"]) || !normalizeSku_(values["Item SkuCode"])) throw new Error("Missing GRN identity at row " + (index + 2));
       parts = [source.type, facility, normalizeGrn_(values["GRN Code"]), normalizeSku_(values["Item SkuCode"]),
@@ -110,6 +127,7 @@ function monthlyParseCsv_(source) {
   // Detect duplicate/conflicting identities within a source before persistence.
   const checked = reconcileMonthlyRecords_([], records);
   if (source.type === "PUTAWAY" && !checked.records.length) throw new Error("No PUTAWAY_GRN_ITEM records were found. This export cannot support inward TAT.");
+  if (source.type === "GRN" && !checked.records.length) throw new Error("No GRN records for the supported inward facilities were found in this export.");
   return { metadata: metadata, records: checked.records, sourceRows: matrix.length - 1 };
 }
 

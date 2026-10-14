@@ -147,7 +147,16 @@ export default function MonthlyMis() {
         <label>From (IST)<input type="datetime-local" required value={from} onChange={event => setFrom(event.target.value)} /></label>
         <label>Through, exclusive (IST)<input type="datetime-local" required value={through} onChange={event => setThrough(event.target.value)} /></label>
         <label>Export generated at (IST)<input type="datetime-local" required value={extracted} onChange={event => setExtracted(event.target.value)} /></label>
-        {importMode === "FILE" && <label>CSV file<input type="file" ref={fileRef} accept=".csv,text/csv" required onChange={() => setConfirmed(false)} /></label>}
+        {importMode === "FILE" && <label>CSV file<input type="file" ref={fileRef} accept=".csv,text/csv" required onChange={async event => {
+          setConfirmed(false);
+          const file = event.target.files?.[0];
+          if (!file) return;
+          try {
+            const header = (await file.slice(0, 65536).text()).split(/\r?\n/)[0];
+            const detected = /Putaway Item Id/i.test(header) ? "PUTAWAY" : /GRN Code/i.test(header) ? "GRN" : null;
+            if (detected) { setType(detected); if (detected === "PUTAWAY" && facility === "ALL") setFacility(""); setNotice(`Detected ${detected} report. Verify the facility and extraction details before uploading.`); }
+          } catch { setError("Could not read the CSV header. Select the file again."); }
+        }} /></label>}
         <label className="mis-confirm"><input type="checkbox" checked={confirmed} required onChange={event => setConfirmed(event.target.checked)} />I verified the date filter, facility and generation time against this export.</label>
         <button type="submit" disabled={!confirmed || !facility}>Upload and Recalculate</button>
         </>}
