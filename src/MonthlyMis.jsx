@@ -23,7 +23,9 @@ export default function MonthlyMis() {
   const [through, setThrough] = useState("");
   const [extracted, setExtracted] = useState("");
   const [confirmed, setConfirmed] = useState(false);
-  const [importMode, setImportMode] = useState("FILE");
+  const [importMode, setImportMode] = useState("EMAIL");
+  const [advancedSearch, setAdvancedSearch] = useState(false);
+  const [nextOffset, setNextOffset] = useState(null);
   const [emails, setEmails] = useState([]);
   const [messageId, setMessageId] = useState("");
   const [receivedFrom, setReceivedFrom] = useState("");
@@ -35,7 +37,7 @@ export default function MonthlyMis() {
     selection.current = month;
     setData(null); setError(""); setNotice(""); setReportLink(null); setConfirmed(false);
     setFrom(`${month}-01T00:00`);
-    setEmails([]); setMessageId(""); setReceivedFrom(`${month}-01`);
+    setEmails([]); setMessageId(""); setNextOffset(null); setReceivedFrom(`${month}-01`);
     setReceivedThrough(new Date(Date.now() + 86400000).toISOString().slice(0, 10));
     const [year, index] = month.split("-").map(Number);
     const end = new Date(Date.UTC(year, index, 1)).toISOString().slice(0, 10);
@@ -67,7 +69,7 @@ export default function MonthlyMis() {
         periodStart: `${from}:00+05:30`, periodEndExclusive: `${through}:00+05:30`, extractedAt: `${extracted}:00+05:30`,
       };
       const result = importMode === "EMAIL"
-        ? await importMonthlyInbox(selected, { ...source, messageId })
+        ? await importMonthlyInbox(selected, { month: selected, messageId, simple: true })
         : await uploadMonthlySource(selected, { ...source, filename: file.name, content: await file.text() });
       setNotice(result.duplicate ? "This report was already imported." : `Imported revision ${result.revision}. Monthly KPIs recalculated.`);
       if (fileRef.current) fileRef.current.value = "";
@@ -87,6 +89,18 @@ export default function MonthlyMis() {
     } catch (reason) { setError(reason.message); } finally { setBusy(false); }
   }
   const summary = data?.summary || {};
+  const selectedEmail = emails.find(email => email.messageId === messageId);
+  async function findEmails(offset = 0) {
+    await run(async selected => {
+      const result = await loadMonthlyInbox(selected, { month: selected, type: "AUTO", offset,
+        ...(advancedSearch || offset ? { receivedFrom, receivedThrough } : {}) });
+      setReceivedFrom(result.receivedFrom || receivedFrom); setReceivedThrough(result.receivedThrough || receivedThrough);
+      setEmails(previous => offset ? Array.from(new Map([...previous, ...result.emails].map(email => [email.messageId, email])).values()).sort((a, b) => b.receivedAt.localeCompare(a.receivedAt)) : result.emails);
+      setNextOffset(result.nextOffset ?? null);
+      if (!offset) { setMessageId(""); setConfirmed(false); }
+      setNotice(`${result.emails.length} export emails found on this page. Today's reports are included; type and facility are detected automatically.`);
+    });
+  }
   const count = value => data?.revision ? value || 0 : "—";
   return <section className="monthly-mis" aria-busy={busy}>
     <div className="mis-toolbar">
@@ -103,31 +117,37 @@ export default function MonthlyMis() {
     <p>Monthly figures remain provisional until source coverage and pending closure are reviewed. {summary.excludedRecords || 0} approved OWN SKU records excluded from KPIs. {data?.missingBoxValues || 0} source rows have missing box values.</p>
     <form className="mis-upload" onSubmit={upload}>
       <h2>Upload Missing / Corrected Reports</h2>
-      <p>Enter the actual report filter and generation time in IST. “Through” is exclusive. A report received on the 1st does not necessarily cover the previous month.</p>
+      <p>Select the reporting month above, find an export email and fetch it. Automatic imports remain provisional: an email timestamp does not prove full-month source coverage.</p>
       <fieldset disabled={busy || !data}>
         <label>Import method<select value={importMode} onChange={event => { setImportMode(event.target.value); setConfirmed(false); setMessageId(""); }}><option value="FILE">Upload CSV file (up to 5 MB)</option><option value="EMAIL">Import from Inbox (larger exports)</option></select></label>
-        <label>Report type<select value={type} onChange={event => { setType(event.target.value); setFacility(event.target.value === "PUTAWAY" ? "SL Mother Hub" : "ALL"); setConfirmed(false); setEmails([]); setMessageId(""); }}><option>GRN</option><option>PUTAWAY</option></select></label>
+        {importMode === "FILE" && <label>Report type<select value={type} onChange={event => { setType(event.target.value); setFacility(event.target.value === "PUTAWAY" ? "SL Mother Hub" : "ALL"); setConfirmed(false); setEmails([]); setMessageId(""); }}><option>GRN</option><option>PUTAWAY</option></select></label>}
         {importMode === "EMAIL" && <>
-          <p>Imports from the script owner’s configured Uniware mailbox. Only successful export emails are listed. Search a narrower email date range if a report is missing. Supports up to 25 million CSV characters and 200,000 rows; this is not an unlimited import.</p>
-          <label>Email received from (IST)<input type="date" value={receivedFrom} onChange={event => { setReceivedFrom(event.target.value); setEmails([]); setMessageId(""); setConfirmed(false); }} /></label>
-          <label>Email received through, exclusive (IST)<input type="date" value={receivedThrough} onChange={event => { setReceivedThrough(event.target.value); setEmails([]); setMessageId(""); setConfirmed(false); }} /></label>
-          <button type="button" onClick={() => run(async selected => {
-            const result = await loadMonthlyInbox(selected, { month: selected, type, receivedFrom, receivedThrough });
-            setEmails(result.emails); setMessageId(""); setConfirmed(false);
-            setNotice(result.truncated ? "Showing limited results. Narrow the email date range to find older exports." : `${result.emails.length} successful export emails found. Verify coverage before importing.`);
-          })}>Find Export Emails</button>
-          <label>Export email<select value={messageId} required onChange={event => { setMessageId(event.target.value); const email = emails.find(item => item.messageId === event.target.value); if (email) setFacility(email.facility); setConfirmed(false); }}><option value="">Select an export email</option>{emails.map(email => <option key={email.messageId} value={email.messageId}>{email.exportJob} — {email.facility} — received {new Date(email.receivedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</option>)}</select></label>
+          <p>Searches the last seven days, including today, in the script owner's Uniware mailbox. All-facility and manually generated reports are visible too. Unsupported reports show a reason instead of disappearing.</p>
+          <button type="button" onClick={() => findEmails()}>Find Export Emails</button>
+          <button type="button" onClick={() => setAdvancedSearch(value => !value)}>{advancedSearch ? "Hide search dates" : "Search older dates (optional)"}</button>
+          {advancedSearch && <>
+            <label>Email received from (IST)<input type="date" value={receivedFrom} onChange={event => { setReceivedFrom(event.target.value); setEmails([]); setMessageId(""); setConfirmed(false); }} /></label>
+            <label>Email received through, exclusive (IST)<input type="date" value={receivedThrough} onChange={event => { setReceivedThrough(event.target.value); setEmails([]); setMessageId(""); setConfirmed(false); }} /></label>
+          </>}
+          {nextOffset != null && <button type="button" onClick={() => findEmails(nextOffset)}>Load more email results</button>}
+          <label>Export email<select value={messageId} required onChange={event => { setMessageId(event.target.value); setConfirmed(false); }}><option value="">Select an export email</option>{emails.map(email => <option key={email.messageId} value={email.messageId}>{email.type || ""} {email.exportJob} — {email.facility} — received {new Date(email.receivedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}{email.issue ? " — needs different export" : ""}</option>)}</select></label>
+          {selectedEmail && <p>{selectedEmail.type} · {selectedEmail.facility === "ALL" ? "Facility will be read from the CSV" : selectedEmail.facility} · {selectedEmail.filename || selectedEmail.exportJob}</p>}
+          {selectedEmail?.issue && <p role="alert">{selectedEmail.issue}</p>}
+          <button type="submit" disabled={!selectedEmail || selectedEmail.processable === false}>Fetch and Process</button>
         </>}
-        <label>Facility<select value={facility} disabled={importMode === "EMAIL"} onChange={event => { setFacility(event.target.value); setConfirmed(false); }}>{(type === "GRN" ? ["ALL", "SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"] : ["SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"]).map(value => <option key={value}>{value}</option>)}</select></label>
+        {importMode === "FILE" && <>
+        <p>For file upload only: verify the report filter, facility and actual generation time.</p>
+        <label>Facility<select value={facility} onChange={event => { setFacility(event.target.value); setConfirmed(false); }}>{(type === "GRN" ? ["ALL", "SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"] : ["SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"]).map(value => <option key={value}>{value}</option>)}</select></label>
         <label>From (IST)<input type="datetime-local" required value={from} onChange={event => setFrom(event.target.value)} /></label>
         <label>Through, exclusive (IST)<input type="datetime-local" required value={through} onChange={event => setThrough(event.target.value)} /></label>
         <label>Export generated at (IST)<input type="datetime-local" required value={extracted} onChange={event => setExtracted(event.target.value)} /></label>
         {importMode === "FILE" && <label>CSV file<input type="file" ref={fileRef} accept=".csv,text/csv" required onChange={() => setConfirmed(false)} /></label>}
         <label className="mis-confirm"><input type="checkbox" checked={confirmed} required onChange={event => setConfirmed(event.target.checked)} />I verified the date filter, facility and generation time against this export.</label>
-        <button type="submit" disabled={!confirmed || (importMode === "EMAIL" && !messageId)}>{importMode === "EMAIL" ? "Import Email and Recalculate" : "Upload and Recalculate"}</button>
+        <button type="submit" disabled={!confirmed}>Upload and Recalculate</button>
+        </>}
       </fieldset>
     </form>
-    <MisTable title="Source coverage" headers={["Report", "Facility", "Coverage", "Generated (UTC)", "Accepted rows", "Archive"]} rows={(data?.sources || []).map(source => [source.type, source.facility, source.completeMonthCoverage ? "Full month declared" : "Partial", source.extractedAt, source.acceptedRows, <a href={`https://drive.google.com/file/d/${source.fileId}/view`} target="_blank" rel="noreferrer">Source</a>])} />
+    <MisTable title="Source coverage" headers={["Report", "Facility", "Coverage", "Generated / proxy (UTC)", "Accepted rows", "Archive"]} rows={(data?.sources || []).map(source => [source.type, source.facility, source.coverageDeclared === false ? "Not verified — provisional" : source.completeMonthCoverage ? "Full month declared" : "Partial", source.extractedAt, source.acceptedRows, <a href={`https://drive.google.com/file/d/${source.fileId}/view`} target="_blank" rel="noreferrer">Source</a>])} />
     <MisTable title="Daily progress" headers={["Date", "Records", "Complete", "Pending", "KPI1", "KPI2", "KPI3", "Boxes", "Progress"]} rows={(data?.daily || []).map(day => [day.date, day.records, day.completeRecords, day.pendingRecords, duration(day.kpi1Hours), duration(day.kpi2Hours), duration(day.kpi3Hours), day.boxes, day.progress])} />
     <MisTable title="Facility performance" headers={["Facility", "Eligible", "Complete", "Pending", "KPI1", "KPI2", "KPI3"]} rows={(data?.facilities || []).map(row => [row.facility, row.eligibleRecords, row.completeRecords, row.pendingRecords, duration(row.kpi1Hours), duration(row.kpi2Hours), duration(row.kpi3Hours)])} />
     <MisTable title="Pending closure — first 100 items; full list in Excel" headers={["Facility", "GRN", "SKU", "Required correction", "Owner", "Ageing"]} rows={(data?.pending || []).map(row => [row.facility, row.grn, row.sku, row.stage, row.owner, duration(row.ageingHours)])} />

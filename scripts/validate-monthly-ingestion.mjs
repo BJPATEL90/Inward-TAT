@@ -98,6 +98,12 @@ config.MONTHLY_WORKFLOW_ENABLED = "TRUE";
 const putaway = { ...grn, type: "PUTAWAY", facility: "OWN",
   content: 'Putaway Item Id,SKU Code,GRN Number,Type,Status Code,Last Updated\n123,SKU1,G1,PUTAWAY_GRN_ITEM,COMPLETE,2026-10-02 08:00:00\n' };
 assert.equal(ingest(putaway).recordCounts.PUTAWAY, 1);
+assert.throws(() => context.monthlyParseCsv_({ ...putaway, content: putaway.content.split("\n")[0] + "\n" }), /headers only/);
+assert.throws(() => context.monthlyParseCsv_({ ...putaway, content: "Putaway Item Id,Item Type skuCode,Type,Status Code,Updated,Facility Name\n123,SKU1,PUTAWAY_GRN_ITEM,COMPLETE,2026-10-02 08:00:00,OWN\n" }), /Missing CSV column/);
+const multiFacility = { ...putaway, facility: "ALL", content: putaway.content.split("\n")[0] + ",Facility\n" + putaway.content.split("\n")[1] + ",OWN\n" };
+assert.equal(context.monthlyParseCsv_(multiFacility).records[0].values.Facility, "OWN");
+assert.equal(context.monthlyParseCsv_({ ...multiFacility, content: multiFacility.content.replace("SKU Code", "Item Type skuCode").replace("Last Updated", "Updated").replace("Facility", "Facility Name") }).records[0].values.Facility, "OWN");
+assert.equal(context.validateMonthlySource_({ ...grn, coverageDeclared: false }).completeMonthCoverage, false);
 assert.throws(() => ingest({ ...putaway, facility: "ALL" }), /explicit facility/);
 assert.throws(() => ingest({ ...putaway, content: putaway.content.replace("123,", ",") }), /Missing Putaway Item Id/);
 assert.ok(released >= 4);

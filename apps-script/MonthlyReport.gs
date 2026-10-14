@@ -190,7 +190,7 @@ function createMonthlyMisWithConfig_(month, expectedRevision, config, testState)
       })));
       const sourcesRow = facilityRow + model.facilities.length + 4;
       monthlyWriteTable_(summary, sourcesRow, [["Source", "Facility", "Declared month coverage", "Extracted at UTC", "Archive"]].concat(model.sources.map(function (source) {
-        return [source.type, source.facility, source.completeMonthCoverage ? "Full month declared" : "Partial coverage", source.extractedAt, "https://drive.google.com/file/d/" + source.fileId + "/view"];
+        return [source.type, source.facility, source.coverageDeclared === false ? "Not verified — provisional" : source.completeMonthCoverage ? "Full month declared" : "Partial coverage", source.extractedAt + (source.extractionTimeBasis === "EMAIL_RECEIVED_PROXY" ? " (email-received proxy)" : ""), "https://drive.google.com/file/d/" + source.fileId + "/view"];
       })));
       summary.setColumnWidths(1, 10, 125); summary.setColumnWidth(1, 300); summary.setColumnWidth(2, 190); summary.setColumnWidth(10, 300); summary.setFrozenRows(3);
       const chartEnd = 24 + dailyValues.length;

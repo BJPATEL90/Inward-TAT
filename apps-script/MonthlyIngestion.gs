@@ -55,10 +55,12 @@ function monthlyParseCsv_(source) {
   if (!["ALL", "SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"].includes(metadata.facility)) {
     throw new Error("Choose a supported facility or ALL for a multi-facility GRN export.");
   }
-  if (source.type === "PUTAWAY" && metadata.facility === "ALL") throw new Error("Putaway uploads require an explicit facility.");
   const matrix = Utilities.parseCsv(source.content.replace(/^\uFEFF/, ""));
   if (!matrix.length || matrix.length > (fromEmail ? 200001 : 20001)) throw new Error(fromEmail ? "Email CSV is empty or exceeds 200,000 rows. Use smaller extraction windows." : "CSV is empty or exceeds 20,000 rows. Use Import from Inbox or split the CSV.");
-  const headers = matrix[0].map(function (header) { return String(header).trim(); });
+  const headers = matrix[0].map(function (header) {
+    const name = String(header).trim();
+    return source.type === "PUTAWAY" ? ({ "Item Type skuCode": "SKU Code", "Updated": "Last Updated", "Facility Name": "Facility" }[name] || name) : name;
+  });
   if (headers.some(function (header) { return !header; }) || new Set(headers).size !== headers.length) {
     throw new Error("CSV headers must be unique and nonblank.");
   }
@@ -70,6 +72,8 @@ function monthlyParseCsv_(source) {
   required.forEach(function (header) {
     if (!headers.includes(header)) throw new Error("Missing CSV column: " + header);
   });
+  if (!matrix.slice(1).some(function (cells) { return cells.some(function (cell) { return String(cell).trim(); }); })) throw new Error("This CSV contains headers only, with no data records. Regenerate the export with the correct filters.");
+  if (source.type === "PUTAWAY" && metadata.facility === "ALL" && !headers.includes("Facility")) throw new Error("Putaway requires an explicit facility or a Facility column in a multi-facility GRN-linked CSV.");
   const records = [];
   matrix.slice(1).forEach(function (cells, index) {
     if (!cells.some(function (cell) { return String(cell).trim(); })) return;
@@ -81,6 +85,7 @@ function monthlyParseCsv_(source) {
     const rawFacility = source.type === "GOODS_INWARD" ? values["Received at"] : values.Facility;
     const facility = normalizeFacility_(rawFacility || metadata.facility);
     if (!["SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"].includes(facility)) {
+      if (source.type === "PUTAWAY" && metadata.facility === "ALL") return;
       throw new Error("Invalid facility at source row " + (index + 2));
     }
     if (metadata.facility !== "ALL" && facility !== metadata.facility) throw new Error("Source facility does not match its declared facility.");
@@ -89,6 +94,7 @@ function monthlyParseCsv_(source) {
     let parts;
     if (source.type === "PUTAWAY") {
       if (!String(values["Putaway Item Id"]).trim()) throw new Error("Missing Putaway Item Id at row " + (index + 2));
+      if (!normalizeGrn_(values["GRN Number"]) || !normalizeSku_(values["SKU Code"])) throw new Error("Missing Putaway GRN Number or SKU Code at row " + (index + 2));
       parts = [source.type, facility, String(values["Putaway Item Id"]).trim()];
     } else if (source.type === "GRN") {
       if (!normalizeGrn_(values["GRN Code"]) || !normalizeSku_(values["Item SkuCode"])) throw new Error("Missing GRN identity at row " + (index + 2));
@@ -102,6 +108,7 @@ function monthlyParseCsv_(source) {
   });
   // Detect duplicate/conflicting identities within a source before persistence.
   const checked = reconcileMonthlyRecords_([], records);
+  if (source.type === "PUTAWAY" && !checked.records.length) throw new Error("No PUTAWAY_GRN_ITEM records were found. This export cannot support inward TAT.");
   return { metadata: metadata, records: checked.records, sourceRows: matrix.length - 1 };
 }
 
@@ -150,57 +157,81 @@ function ingestMonthlySource_(source, user, config) {
 
 /** Only configured successful Uniware exports are selectable; no arbitrary mailbox content. */
 function monthlyInboxDescriptor_(message, type, config) {
+  const subject = message.getSubject().trim();
+  if (!type || type === "AUTO") type = subject === String(config.GRN_EMAIL_SUBJECT || "").trim() ? "GRN" : "PUTAWAY";
   if (!["GRN", "PUTAWAY"].includes(type)) throw new Error("Choose GRN or Putaway.");
   const prefix = type === "GRN" ? "GRN" : "PUTAWAY";
   const sender = String(message.getFrom()).match(/<([^>]+)>/);
   if ((sender ? sender[1] : String(message.getFrom())).trim().toLowerCase() !== String(config[prefix + "_EMAIL_FROM"] || "").trim().toLowerCase() ||
-      message.getSubject().trim() !== String(config[prefix + "_EMAIL_SUBJECT"] || "").trim()) throw new Error("Email sender or subject differs from the configured Uniware source.");
+      (subject !== String(config[prefix + "_EMAIL_SUBJECT"] || "").trim() && !(type === "PUTAWAY" && ["Export Job Complete - Copy of Putaway All facility", "Export Job Complete - Gatepass to Putaway"].includes(subject)))) throw new Error("Email sender or subject differs from the configured Uniware source.");
   const body = getEmailBodyText_(message);
   if (extractEmailField_(body, "Status").toUpperCase() !== "SUCCESSFUL") throw new Error("Export did not complete successfully.");
   const job = extractEmailField_(body, "Export");
   if (!String(job || "").trim()) throw new Error("Email export job is missing.");
+  const manualName = String(job).match(/^Export Job (.+?) created by /i);
+  const jobName = manualName ? manualName[1].trim() : String(job).trim();
   let facility = "ALL";
+  let issue = "";
   if (type === "PUTAWAY") {
     const known = ["SLAMB", "SLMH", "SLRX", "OWN", "EXPORT"].some(function (suffix) {
-      return config["PUTAWAY_EXPORT_" + suffix] && job.trim().toLowerCase() === String(config["PUTAWAY_EXPORT_" + suffix]).trim().toLowerCase();
+      return config["PUTAWAY_EXPORT_" + suffix] && jobName.toLowerCase() === String(config["PUTAWAY_EXPORT_" + suffix]).trim().toLowerCase();
     });
     const closing = String(config.MONTHLY_CLOSING_PUTAWAY_JOB_PREFIX || "").trim();
-    if (!known && !(closing && job.indexOf(closing) === 0)) throw new Error("Unrecognised Putaway export job.");
-    facility = facilityFromPutawayExport_(job, config);
-    if (!["SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"].includes(facility)) throw new Error("Unsupported email facility.");
-  } else if (job !== "GRN" && job !== String(config.MONTHLY_CLOSING_GRN_JOB || "")) throw new Error("Unrecognised GRN export job.");
+    const allFacility = subject === "Export Job Complete - Copy of Putaway All facility";
+    const genericGrnLinked = ["GRN/Gatepass to Putaway", "Gatepass to Putaway"].includes(jobName);
+    if (allFacility) issue = "The supplied all-facility format has no GRN Number and exceeds the import size limit. Use a GRN-linked Putaway export with GRN Number, SKU Code, Last Updated and Facility, or named facility exports.";
+    else if (!known && !genericGrnLinked && !(closing && jobName.indexOf(closing) === 0)) throw new Error("Unrecognised Putaway export job.");
+    if (known || (closing && jobName.indexOf(closing) === 0)) {
+      facility = facilityFromPutawayExport_(jobName, config);
+      if (!["SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"].includes(facility)) throw new Error("Unsupported email facility.");
+    }
+  } else if (jobName !== "GRN" && jobName !== String(config.MONTHLY_CLOSING_GRN_JOB || "")) throw new Error("Unrecognised GRN export job.");
   const url = extractExportFileUrl_(body);
   if (!/^https:\/\//.test(url)) throw new Error("No HTTPS export download link in this email.");
-  return { messageId: message.getId(), exportJob: job, facility: facility, receivedAt: message.getDate().toISOString(), url: url };
+  let filename = "";
+  try { filename = decodeURIComponent(url.split("?")[0]).split("/").pop(); } catch (ignored) { /* Original email date remains available. */ }
+  const stamp = filename.match(/_(\d{2})(\d{2})(\d{4})(\d{2})(\d{2})(\d{2})(?:\.csv|[._])/i);
+  let extractedAt = null;
+  if (stamp) {
+    const value = stamp[3] + "-" + stamp[2] + "-" + stamp[1] + "T" + stamp[4] + ":" + stamp[5] + ":" + stamp[6] + "+05:30";
+    const parsed = new Date(value);
+    if (Number.isFinite(parsed.getTime()) && parsed <= message.getDate() && Utilities.formatDate(parsed, "Asia/Kolkata", "yyyy-MM-dd'T'HH:mm:ss") === value.slice(0, 19)) extractedAt = parsed.toISOString();
+  }
+  return { messageId: message.getId(), type: type, exportJob: jobName, filename: filename, facility: facility,
+    receivedAt: message.getDate().toISOString(), extractedAt: extractedAt, issue: issue, processable: !issue, url: url };
 }
 
 function listMonthlyInbox_(request, user) {
   const config = monthlyAccess_(user);
   monthlyWindow_(request.month);
-  if (!["GRN", "PUTAWAY"].includes(request.type)) throw new Error("Choose GRN or Putaway.");
-  const start = String(request.receivedFrom || ""); const end = String(request.receivedThrough || "");
+  if (request.type && !["GRN", "PUTAWAY", "AUTO"].includes(request.type)) throw new Error("Choose GRN or Putaway.");
+  const start = String(request.receivedFrom || Utilities.formatDate(new Date(Date.now() - 7 * 86400000), "Asia/Kolkata", "yyyy-MM-dd"));
+  const end = String(request.receivedThrough || Utilities.formatDate(new Date(Date.now() + 86400000), "Asia/Kolkata", "yyyy-MM-dd"));
   if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) ||
       !Number.isFinite(Date.parse(start)) || !Number.isFinite(Date.parse(end)) || end <= start || Date.parse(end) - Date.parse(start) > 93 * 86400000) throw new Error("Select an email date range of 1–93 days; Through is exclusive.");
-  const sender = String(config[request.type + "_EMAIL_FROM"] || "").trim();
-  const subject = String(config[request.type + "_EMAIL_SUBJECT"] || "").replace(/["\\]/g, "");
-  if (!/^[\w.+-]+@[\w.-]+$/.test(sender) || !subject) throw new Error("Uniware email source is not configured.");
+  const senders = Array.from(new Set([config.GRN_EMAIL_FROM, config.PUTAWAY_EMAIL_FROM].map(function (value) { return String(value || "").trim(); })));
+  if (senders.some(function (sender) { return !/^[\w.+-]+@[\w.-]+$/.test(sender); })) throw new Error("Uniware email source is not configured.");
+  const subjects = [config.GRN_EMAIL_SUBJECT, config.PUTAWAY_EMAIL_SUBJECT, "Export Job Complete - Copy of Putaway All facility", "Export Job Complete - Gatepass to Putaway"];
   const startTime = Date.parse(start + "T00:00:00+05:30"); const endTime = Date.parse(end + "T00:00:00+05:30");
   // Gmail date searches use their own timezone; pad the search then filter exact IST boundaries.
   const queryStart = new Date(startTime - 86400000).toISOString().slice(0, 10).replace(/-/g, "/");
   const queryEnd = new Date(endTime + 86400000).toISOString().slice(0, 10).replace(/-/g, "/");
-  const threads = GmailApp.search('from:' + sender + ' subject:"' + subject + '" after:' + queryStart + ' before:' + queryEnd, 0, 50);
+  const offset = Number(request.offset || 0);
+  if (!Number.isInteger(offset) || offset < 0 || offset > 2000) throw new Error("Invalid inbox page.");
+  const query = "{" + senders.map(function (sender) { return "from:" + sender; }).join(" ") + "} {" + subjects.map(function (subject) { return 'subject:"' + String(subject || "").replace(/["\\]/g, "") + '"'; }).join(" ") + "} after:" + queryStart + " before:" + queryEnd + " -in:spam -in:trash";
+  const threads = GmailApp.search(query, offset, 50);
   const emails = [];
   threads.forEach(function (thread) {
-    thread.getMessages().slice(-100).forEach(function (message) {
+    thread.getMessages().forEach(function (message) {
       if (message.getDate().getTime() < startTime || message.getDate().getTime() >= endTime) return;
       try {
-        const descriptor = monthlyInboxDescriptor_(message, request.type, config);
+        const descriptor = monthlyInboxDescriptor_(message, request.type || "AUTO", config);
         delete descriptor.url; emails.push(descriptor);
       } catch (ignored) { /* Other messages in a matching thread are not selectable. */ }
     });
   });
   emails.sort(function (a, b) { return b.receivedAt.localeCompare(a.receivedAt); });
-  return { ok: true, emails: emails.slice(0, 100), truncated: threads.length === 50 || emails.length > 100,
+  return { ok: true, emails: emails, nextOffset: threads.length === 50 ? offset + 50 : null, receivedFrom: start, receivedThrough: end,
     note: "Email dates are not extraction coverage. Verify the actual report filter and generation time before importing." };
 }
 
@@ -208,7 +239,17 @@ function importMonthlyInbox_(request, user) {
   const config = monthlyAccess_(user);
   if (!/^[a-fA-F0-9]+$/.test(String(request.messageId || ""))) throw new Error("Select a listed export email.");
   // Revalidate the message server-side; never trust client-supplied sender, URL or facility.
-  const descriptor = monthlyInboxDescriptor_(GmailApp.getMessageById(request.messageId), request.type, config);
+  const descriptor = monthlyInboxDescriptor_(GmailApp.getMessageById(request.messageId), request.simple ? "AUTO" : request.type, config);
+  if (!descriptor.processable) throw new Error(descriptor.issue);
+  if (request.simple) {
+    const window = monthlyWindow_(request.month);
+    const extracted = descriptor.extractedAt || descriptor.receivedAt;
+    const end = new Date(Math.min(window.end.getTime(), Date.parse(extracted)));
+    if (end <= window.start) throw new Error("This export predates the selected reporting month.");
+    request = { month: request.month, type: descriptor.type, facility: descriptor.facility, messageId: descriptor.messageId,
+      periodStart: window.start.toISOString(), periodEndExclusive: end.toISOString(), extractedAt: extracted,
+      extractionTimeBasis: descriptor.extractedAt ? "EXPORT_FILENAME" : "EMAIL_RECEIVED_PROXY", coverageDeclared: false };
+  }
   if (request.facility !== descriptor.facility) throw new Error("Selected facility differs from the email export facility.");
   validateMonthlySource_(Object.assign({}, request, { content: "PREFLIGHT" }));
   const source = Object.assign({}, request, { content: downloadCsv_(descriptor.url), channel: "EMAIL", filename: descriptor.exportJob, messageId: descriptor.messageId });

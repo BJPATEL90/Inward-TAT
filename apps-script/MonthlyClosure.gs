@@ -50,7 +50,9 @@ function validateMonthlySource_(source) {
     periodEndExclusive: end.toISOString(),
     extractedAt: extractedAt.toISOString(),
     sheetId: source.sheetId ? String(source.sheetId) : null,
-    completeMonthCoverage: start <= window.start && end >= window.end,
+    coverageDeclared: source.coverageDeclared !== false,
+    extractionTimeBasis: source.extractionTimeBasis || "DECLARED",
+    completeMonthCoverage: source.coverageDeclared !== false && start <= window.start && end >= window.end,
   };
 }
 
