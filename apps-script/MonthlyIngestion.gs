@@ -275,9 +275,13 @@ function refreshMonthlySources_(month, user) {
   const sheet = resolveGoodsSourceSheetForMonth_(spreadsheet, config, window.start);
   if (!sheet) throw new Error("Goods Receiving monthly tab was not found.");
   const values = sheet.getDataRange().getValues();
-  const headers = values[0].map(function (value) { return String(value).trim(); });
+  const headers = values[0].map(function (value, column) {
+    return cleanHeader_(value) || "Unnamed Source Column " + (column + 1);
+  });
+  // The existing September tracker labels its serial-number column F.
+  if (!headers.includes("SR NO.") && headers[0] === "F") headers[0] = "SR NO.";
   const output = values.map(function (row, index) {
-    return row.map(function (value, column) {
+    return (index ? row : headers).map(function (value, column) {
       if (index && value instanceof Date) {
         return Utilities.formatDate(value, "Asia/Kolkata", /time/i.test(headers[column]) ? "HH:mm:ss" : "yyyy-MM-dd");
       }

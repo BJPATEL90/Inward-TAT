@@ -146,8 +146,8 @@ context.resolveGoodsSourceSheetForMonth_ = (_, __, date) => {
   assert.equal(new Date(date.getTime() + 330 * 60000).toISOString().slice(0, 7), "2026-09");
   return {
     getDataRange: () => ({ getValues: () => [
-      ["SR NO.", "Received at", "SKU", "GRN no.", "Invoice number", "Unloading Date", "Unloading Time"],
-      [1, "SL Mother Hub", "SKU1", "G1", "INV1", "2026-09-30", "23:00:00"],
+      ["F", "Received at", "SKU", "GRN no.", "Invoice number ", "Unloading Date", "Unloading Time", "", ""],
+      [1, "SL Mother Hub", "SKU1", "G1", "INV1", "2026-09-30", "23:00:00", "source note", ""],
     ] }), getName: () => "FG-Sept-26", getSheetId: () => 123,
   };
 };
@@ -156,6 +156,9 @@ const refreshed = context.refreshMonthlySources_("2026-09", user);
 assert.equal(refreshed.recordCounts.GOODS_INWARD, 1);
 assert.equal(refreshed.summary.records, 1);
 assert.equal(refreshed.summary.completeRecords, 1);
+const refreshedGoods = context.readMonthlyState_("2026-09").records.find(row => row.values._sourceType === "GOODS_INWARD");
+assert.equal(refreshedGoods.values["SR NO."], "1");
+assert.equal(refreshedGoods.values["Unnamed Source Column 8"], "source note");
 
 config.MONTHLY_CLOSING_GRN_JOB = "GRN/Previous-Month-Close";
 config.GRN_EMAIL_FROM = "noreply@e.unicommerce.com";
