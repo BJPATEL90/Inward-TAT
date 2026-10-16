@@ -90,7 +90,7 @@ export default function ExceptionHandling({ rows, labels, fromDate, toDate, setF
         {exportError && <p role="alert">{exportError}</p>}
       </div>
       <div className="exception-table-scroll" tabIndex={0} role="region" aria-label="Scrollable exception transaction table">
-        <table><thead><tr><th scope="col">Transaction date (unloading)</th><th scope="col">Unloading time (IST)</th><th scope="col">Facility / GRN / SKU</th><th scope="col">Status</th><th scope="col">KPI1</th><th scope="col">KPI2</th><th scope="col">KPI3</th><th scope="col">Exception (Y/N)</th><th scope="col">Exception Bucket</th><th scope="col">Remarks</th><th scope="col">Action</th></tr></thead>
+        <table><thead><tr><th className="exception-compact-column" scope="col">Transaction date<small>Unloading</small></th><th className="exception-compact-column" scope="col">Time<small>IST</small></th><th scope="col">Facility / GRN / SKU</th><th scope="col">Status</th><th scope="col">KPI1</th><th scope="col">KPI2</th><th scope="col">KPI3</th><th scope="col">Exception (Y/N)</th><th scope="col">Exception Bucket</th><th scope="col">Remarks</th><th scope="col">Action</th></tr></thead>
           <tbody>{visible.map(row => <ExceptionRow key={row.recordKey} row={row} canManage={canManage} formatDuration={formatDuration}
             onSaved={result => { onSaved(result); setNotice(`Saved ${row.facility} / ${row.grnNumber} / ${row.sku}. ${result.exceptionFlag === "Y" ? "Exception = Y: excluded from the adjusted KPI dataset; including-exceptions KPIs are unchanged." : "Exception = N: included in the adjusted dataset under the existing eligibility rules."}`); }} />)}
             {!visible.length && <tr><td colSpan={11}>No transactions with KPI1 greater than 12 hours match these filters. Change the date or facility filter to review another group.</td></tr>}
@@ -114,6 +114,12 @@ function ExceptionRow({ row, canManage, formatDuration, onSaved }) {
   let transactionDate = row.unloadingDate || "", transactionTime = "";
   try { [transactionDate, transactionTime] = splitIstTimestamp(row.unloadingTimestamp, row.unloadingDate); }
   catch { /* Keep the known cohort date if a source timestamp is malformed. */ }
+  const endpointDate = (timestamp, fallback) => {
+    try { return splitIstTimestamp(timestamp, fallback)[0]; }
+    catch { return fallback || ""; }
+  };
+  const grnDate = endpointDate(row.grnReceivedTimestamp, row.grnDate);
+  const putawayDate = endpointDate(row.putawayCompletedTimestamp, row.putawayDate);
   const save = async () => {
     setSaving(true); setError("");
     try {
@@ -125,10 +131,13 @@ function ExceptionRow({ row, canManage, formatDuration, onSaved }) {
     finally { setSaving(false); }
   };
   return <tr>
-    <td><time dateTime={transactionDate}>{transactionDate ? transactionDate.split("-").reverse().join("-") : "—"}</time></td>
-    <td>{transactionTime || "—"}</td>
+    <td className="exception-compact-column"><time dateTime={transactionDate}>{displayEndpointDate(transactionDate)}</time></td>
+    <td className="exception-compact-column">{transactionTime || "—"}</td>
     <th scope="row"><span>{row.facility}</span><strong>{row.grnNumber}</strong><span>{row.sku}</span></th>
-    <td>{row.status}</td><td>{formatDuration(row.kpi1Hours)}</td><td>{formatDuration(row.kpi2Hours)}</td><td>{formatDuration(row.kpi3Hours)}</td>
+    <td>{row.status}</td>
+    <KpiDateCell kpi="1" hours={row.kpi1Hours} formatDuration={formatDuration} startLabel="Unloading" startDate={transactionDate} endLabel="Putaway" endDate={putawayDate} />
+    <KpiDateCell kpi="2" hours={row.kpi2Hours} formatDuration={formatDuration} startLabel="GRN" startDate={grnDate} endLabel="Putaway" endDate={putawayDate} />
+    <KpiDateCell kpi="3" hours={row.kpi3Hours} formatDuration={formatDuration} startLabel="Unloading" startDate={transactionDate} endLabel="GRN" endDate={grnDate} />
     <td><strong>{validException(row) ? "Y" : "N"}</strong><small>{validException(row) ? "Excluded from adjusted KPIs" : "Pending exception validation"}</small>{dirty && <small>Unsaved changes</small>}</td>
     <td><select aria-label={`Exception bucket for ${identity}`} value={draft.bucket} disabled={!canManage || saving} onChange={event => setDraft({ ...draft, bucket: event.target.value })}>
       <option value="">No bucket</option>{BUCKETS.map(bucket => <option key={bucket}>{bucket}</option>)}</select></td>
@@ -140,4 +149,15 @@ function ExceptionRow({ row, canManage, formatDuration, onSaved }) {
       {error && <small role="alert">{error}</small>}
     </td>
   </tr>;
+}
+
+function displayEndpointDate(date) {
+  return date ? date.split("-").reverse().join("-") : "—";
+}
+
+function KpiDateCell({ kpi, hours, formatDuration, startLabel, startDate, endLabel, endDate }) {
+  return <td className="exception-kpi-cell" data-kpi={kpi}>
+    <strong>{formatDuration(hours)}</strong>
+    <div className="exception-kpi-dates"><small>{startLabel}: {displayEndpointDate(startDate)}</small><small>{endLabel}: {displayEndpointDate(endDate)}</small></div>
+  </td>;
 }

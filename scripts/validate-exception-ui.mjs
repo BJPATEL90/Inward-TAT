@@ -46,7 +46,9 @@ try {
       response = { ...fallbackSnapshot, ok: true, generatedAt: "2026-10-16T06:00:00Z", lastRefresh: "2026-10-16T06:00:00Z",
         view: { month, periodStart: `${month}-01`, periodEnd: `${month}-01`, isCurrentMonth: month === "2026-10" },
         availableMonths: ["2026-10", "2026-09"], permissions: { canManageExceptions: canManage },
-        facts: fixtures.map(row => ({ ...row, unloadingDate: `${month}-01`, unloadingTimestamp: `${month}-01T11:16:00+05:30` })),
+        facts: fixtures.map(row => ({ ...row, unloadingDate: `${month}-01`, unloadingTimestamp: `${month}-01T11:16:00+05:30`,
+          grnReceivedTimestamp: row.status === "COMPLETE" ? `${month}-01T12:00:00+05:30` : null,
+          putawayCompletedTimestamp: row.status === "COMPLETE" ? `${month}-02T07:16:00+05:30` : null })),
         daily: [{ summaryDate: `${month}-01`, facility: "All Mother Facilities", kpi1Hours: 20 }],
       };
     }
@@ -74,6 +76,12 @@ try {
   const row = page.getByRole("row").filter({ has: page.getByRole("rowheader").filter({ hasText: "G1" }) });
   const bucket = row.getByRole("combobox"), remarks = row.getByRole("textbox");
   const save = row.getByRole("button", { name: "Save", exact: true });
+  assert.match(await row.locator('[data-kpi="1"]').innerText(), /Unloading: 01-10-2026\s+Putaway: 02-10-2026/);
+  assert.match(await row.locator('[data-kpi="2"]').innerText(), /GRN: 01-10-2026\s+Putaway: 02-10-2026/);
+  assert.match(await row.locator('[data-kpi="3"]').innerText(), /Unloading: 01-10-2026\s+GRN: 01-10-2026/);
+  assert.match(await page.locator('.exception-transactions tbody tr').filter({ hasText: "G6" }).locator('[data-kpi="2"]').innerText(), /GRN: —\s+Putaway: —/);
+  const widths = await row.locator(".exception-compact-column").evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().width));
+  assert.ok(widths[0] < 150 && widths[1] < 100, `Date/time columns should fit text: ${widths}`);
   assert.equal(await save.isDisabled(), true);
   await bucket.selectOption("Manpower issue");
   assert.match(await adjusted.innerText(), /13h 20m/); // Draft is not counted.

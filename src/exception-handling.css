@@ -23,6 +23,11 @@
 .exception-transactions table { width: 100%; min-width: 1400px; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .exception-transactions th, .exception-transactions td { padding: 12px; text-align: left; vertical-align: top; border-bottom: 1px solid #d9e1ef; }
 .exception-transactions thead { background: #eaf0ff; color: #1d3475; }
+.exception-transactions .exception-compact-column { width: 1%; white-space: nowrap; padding-inline: 8px; }
+.exception-transactions .exception-compact-column small { margin-bottom: 0; }
+.exception-kpi-cell { white-space: nowrap; }
+.exception-kpi-dates { margin-top: 7px; color: var(--muted); }
+.exception-transactions .exception-kpi-dates small { font-size: 11px; margin-bottom: 3px; }
 .exception-transactions tbody th { max-width: 230px; overflow-wrap: anywhere; font-weight: 400; }
 .exception-transactions tbody th span, .exception-transactions tbody th strong, .exception-transactions small { display: block; margin-bottom: 6px; }
 .exception-transactions select, .exception-transactions textarea { width: 190px; max-width: 100%; padding: 9px; border: 1px solid #d9e1ef; border-radius: 6px; font: inherit; background: white; color: #172033; }
