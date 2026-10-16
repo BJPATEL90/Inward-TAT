@@ -22,6 +22,7 @@ import {
 import { hasLiveApi, loadDashboard, submitManualTaskAction } from "./api";
 import PutawayDelayAnalysis from "./PutawayDelayAnalysis";
 import MonthlyMis from "./MonthlyMis";
+import ExceptionHandling from "./ExceptionHandling";
 import {
   clearSession,
   getAuthConfig,
@@ -217,7 +218,7 @@ function DashboardApp({ authUser, onSignOut }) {
       setFacility("All facilities");
       setStatus("All status");
       setQuery("");
-      setPage("dashboard");
+      setPage(current => current === "exceptions" ? current : "dashboard");
     }
     setLoadingMonth("");
   };
@@ -400,6 +401,18 @@ function DashboardApp({ authUser, onSignOut }) {
           />
         ) : page === "monthly" ? (
           <MonthlyMis />
+        ) : page === "exceptions" ? (
+          <ExceptionHandling key={selectedMonth} rows={filteredFacts} labels={snapshot?.labels || {}}
+            fromDate={fromDate} toDate={toDate} setFromDate={setFromDate} setToDate={setToDate}
+            facility={facility} setFacility={setFacility} facilities={FACILITIES}
+            status={status} setStatus={setStatus} query={query} setQuery={setQuery}
+            selectedMonth={selectedMonth} availableMonths={snapshot?.availableMonths || []}
+            onMonthChange={changePerformanceMonth} formatMonth={formatMonthLabel}
+            cardComponent={PeriodCard} summarize={summarizeFacts} formatDuration={formatDuration}
+            canManage={Boolean(snapshot?.permissions?.canManageExceptions)}
+            onSaved={result => setSnapshot(current => ({ ...current, facts: current.facts.map(row => row.recordKey === result.recordKey
+              ? { ...row, exceptionFlag: result.exceptionFlag, exceptionBucket: result.exceptionBucket, exceptionRemarks: result.exceptionRemarks } : row) }))}
+          />
         ) : page === "delay" ? (
           <PutawayDelayAnalysis />
         ) : page === "details" ? (
@@ -445,6 +458,7 @@ function Sidebar({ page, setPage, open }) {
   const items = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "monthly", label: "Monthly MIS", icon: CalendarRange },
+    { id: "exceptions", label: "Exception Handling", icon: ShieldCheck },
     { id: "pending", label: "Pending Tasks", icon: ClipboardList },
     { id: "details", label: "Detailed Records", icon: TableProperties },
     { id: "delay", label: "Putaway Delay Analysis", icon: Clock3 },
@@ -482,7 +496,7 @@ function Sidebar({ page, setPage, open }) {
 
 function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, source, authUser, onSignOut }) {
   const pageTitle =
-    page === "monthly" ? "Monthly MIS" : page === "delay" ? "Putaway Delay Analysis" : page === "dashboard"
+    page === "exceptions" ? "Exception Handling" : page === "monthly" ? "Monthly MIS" : page === "delay" ? "Putaway Delay Analysis" : page === "dashboard"
       ? "Vehicle Arrival to Putaway TAT"
       : page === "pending"
         ? "Pending Tasks"
@@ -490,7 +504,7 @@ function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, s
         ? "Detailed TAT Records"
         : "Calculation & Publication Logic";
   const pageSubtitle =
-    page === "monthly" ? "Monthly source coverage, corrections and Excel reporting" : page === "delay" ? "Shelf workload, SKU class and historical KPI2 comparison" : page === "dashboard"
+    page === "exceptions" ? "Original and exception-adjusted performance · Facility + GRN + SKU" : page === "monthly" ? "Monthly source coverage, corrections and Excel reporting" : page === "delay" ? "Shelf workload, SKU class and historical KPI2 comparison" : page === "dashboard"
       ? "Mother-facility inbound performance"
       : page === "pending"
         ? "Open GRN, Putaway, timestamp, and matching actions"
@@ -519,7 +533,7 @@ function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, s
         {page !== "monthly" && <button className={`icon-action ${refreshing ? "spinning" : ""}`} onClick={refresh} aria-label="Refresh data">
           <RefreshCw size={18} />
         </button>}
-        {page !== "monthly" && <button className="download-button" onClick={exportCsv}>
+        {page !== "monthly" && page !== "exceptions" && <button className="download-button" onClick={exportCsv}>
           <Download size={17} />
           <span>Download CSV</span>
         </button>}

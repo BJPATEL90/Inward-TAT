@@ -116,6 +116,7 @@ const SHEET_DEFINITIONS = Object.freeze([
       "GRN Source Row", "Putaway Source Row", "Calculated At", "Match Method",
       "Match Detail", "Manual Action Status", "Manual Action By", "Manual Action At",
       "Manual Action Reason",
+      "Exception (Y/N)", "Exception Bucket", "Remarks",
     ],
   },
   {

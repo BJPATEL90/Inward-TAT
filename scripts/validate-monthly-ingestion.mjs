@@ -217,6 +217,9 @@ context.logExecution_ = () => {};
 context.replaceDataRows_ = (sheet, rows) => written.push({ sheet: sheet.name, rows });
 context.replaceExceptions_ = () => {};
 context.rebuildMtdSummary_ = () => [];
+// Fact persistence is covered by validate-exception-handling.mjs; this test
+// checks that monthly callers still bypass the daily persistence boundary.
+context.replaceTatFactsPreservingExceptions_ = (sheet, rows) => context.replaceDataRows_(sheet, rows);
 assert.equal(context.rebuildTatFacts_({}, "DAILY_TEST").completeRows, 1);
 assert.deepEqual(written.map(item => item.sheet), ["facts", "mtd"]);
 const countBeforeMonthly = written.length;

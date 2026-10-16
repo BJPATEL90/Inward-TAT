@@ -1,0 +1,34 @@
+.exception-page { min-width: 0; }
+.exception-page h2, .exception-page h3 { text-wrap: balance; }
+.exception-page p { text-wrap: pretty; }
+.exception-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.exception-card-grid .period-card { height: auto; }
+.exception-card-grid > div > p { margin: 10px 4px 0; color: var(--muted, #5c6b85); font-size: 13px; }
+.exception-guidance { padding: 14px 18px; border: 1px solid #d9e1ef; border-radius: 12px; background: #fff; }
+.exception-guidance p { margin: 6px 0; line-height: 1.6; font-size: 13px; }
+.exception-table-heading, .exception-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 16px; }
+.exception-table-heading h3 { margin: 0; }
+.exception-table-heading span, .exception-pagination span { font-size: 13px; color: #5c6b85; }
+.exception-transactions { min-width: 0; overflow: hidden; border: 1px solid #d9e1ef; border-radius: 12px; background: #fff; }
+.exception-table-scroll { overflow-x: auto; }
+.exception-export { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 0 16px 16px; }
+.exception-export label { display: grid; gap: 6px; max-width: 100%; font-size: 13px; }
+.exception-export select { width: 330px; }
+.exception-export p { width: 100%; margin: 0; font-size: 13px; color: var(--muted); }
+.exception-export p[role="alert"] { color: var(--red); }
+.exception-transactions table { width: 100%; min-width: 1150px; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.exception-transactions th, .exception-transactions td { padding: 12px; text-align: left; vertical-align: top; border-bottom: 1px solid #d9e1ef; }
+.exception-transactions thead { background: #eaf0ff; color: #1d3475; }
+.exception-transactions tbody th { max-width: 230px; overflow-wrap: anywhere; font-weight: 400; }
+.exception-transactions tbody th span, .exception-transactions tbody th strong, .exception-transactions small { display: block; margin-bottom: 6px; }
+.exception-transactions select, .exception-transactions textarea { width: 190px; max-width: 100%; padding: 9px; border: 1px solid #d9e1ef; border-radius: 6px; font: inherit; background: white; color: #172033; }
+.exception-transactions textarea { width: 230px; resize: vertical; }
+.exception-transactions button { border: 1px solid #2443c4; border-radius: 6px; padding: 8px 12px; margin-bottom: 6px; background: white; color: #2443c4; font: inherit; cursor: pointer; }
+.exception-transactions button:disabled { opacity: .5; cursor: default; }
+.exception-transactions small[role="alert"] { color: #b42318; max-width: 210px; }
+.exception-page :focus-visible { outline: 2px solid #2443c4; outline-offset: 3px; }
+@media (max-width: 700px) {
+  .exception-card-grid { grid-template-columns: minmax(0, 1fr); }
+  .exception-filters { grid-template-columns: minmax(0, 1fr); }
+  .exception-page .month-view-toolbar > div { min-width: 0; }
+}

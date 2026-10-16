@@ -44,7 +44,7 @@ function handleApiRequest_(event) {
       );
       return apiResponse_(auth, event);
     }
-    if (["dashboard", "manualtaskaction", "putawayanalysis", "monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport", "monthlyinbox", "monthlyemailimport"].indexOf(action) === -1) {
+    if (["dashboard", "manualtaskaction", "saveexception", "putawayanalysis", "monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport", "monthlyinbox", "monthlyemailimport"].indexOf(action) === -1) {
       return jsonResponse_({ ok: false, error: "Unsupported action: " + action });
     }
 
@@ -53,6 +53,10 @@ function handleApiRequest_(event) {
     );
     if (!auth.ok) {
       return apiResponse_(auth, event);
+    }
+    if (action === "saveexception") {
+      if (!event.monthlyPost) throw new Error("Exception saves require POST.");
+      return apiResponse_(saveTatException_(event.parameter, auth.user), event);
     }
     if (["monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport", "monthlyinbox", "monthlyemailimport"].indexOf(action) !== -1) {
       if (!event.monthlyPost) throw new Error("Monthly workflow requires POST.");
@@ -151,6 +155,7 @@ function attachDashboardUserContext_(payload, user) {
   const result = Object.assign({}, payload);
   result.permissions = {
     canManagePendingTasks: isManualTaskUser_(user && user.email),
+    canManageExceptions: isManualTaskUser_(user && user.email),
   };
   return result;
 }
@@ -295,12 +300,19 @@ function buildDashboardSnapshot_(requestedMonth) {
         status: textOrBlank_(row["Record Status"]),
         exceptionCode: textOrBlank_(row["Exception Code"]),
         exceptionDetail: textOrBlank_(row["Exception Detail"]),
+        goodsSourceRow: textOrBlank_(row["Goods Source Row"]),
+        grnSourceRow: textOrBlank_(row["GRN Source Row"]),
+        putawaySourceRow: textOrBlank_(row["Putaway Source Row"]),
+        calculatedAt: apiDateTime_(row["Calculated At"]),
         matchMethod: textOrBlank_(row["Match Method"]),
         matchDetail: textOrBlank_(row["Match Detail"]),
         manualActionStatus: textOrBlank_(row["Manual Action Status"]),
         manualActionBy: textOrBlank_(row["Manual Action By"]),
         manualActionAt: apiDateTime_(row["Manual Action At"]),
         manualActionReason: textOrBlank_(row["Manual Action Reason"]),
+        exceptionFlag: tatExceptionFlag_(apiNumber_(row["KPI1 Unloading to Putaway Hours"]), row["Exception Bucket"], row.Remarks),
+        exceptionBucket: textOrBlank_(row["Exception Bucket"]),
+        exceptionRemarks: textOrBlank_(row.Remarks),
       };
     });
   const monthStartKey = Utilities.formatDate(monthStart, "Asia/Kolkata", "yyyy-MM-dd");

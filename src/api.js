@@ -74,6 +74,15 @@ function authHeaders() {
   return credential ? { Authorization: `Bearer ${credential}` } : {};
 }
 
+export async function saveException(payload) {
+  if (!API_URL || new URL(API_URL, window.location.origin).hostname !== "script.google.com") {
+    throw new Error("Exception updates require the live Apps Script connection.");
+  }
+  const data = await postToAppsScript({ ...payload, action: "saveexception", credential: getStoredSession()?.credential || "" });
+  if (!data.ok) throw new Error(data.error || "Unable to save the exception.");
+  return data;
+}
+
 async function requestMonthly(action, month, source, extra = {}) {
   if (!API_URL || new URL(API_URL, window.location.origin).hostname !== "script.google.com") {
     throw new Error("Monthly reporting requires the live Apps Script connection.");

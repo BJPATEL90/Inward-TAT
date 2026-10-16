@@ -1,0 +1,74 @@
+# Exception Handling — Phase 2
+
+Status: Phases 2–4 implemented and tested; production rollout approved on 16 October 2026. Backend version 48 is published to the existing production deployment. The frontend is released through the accompanying main-branch push.
+
+## Scope
+
+Append these fields to `Fact_Inward_TAT`, after its original 26 columns:
+
+- `Exception (Y/N)`
+- `Exception Bucket`
+- `Remarks`
+
+Phase 2 introduces no new sheet, OAuth scope, trigger, or UI. Existing KPI formulas, matching keys, OWN SKU exclusions, data-quality Exception Code/Detail, daily summaries, email calculations and isolated monthly revisions are unchanged.
+
+Business exceptions use the current `Facility|GRN Number|SKU` record key. The flag is derived, never trusted from a browser: finite numeric KPI1 strictly greater than 12, and a trimmed nonblank bucket or remark, yields Y. Otherwise N. A later correction below the threshold retains the saved text but resets the flag.
+
+## API contract for the next UI phase
+
+Authenticated POST action `saveexception` accepts:
+
+- `recordKey`
+- `exceptionBucket` (blank or one of the eight agreed buckets)
+- `exceptionRemarks` (trimmed; maximum 2,000 characters)
+- `expectedBucket` and `expectedRemarks` (the exact values loaded before editing, including blank strings)
+
+Only the existing `MANUAL_TASK_USERS` allowlist can save. Read-only dashboard access is unchanged. The dashboard exposes `permissions.canManageExceptions`, `exceptionFlag`, `exceptionBucket`, and `exceptionRemarks` for the next UI phase.
+
+The save acquires the same script lock as the daily/historical pipelines, re-resolves the physical sheet row by key (including blank-row gaps), checks the previously loaded values to reject stale edits, rechecks current KPI1, then writes only the three fields. Clearing both fields is allowed even if a corrected KPI1 is no longer above 12. Text is escaped against formula execution. CURRENT and affected-month dashboard cache entries are invalidated after a successful flush. The client must reload after saving or a stale-edit error.
+
+## Preservation safeguards
+
+Daily and historical fact rebuilds read existing entries by key, merge them into the new rows, and derive the new flags without changing the first 26 calculation columns. Monthly isolated calculations return before this persistence path, and do not inherit or modify daily exception entries.
+
+If an annotated transaction disappears or its key changes, rebuilding stops before overwriting the facts; it does not silently discard or reassign that exception. An operator must reconcile the key/source data before rerunning. The destructive `clearWronglyPulledPutawayData` recovery is similarly refused while exception entries exist.
+
+Fact replacement writes before clearing trailing rows and attempts restoration from its in-memory snapshot if a normal write throws. This is not a database transaction: an abrupt Apps Script termination or failed restoration can still require restoring Google Sheets version history. Automated key reassignment, independent long-term exception archives and an audit-history ledger are not part of this phase.
+
+## Validation
+
+`node scripts/validate-exception-handling.mjs` covers schema width, all buckets, threshold/blank rules, permissions, POST/auth guards, edits/clearing, stale edits, physical row positions, duplicate-key rejection, formula safety, retention, recalculation after corrections, missing-key/recovery guards, normal write-error restoration and unchanged inclusive KPI summaries.
+
+Regression checks: Apps Script syntax, hybrid matching, monthly ingestion/isolation, inbox, workbook generation, lint and frontend production build.
+
+## Phase 3 — page and editing
+
+The new Exception Handling navigation page reuses the main dashboard's period-card component and the exact `summarizeFacts` function. It shares performance month, date range, facility, status and transaction search state with the existing dashboard/details views. Changing performance month keeps this page open and loads that month's transactions through the existing API.
+
+Two cards summarise all matching records versus matching records without a valid saved business exception. The >12-hour table is a separate subset: it never becomes the input for the inclusive card. Neither unsaved drafts nor backend save errors change the cards. Empty complete-record datasets display no KPI, not zero. Counts distinguish complete/filtered records and removed valid exceptions.
+
+Each row supports the eight agreed buckets, remarks, saving, clearing both fields and resetting drafts to loaded values. Saved bucket/remarks form the optimistic-concurrency baseline sent to the Phase 2 endpoint. Changed loaded values require resetting the row before editing again; backend conflicts appear alongside the action while keeping the draft. Only `permissions.canManageExceptions` enables editing. A successful save updates the local snapshot so both cards respond, while the endpoint persists the values in Sheets. Existing data-quality codes and manual pending-task actions are not modified.
+
+Tables paginate at 50 rows and scroll horizontally on small screens. Pagination limits rendering only; both card calculations use the complete filtered dataset. The existing generic Download CSV button remains hidden on this page; Phase 4 supplies its own scoped download instead of the unfiltered main-dashboard CSV.
+
+`node scripts/validate-exception-ui.mjs` tests the actual local React page against a mocked API: saved-only card updates, exact >12 threshold, complete-record eligibility, bucket and remarks-only saves, clearing/whitespace, save failure/draft retention, all-excluded/null KPIs, shared month/date/facility/status/search filters, read-only access, 50-row pagination, desktop/mobile layout, and absence of browser exceptions. Test screenshots under `work/exception-handling-*.png` use synthetic data, not operational results.
+
+## Phase 4 — filtered CSV download
+
+Download CSV is available to both viewers and editors. The default scope exports the complete delayed table (KPI1 > 12), across all pages, with the active month/date/facility/status/search filters. An explicit `All filtered transactions · KPI source` scope exports the dataset underlying the inclusive card, including complete and incomplete records and records at/below the threshold. Neither scope implicitly removes exceptions. No matching rows disables the download.
+
+CSV exports saved snapshot data only, never pending row drafts. A shared business-exception predicate drives cards, table flags and exported Y/N. There are 31 columns covering all 29 underlying fact fields, with existing date-only fields incorporated into the corresponding separated timestamp date fields rather than repeated. The API now additionally exposes the three raw-sheet source row references and calculation timestamp, previously absent from the dashboard payload. Other fields include record identity, numeric unrounded KPI hours, status, data-quality codes/details, matching metadata, manual-action details and the three business-exception fields.
+
+Every combined timestamp (unloading, GRN received, Putaway complete, calculation and manual action) becomes distinct Date (IST) and Time (IST) columns. UTC/offset-bearing timestamps are formatted explicitly in Asia/Kolkata, not the browser timezone. Date-only fallbacks retain dates without inventing times. Ambiguous or invalid timestamps stop the export and display an error. CSV has UTF-8 BOM, CRLF records, quoted/escaped cells, preserved multiline remarks and spreadsheet-formula neutralisation for text. Filenames include reporting month, date range, facility and selected scope. Downloading requires no backend write and does not create archives or send emails.
+
+`node scripts/validate-exception-csv.mjs` independently parses the CSV to verify column alignment, timestamps/IST midnight and rollover, numeric precision, missing values, flags, Unicode, multiline quoting, formula protection and nonmutation of records. Browser tests additionally verify default/all-filtered scopes, active filters, exclusion of unsaved drafts, disabled empty exports and a 58-row export while only eight rows are visible on page two.
+
+## Production rollout — 16 October 2026
+
+Confirmed Apps Script project: `14CR1zTWF9p1JdGhA2zTWvxbqtFCgG3wIodMAnG78DPso_ysrx2dUUqRE`. Fresh live scripts were pulled, baseline-checked and preserved locally in `work/exception-live-backup-20261016-v47` before publishing version 48. Unrelated live scripts and the manifest were retained.
+
+The existing `Fact_Inward_TAT` tab (sheet ID 1739635534) was extended from 26 to 29 columns. AA1:AC1 now contains the agreed three headers; AA2:AA5837 was initialised to N for 5,836 existing transaction keys. Buckets and remarks were left blank. No existing transaction, timestamp or KPI column was overwritten. Headers and initial flags were read back after migration. This rollout did not run a fact rebuild, send email, add triggers or create operational exceptions.
+
+Predeployment checks passed: exception backend/CSV/browser tests, Apps Script syntax, hybrid matching, monthly ingestion/inbox/workbook/browser regressions, lint and production build. Final release checks include existing endpoint health, authentication rejection without credentials, Pages workflow completion and served frontend assets.
+
+Rollback reference is Apps Script version 47 and frontend commit `828d173`. Do not revert to a pre-exception pipeline after staff begin recording exceptions without first preserving those annotations; the old rebuild clears the additional fields. Retain appended columns/data during rollback. No production KPI report or operational CSV has been generated as part of the synthetic tests. An authenticated production save/edit/clear should use an operator-approved real exception rather than an invented exception entry.

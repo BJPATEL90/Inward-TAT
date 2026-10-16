@@ -226,6 +226,8 @@ function clearWronglyPulledPutawayData() {
     const exceptionSheet = getSheet_(INWARD_TAT.SHEETS.EXCEPTIONS);
     const rowsCleared = Math.max(putawaySheet.getLastRow() - 1, 0);
 
+    assertNoTatExceptionEntries_(sheetObjects_(factSheet));
+
     clearDataRows_(putawaySheet);
     clearDataRows_(factSheet);
     clearDataRows_(mtdSheet);
@@ -1409,7 +1411,7 @@ function rebuildTatFacts_(config, runId, monthlyInputs) {
   });
 
   if (monthlyInputs) return { facts: factRows, exceptions: exceptions };
-  replaceDataRows_(factSheet, factRows);
+  replaceTatFactsPreservingExceptions_(factSheet, factRows);
   replaceExceptions_(exceptions);
   const mtdRows = rebuildMtdSummary_(factRows, goods, config);
   replaceDataRows_(getSheet_(INWARD_TAT.SHEETS.MTD), mtdRows);
