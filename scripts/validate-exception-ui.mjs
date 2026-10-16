@@ -46,7 +46,7 @@ try {
       response = { ...fallbackSnapshot, ok: true, generatedAt: "2026-10-16T06:00:00Z", lastRefresh: "2026-10-16T06:00:00Z",
         view: { month, periodStart: `${month}-01`, periodEnd: `${month}-01`, isCurrentMonth: month === "2026-10" },
         availableMonths: ["2026-10", "2026-09"], permissions: { canManageExceptions: canManage },
-        facts: fixtures.map(row => ({ ...row, unloadingDate: `${month}-01` })),
+        facts: fixtures.map(row => ({ ...row, unloadingDate: `${month}-01`, unloadingTimestamp: `${month}-01T11:16:00+05:30` })),
         daily: [{ summaryDate: `${month}-01`, facility: "All Mother Facilities", kpi1Hours: 20 }],
       };
     }
@@ -58,6 +58,10 @@ try {
   await inclusive.getByText("20h 00m", { exact: true }).waitFor();
   assert.match(await adjusted.innerText(), /13h 20m/);
   assert.equal(await page.locator(".exception-transactions tbody tr").count(), 3);
+  assert.equal(await page.getByTestId("delayed-count").locator("dd").innerText(), "3");
+  assert.equal(await page.getByTestId("validated-count").locator("dd").innerText(), "1");
+  assert.equal(await page.getByTestId("pending-validation-count").locator("dd").innerText(), "2");
+  assert.equal(await page.locator(".exception-transactions tbody tr").first().locator("time").innerText(), "01-10-2026");
   assert.equal(await page.getByRole("button", { name: "Download CSV", exact: true }).count(), 1);
   const downloadCsv = async () => {
     const pending = page.waitForEvent("download");
@@ -77,12 +81,34 @@ try {
   assert.equal(draftExport.text.includes("Manpower issue"), false);
   assert.equal(draftExport.text.trimEnd().split("\r\n").length - 1, 3);
   assert.ok(draftExport.text.includes('"Exception (Y/N)","Exception Bucket","Remarks"'));
+  await page.getByLabel("Transaction view", { exact: true }).selectOption("EXCLUDING");
   await save.click();
   await adjusted.getByText("10h 00m", { exact: true }).waitFor();
+  assert.equal(await row.count(), 0); // Saved Y disappears immediately from the N-only view.
+  await page.getByLabel("Transaction view", { exact: true }).selectOption("INCLUDING");
   assert.match(await inclusive.innerText(), /20h 00m/);
+  assert.match(await adjusted.innerText(), /6h 00m/);
+  assert.match(await adjusted.innerText(), /KPI transaction count: 2/);
+  assert.match(await inclusive.innerText(), /KPI transaction count: 4/);
+  assert.equal(await page.getByTestId("pending-validation-count").locator("dd").innerText(), "1");
+  assert.equal(await page.getByTestId("validated-count").locator("dd").innerText(), "2");
+  await row.getByText("Excluded from adjusted KPIs", { exact: true }).waitFor();
+  await page.getByLabel("Transaction view", { exact: true }).selectOption("EXCLUDING");
+  assert.equal(await page.locator(".exception-transactions tbody tr").count(), 1);
+  assert.match(await adjusted.innerText(), /10h 00m/); // Table view must not change card scope.
+  const onlyN = await downloadCsv();
+  assert.equal(onlyN.text.includes('"G1"'), false);
+  assert.equal(onlyN.text.includes('"G6"'), true);
+  await page.getByLabel("Transaction view", { exact: true }).selectOption("ONLY");
+  assert.equal(await page.locator(".exception-transactions tbody tr").count(), 2);
+  const onlyY = await downloadCsv();
+  assert.equal(onlyY.text.trimEnd().split("\r\n").length - 1, 2);
+  assert.ok(onlyY.filename.endsWith("-only.csv"));
+  await page.getByLabel("Transaction view", { exact: true }).selectOption("INCLUDING");
   await bucket.selectOption("");
   await save.click();
   await adjusted.getByText("13h 20m", { exact: true }).waitFor();
+  assert.equal(await page.getByTestId("pending-validation-count").locator("dd").innerText(), "2");
   await remarks.fill("   "); await save.click();
   await page.waitForFunction(() => !document.querySelector(".exception-transactions textarea")?.value);
   assert.match(await adjusted.innerText(), /13h 20m/);
@@ -111,7 +137,7 @@ try {
   const ownAll = await downloadCsv();
   assert.equal(ownAll.text.trimEnd().split("\r\n").length - 1, 3);
   assert.ok(ownAll.text.includes('"G4"'));
-  assert.ok(ownAll.filename.endsWith("OWN-all-filtered.csv"));
+  assert.ok(ownAll.filename.endsWith("OWN-all-filtered-including.csv"));
   await page.getByLabel("CSV scope", { exact: true }).selectOption("DELAYED");
   await page.getByLabel("Search transactions").fill("missing");
   await page.getByText("No transactions with KPI1 greater than 12 hours", { exact: false }).waitFor();
@@ -147,6 +173,9 @@ try {
   assert.equal(await page.locator(".exception-transactions tbody tr").count(), 50);
   await page.getByRole("button", { name: "Next", exact: true }).click();
   assert.equal(await page.locator(".exception-transactions tbody tr").count(), 8);
+  assert.equal(await page.getByTestId("delayed-count").locator("dd").innerText(), "58");
+  assert.equal(await page.getByTestId("validated-count").locator("dd").innerText(), "57");
+  assert.equal(await page.getByTestId("pending-validation-count").locator("dd").innerText(), "1");
   const paginated = await downloadCsv();
   assert.equal(paginated.text.trimEnd().split("\r\n").length - 1, 58);
   assert.ok(paginated.text.includes("Remarks-only exception"));

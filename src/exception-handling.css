@@ -6,6 +6,10 @@
 .exception-card-grid > div > p { margin: 10px 4px 0; color: var(--muted, #5c6b85); font-size: 13px; }
 .exception-guidance { padding: 14px 18px; border: 1px solid #d9e1ef; border-radius: 12px; background: #fff; }
 .exception-guidance p { margin: 6px 0; line-height: 1.6; font-size: 13px; }
+.exception-validation-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+.exception-validation-counts > div { padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.exception-validation-counts dt { color: var(--muted); font-size: 13px; }
+.exception-validation-counts dd { margin: 8px 0 0; color: var(--blue); font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .exception-table-heading, .exception-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 16px; }
 .exception-table-heading h3 { margin: 0; }
 .exception-table-heading span, .exception-pagination span { font-size: 13px; color: #5c6b85; }
@@ -16,7 +20,7 @@
 .exception-export select { width: 330px; }
 .exception-export p { width: 100%; margin: 0; font-size: 13px; color: var(--muted); }
 .exception-export p[role="alert"] { color: var(--red); }
-.exception-transactions table { width: 100%; min-width: 1150px; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.exception-transactions table { width: 100%; min-width: 1400px; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .exception-transactions th, .exception-transactions td { padding: 12px; text-align: left; vertical-align: top; border-bottom: 1px solid #d9e1ef; }
 .exception-transactions thead { background: #eaf0ff; color: #1d3475; }
 .exception-transactions tbody th { max-width: 230px; overflow-wrap: anywhere; font-weight: 400; }
@@ -29,6 +33,7 @@
 .exception-page :focus-visible { outline: 2px solid #2443c4; outline-offset: 3px; }
 @media (max-width: 700px) {
   .exception-card-grid { grid-template-columns: minmax(0, 1fr); }
+  .exception-validation-counts { grid-template-columns: minmax(0, 1fr); }
   .exception-filters { grid-template-columns: minmax(0, 1fr); }
   .exception-page .month-view-toolbar > div { min-width: 0; }
 }
