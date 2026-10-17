@@ -1,27 +1,35 @@
 import React, { useRef, useState } from "react";
 import { processExceptionBulk } from "./api";
 import { bulkExceptionTemplate, EXCEPTION_BUCKETS, parseExceptionBulkCsv } from "./exception-bulk.mjs";
+import { buildExceptionWorkbook, parseExceptionWorkbook } from "./exception-xlsx.mjs";
 
 export default function BulkExceptions({ month, templateRows, onApplied }) {
   const fileRef = useRef(null), generation = useRef(0);
   const [preview, setPreview] = useState(null), [busy, setBusy] = useState(false), [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState(""), [notice, setNotice] = useState("");
   const reset = () => { generation.current++; setPreview(null); setConfirmed(false); setError(""); setNotice(""); };
-  const template = () => {
+  const template = async (excel) => {
+    setBusy(true); setError("");
+    try {
     const rows = templateRows.slice(0, 1000);
-    const url = URL.createObjectURL(new Blob([bulkExceptionTemplate(rows)], { type: "text/csv;charset=utf-8" }));
-    const link = document.createElement("a"); link.href = url; link.download = `inward-tat-exception-template-${month}.csv`;
+    const contents = excel ? await buildExceptionWorkbook(rows) : bulkExceptionTemplate(rows);
+    const url = URL.createObjectURL(new Blob([contents], { type: excel ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv;charset=utf-8" }));
+    const link = document.createElement("a"); link.href = url; link.download = `inward-tat-exception-template-${month}.${excel ? "xlsx" : "csv"}`;
     document.body.appendChild(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setNotice(`Template contains ${rows.length} pending keys from the current transaction view${templateRows.length > 1000 ? " (first 1,000 only; narrow filters for other keys)" : ""}. Enter exact bucket names or remarks against each Record Key.`);
+    setNotice(`Template contains ${rows.length} pending keys from the current transaction view${templateRows.length > 1000 ? " (first 1,000 only; narrow filters for other keys)" : ""}. ${excel ? "Column B has a dropdown with all ten buckets for rows 2–1001." : "CSV has no dropdown; enter exact bucket names."}`);
+    } catch (failure) { setError(failure.message); } finally { setBusy(false); }
   };
   const validate = async () => {
     const current = ++generation.current;
     setBusy(true); setError(""); setPreview(null); setConfirmed(false); setNotice("");
     try {
       const file = fileRef.current?.files?.[0];
-      if (!file) throw new Error("Choose a three-column CSV file.");
-      if (file.size > 2000000) throw new Error("Exception CSV must not exceed 2 MB.");
-      const rows = parseExceptionBulkCsv(await file.text());
+      if (!file) throw new Error("Choose a three-column Excel (.xlsx) or CSV file.");
+      if (file.size > 2000000) throw new Error("Exception file must not exceed 2 MB.");
+      let rows;
+      if (/\.xlsx$/i.test(file.name)) rows = await parseExceptionWorkbook(await file.arrayBuffer());
+      else if (/\.csv$/i.test(file.name)) rows = parseExceptionBulkCsv(await file.text());
+      else throw new Error("Only .xlsx and .csv exception files are supported.");
       const result = await processExceptionBulk(month, rows);
       if (current === generation.current) setPreview(result);
     } catch (failure) { if (current === generation.current) setError(failure.message); }
@@ -38,12 +46,13 @@ export default function BulkExceptions({ month, templateRows, onApplied }) {
   };
   return <section className="exception-bulk" aria-label="Bulk exception upload" aria-busy={busy}>
     <h3>Bulk update exceptions</h3>
-    <p>Three columns only: <strong>Record Key, Exception Bucket, Remarks</strong>. Select the reporting month above. A CSV cannot hold dropdowns; unknown bucket names are rejected. Blank bucket and remarks together clear an existing exception.</p>
+    <p>Three columns only: <strong>Record Key, Exception Bucket, Remarks</strong>. Excel has a Bucket dropdown with all ten choices. CSV is also accepted; unknown bucket names in either format are rejected. Select the reporting month above. Blank bucket and remarks together clear an existing exception.</p>
     <details><summary>Allowed buckets</summary><p>{EXCEPTION_BUCKETS.join(" · ")}</p></details>
     <div className="exception-bulk-controls">
-      <button type="button" disabled={busy} onClick={template}>Download bulk template</button>
-      <label>Bulk exception CSV<input type="file" ref={fileRef} accept=".csv,text/csv" disabled={busy} onChange={reset} /></label>
-      <button type="button" disabled={busy} onClick={validate}>{busy ? "Processing…" : "Validate bulk CSV"}</button>
+      <button type="button" disabled={busy} onClick={() => template(true)}>Download Excel template</button>
+      <button type="button" disabled={busy} onClick={() => template(false)}>Download CSV template</button>
+      <label>Bulk exception file<input type="file" ref={fileRef} accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" disabled={busy} onChange={reset} /></label>
+      <button type="button" disabled={busy} onClick={validate}>{busy ? "Processing…" : "Validate bulk file"}</button>
     </div>
     <p>Maximum 1,000 rows / 2 MB per file. Template includes pending keys from all pages of the current table view, up to this limit. Preview validates against the latest Google Sheet; any error prevents all writes.</p>
     {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
