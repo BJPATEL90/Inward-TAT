@@ -29,6 +29,7 @@ No columns or formulas are added to `Fact_Inward_TAT`; reminder timing cannot ch
 - HTML values are escaped before rendering.
 - More than 100 eligible records are split into email parts so no source record is silently dropped.
 - A schedule slot is sent once; manual tests use a unique manual slot.
+- Delivery uses the project's existing authorised Gmail service; it does not request a separate MailApp scope.
 
 ## Setup and rollout
 

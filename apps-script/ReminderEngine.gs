@@ -515,11 +515,6 @@ function sendPendingReminderEmails_(rows, config, slot, runId, generatedAt) {
   for (let index = 0; index < rows.length; index += maxRows) {
     parts.push(rows.slice(index, index + maxRows));
   }
-  const requiredQuota = (recipients.to.length + recipients.cc.length) * parts.length;
-  if (MailApp.getRemainingDailyQuota() < requiredQuota) {
-    throw new Error("Insufficient daily email recipient quota for " + parts.length + " reminder part(s). Required " + requiredQuota + ".");
-  }
-
   const sentKeys = new Set();
   let sent = 0;
   parts.forEach(function (partRows, index) {

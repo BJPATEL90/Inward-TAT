@@ -140,5 +140,6 @@ assert.match(reminderSource, /sendScheduledPendingReminderEmail/);
 assert.match(reminderSource, /atHour\(hour\)/);
 assert.match(reminderSource, /GRN no\./);
 assert.match(reminderSource, /Putaway No/);
+assert.doesNotMatch(reminderSource, /MailApp\./, "reminder email must use the already-authorised Gmail service only");
 
 console.log("Pending reminder engine validated: three stages, ID-observed timestamps, 2h/10h SLAs, eight email slots, responsive escaped HTML, 30-minute trigger and KPI-fact isolation.");
