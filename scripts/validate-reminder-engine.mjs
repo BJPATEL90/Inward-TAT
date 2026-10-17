@@ -115,6 +115,14 @@ const closed = context.reconcilePendingReminderState_([{ ...withGrn, putawayId: 
 assert.equal(closed.currentStage, "CLOSED");
 assert.equal(context.buildPendingReminderRows_([closed], config, at("2026-10-17T17:00:00+05:30")).length, 0);
 
+const duplicatePrevious = previousMap(state);
+duplicatePrevious.set(`${state.reminderKey}|ROW:${state.sourceRow}`, {
+  ...duplicatePrevious.get(state.reminderKey),
+  "Reminder Key": `${state.reminderKey}|ROW:${state.sourceRow}`,
+});
+const deduplicatedState = context.reconcilePendingReminderState_([withGrn], duplicatePrevious, at("2026-10-17T15:30:00+05:30"));
+assert.equal(deduplicatedState.length, 1, "stale alternate keys for the same source row must be purged");
+
 for (const hour of [3, 7, 10, 13, 15, 17, 19, 23]) {
   const date = new Date(`2026-10-17T${String(hour).padStart(2, "0")}:00:00+05:30`);
   assert.ok(context.pendingReminderScheduleSlot_(date, config), `hour ${hour} should be scheduled`);
@@ -141,5 +149,7 @@ assert.match(reminderSource, /atHour\(hour\)/);
 assert.match(reminderSource, /GRN no\./);
 assert.match(reminderSource, /Putaway No/);
 assert.doesNotMatch(reminderSource, /MailApp\./, "reminder email must use the already-authorised Gmail service only");
+assert.doesNotMatch(reminderSource, /sourceSheets\.indexOf\(sourceSheet\)/, "source tabs must be deduplicated by stable name, not wrapper identity");
+assert.match(reminderSource, /sourceSheetNames\.has\(sourceSheetName\)/);
 
-console.log("Pending reminder engine validated: three stages, ID-observed timestamps, 2h/10h SLAs, eight email slots, responsive escaped HTML, 30-minute trigger and KPI-fact isolation.");
+console.log("Pending reminder engine validated: three stages, ID-observed timestamps, 2h/10h SLAs, source-tab/state deduplication, eight email slots, responsive escaped HTML, 30-minute trigger and KPI-fact isolation.");

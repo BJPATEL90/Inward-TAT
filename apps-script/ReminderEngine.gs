@@ -226,11 +226,18 @@ function readPendingReminderSource_(config, previousRows) {
   if (!sourceId) throw new Error("GOODS_SOURCE_SPREADSHEET_ID is blank.");
   const source = SpreadsheetApp.openById(sourceId);
   const sourceSheets = resolveGoodsSourceSheets_(source, config).slice();
+  const sourceSheetNames = new Set(sourceSheets.map(function (sheet) {
+    return sheet.getName();
+  }));
   previousRows.forEach(function (row) {
     if (String(row["Source Spreadsheet Id"] || "").trim() !== sourceId) return;
     if (String(row["Current Stage"] || "") === INWARD_REMINDER.STAGES.CLOSED) return;
-    const sourceSheet = source.getSheetByName(String(row["Source Sheet"] || "").trim());
-    if (sourceSheet && sourceSheets.indexOf(sourceSheet) === -1) sourceSheets.push(sourceSheet);
+    const sourceSheetName = String(row["Source Sheet"] || "").trim();
+    if (!sourceSheetName || sourceSheetNames.has(sourceSheetName)) return;
+    const sourceSheet = source.getSheetByName(sourceSheetName);
+    if (!sourceSheet) return;
+    sourceSheets.push(sourceSheet);
+    sourceSheetNames.add(sourceSheetName);
   });
 
   const allowedFacilities = String(config.GOODS_ALLOWED_FACILITIES || "SL Mother Hub|SL Ambient")
@@ -307,6 +314,7 @@ function reminderText_(value) {
 
 function reconcilePendingReminderState_(sourceRows, previousByKey, checkedAt) {
   const seen = new Set();
+  const seenSourceRows = new Set(sourceRows.map(pendingReminderSourceRowKey_));
   const output = sourceRows.map(function (source) {
     seen.add(source.reminderKey);
     const previous = previousByKey.get(source.reminderKey) || {};
@@ -376,11 +384,19 @@ function reconcilePendingReminderState_(sourceRows, previousByKey, checkedAt) {
 
   previousByKey.forEach(function (previous, key) {
     if (seen.has(key)) return;
+    if (seenSourceRows.has(pendingReminderSourceRowKey_(previous))) return;
     output.push(reminderStateObjectFromSheet_(previous, false));
   });
   return output.filter(function (row) {
     return Boolean(row.reminderKey && row.currentStage);
   });
+}
+
+function pendingReminderSourceRowKey_(row) {
+  const spreadsheetId = reminderText_(row.sourceSpreadsheetId || row["Source Spreadsheet Id"]);
+  const sheetName = reminderText_(row.sourceSheet || row["Source Sheet"]);
+  const sourceRow = reminderText_(row.sourceRow || row["Source Row"]);
+  return [spreadsheetId, sheetName, sourceRow].join("|");
 }
 
 function reminderStateObjectFromSheet_(row, sourcePresent) {
