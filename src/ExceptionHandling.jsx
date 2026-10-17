@@ -114,12 +114,12 @@ function ExceptionRow({ row, canManage, formatDuration, onSaved }) {
   let transactionDate = row.unloadingDate || "", transactionTime = "";
   try { [transactionDate, transactionTime] = splitIstTimestamp(row.unloadingTimestamp, row.unloadingDate); }
   catch { /* Keep the known cohort date if a source timestamp is malformed. */ }
-  const endpointDate = (timestamp, fallback) => {
-    try { return splitIstTimestamp(timestamp, fallback)[0]; }
-    catch { return fallback || ""; }
+  const endpoint = (timestamp, fallback) => {
+    try { return splitIstTimestamp(timestamp, fallback); }
+    catch { return [fallback || "", ""]; }
   };
-  const grnDate = endpointDate(row.grnReceivedTimestamp, row.grnDate);
-  const putawayDate = endpointDate(row.putawayCompletedTimestamp, row.putawayDate);
+  const [grnDate, grnTime] = endpoint(row.grnReceivedTimestamp, row.grnDate);
+  const [putawayDate, putawayTime] = endpoint(row.putawayCompletedTimestamp, row.putawayDate);
   const save = async () => {
     setSaving(true); setError("");
     try {
@@ -135,9 +135,9 @@ function ExceptionRow({ row, canManage, formatDuration, onSaved }) {
     <td className="exception-compact-column">{transactionTime || "—"}</td>
     <th scope="row"><span>{row.facility}</span><strong>{row.grnNumber}</strong><span>{row.sku}</span></th>
     <td>{row.status}</td>
-    <KpiDateCell kpi="1" hours={row.kpi1Hours} formatDuration={formatDuration} startLabel="Unloading" startDate={transactionDate} endLabel="Putaway" endDate={putawayDate} />
-    <KpiDateCell kpi="2" hours={row.kpi2Hours} formatDuration={formatDuration} startLabel="GRN" startDate={grnDate} endLabel="Putaway" endDate={putawayDate} />
-    <KpiDateCell kpi="3" hours={row.kpi3Hours} formatDuration={formatDuration} startLabel="Unloading" startDate={transactionDate} endLabel="GRN" endDate={grnDate} />
+    <KpiDateCell kpi="1" hours={row.kpi1Hours} formatDuration={formatDuration} startLabel="Unloading" startDate={transactionDate} startTime={transactionTime} endLabel="Putaway" endDate={putawayDate} endTime={putawayTime} />
+    <KpiDateCell kpi="2" hours={row.kpi2Hours} formatDuration={formatDuration} startLabel="GRN" startDate={grnDate} startTime={grnTime} endLabel="Putaway" endDate={putawayDate} endTime={putawayTime} />
+    <KpiDateCell kpi="3" hours={row.kpi3Hours} formatDuration={formatDuration} startLabel="Unloading" startDate={transactionDate} startTime={transactionTime} endLabel="GRN" endDate={grnDate} endTime={grnTime} />
     <td><strong>{validException(row) ? "Y" : "N"}</strong><small>{validException(row) ? "Excluded from adjusted KPIs" : "Pending exception validation"}</small>{dirty && <small>Unsaved changes</small>}</td>
     <td><select aria-label={`Exception bucket for ${identity}`} value={draft.bucket} disabled={!canManage || saving} onChange={event => setDraft({ ...draft, bucket: event.target.value })}>
       <option value="">No bucket</option>{BUCKETS.map(bucket => <option key={bucket}>{bucket}</option>)}</select></td>
@@ -155,9 +155,9 @@ function displayEndpointDate(date) {
   return date ? date.split("-").reverse().join("-") : "—";
 }
 
-function KpiDateCell({ kpi, hours, formatDuration, startLabel, startDate, endLabel, endDate }) {
+function KpiDateCell({ kpi, hours, formatDuration, startLabel, startDate, startTime, endLabel, endDate, endTime }) {
   return <td className="exception-kpi-cell" data-kpi={kpi}>
     <strong>{formatDuration(hours)}</strong>
-    <div className="exception-kpi-dates"><small>{startLabel}: {displayEndpointDate(startDate)}</small><small>{endLabel}: {displayEndpointDate(endDate)}</small></div>
+    <div className="exception-kpi-dates"><small>{startLabel}: {displayEndpointDate(startDate)}<span className="exception-endpoint-time">{startTime ? `${startTime} IST` : "Time: —"}</span></small><small>{endLabel}: {displayEndpointDate(endDate)}<span className="exception-endpoint-time">{endTime ? `${endTime} IST` : "Time: —"}</span></small></div>
   </td>;
 }

@@ -86,3 +86,11 @@ This is a frontend-only follow-up. Backend version 48, existing sheet annotation
 ### Compact columns and KPI endpoint dates
 
 Transaction date/time columns now use content-sized, nonwrapping widths and shorter two-line headers. Each table KPI value shows its start/end dates beneath it: unloading → Putaway for KPI1, GRN → Putaway for KPI2, unloading → GRN for KPI3. Dates are derived from the existing timestamps in IST, with the existing date-only values as fallback; missing dates display a dash. No timestamps or KPI calculations are changed. Browser regression tests check all three mappings, missing endpoints, compact column widths and the existing save/filter/export flows. This layout-only follow-up retains backend version 48 and has frontend rollback reference `44c8872`.
+
+### IST endpoint times and pinnable navigation — 17 October 2026
+
+Each KPI endpoint now shows its date and `HH:mm:ss IST` time beneath the duration. Times come from existing timezone-bearing source timestamps, formatted in Asia/Kolkata by the same export formatter. Date-only fallbacks display `Time: —` rather than inventing midnight.
+
+The desktop menu button can hide/show the sidebar. Unpin navigation collapses it and removes the desktop main-area margin, recovering 248px for transaction viewing. In unpinned mode it opens as an overlay and closes on page selection, outside click or Escape. Pin navigation keeps it docked; the pinned preference is stored locally in this browser and survives reloads. On mobile it remains an off-canvas menu and closes after navigation regardless of the desktop preference. Hidden navigation is inert, menu controls expose expanded state, and closing an overlay returns focus to the menu button. No new animations or dependencies were added; tall menus can scroll.
+
+Browser checks cover all endpoint time mappings, missing times, full-width recovery, Escape, preference reload, re-pinning and mobile auto-hide, plus the existing exception and Monthly MIS workflows. The production build and lint checks pass. This is frontend-only; backend version 48, annotations, filters and KPI calculations are unchanged. Rollback reference: frontend commit `bfeed63`.

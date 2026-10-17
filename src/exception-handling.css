@@ -28,6 +28,7 @@
 .exception-kpi-cell { white-space: nowrap; }
 .exception-kpi-dates { margin-top: 7px; color: var(--muted); }
 .exception-transactions .exception-kpi-dates small { font-size: 11px; margin-bottom: 3px; }
+.exception-endpoint-time { display: block; margin: 2px 0 6px; font-variant-numeric: tabular-nums; }
 .exception-transactions tbody th { max-width: 230px; overflow-wrap: anywhere; font-weight: 400; }
 .exception-transactions tbody th span, .exception-transactions tbody th strong, .exception-transactions small { display: block; margin-bottom: 6px; }
 .exception-transactions select, .exception-transactions textarea { width: 190px; max-width: 100%; padding: 9px; border: 1px solid #d9e1ef; border-radius: 6px; font: inherit; background: white; color: #172033; }

@@ -76,12 +76,30 @@ try {
   const row = page.getByRole("row").filter({ has: page.getByRole("rowheader").filter({ hasText: "G1" }) });
   const bucket = row.getByRole("combobox"), remarks = row.getByRole("textbox");
   const save = row.getByRole("button", { name: "Save", exact: true });
-  assert.match(await row.locator('[data-kpi="1"]').innerText(), /Unloading: 01-10-2026\s+Putaway: 02-10-2026/);
-  assert.match(await row.locator('[data-kpi="2"]').innerText(), /GRN: 01-10-2026\s+Putaway: 02-10-2026/);
-  assert.match(await row.locator('[data-kpi="3"]').innerText(), /Unloading: 01-10-2026\s+GRN: 01-10-2026/);
-  assert.match(await page.locator('.exception-transactions tbody tr').filter({ hasText: "G6" }).locator('[data-kpi="2"]').innerText(), /GRN: —\s+Putaway: —/);
+  assert.match(await row.locator('[data-kpi="1"]').innerText(), /Unloading: 01-10-2026\s*11:16:00 IST\s+Putaway: 02-10-2026\s*07:16:00 IST/);
+  assert.match(await row.locator('[data-kpi="2"]').innerText(), /GRN: 01-10-2026\s*12:00:00 IST\s+Putaway: 02-10-2026\s*07:16:00 IST/);
+  assert.match(await row.locator('[data-kpi="3"]').innerText(), /Unloading: 01-10-2026\s*11:16:00 IST\s+GRN: 01-10-2026\s*12:00:00 IST/);
+  assert.match(await page.locator('.exception-transactions tbody tr').filter({ hasText: "G6" }).locator('[data-kpi="2"]').innerText(), /GRN: —\s*Time: —\s+Putaway: —\s*Time: —/);
   const widths = await row.locator(".exception-compact-column").evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().width));
   assert.ok(widths[0] < 150 && widths[1] < 100, `Date/time columns should fit text: ${widths}`);
+  const pinnedWidth = await page.locator(".main-area").evaluate(element => element.getBoundingClientRect().width);
+  await page.getByRole("button", { name: "Unpin navigation", exact: true }).click();
+  await page.getByRole("button", { name: "Open navigation", exact: true }).waitFor();
+  const expandedWidth = await page.locator(".main-area").evaluate(element => element.getBoundingClientRect().width);
+  assert.ok(expandedWidth - pinnedWidth >= 240);
+  assert.equal(await page.locator(".sidebar").isVisible(), false);
+  await page.getByRole("button", { name: "Open navigation", exact: true }).click();
+  await page.getByRole("button", { name: "Pin navigation", exact: true }).press("Escape");
+  assert.equal(await page.locator(".sidebar").isVisible(), false);
+  // Unpinned preference survives a reload, and selecting a page auto-hides it.
+  await page.reload();
+  await page.getByRole("button", { name: "Open navigation", exact: true }).click();
+  await page.getByRole("button", { name: "Exception Handling", exact: true }).click();
+  assert.equal(await page.locator(".sidebar").isVisible(), false);
+  await page.getByRole("button", { name: "Open navigation", exact: true }).click();
+  await page.getByRole("button", { name: "Pin navigation", exact: true }).click();
+  assert.equal(await page.locator(".sidebar").isVisible(), true);
+  assert.equal(await page.getByRole("button", { name: "Unpin navigation", exact: true }).getAttribute("aria-pressed"), "true");
   assert.equal(await save.isDisabled(), true);
   await bucket.selectOption("Manpower issue");
   assert.match(await adjusted.innerText(), /13h 20m/); // Draft is not counted.
@@ -164,6 +182,9 @@ try {
   await page.getByLabel("From", { exact: true }).fill("2026-09-01");
   await page.screenshot({ path: "work/exception-handling-desktop.png", fullPage: true, animations: "disabled" });
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Open navigation", exact: true }).click();
+  await page.getByRole("button", { name: "Exception Handling", exact: true }).click();
+  assert.equal(await page.locator(".sidebar").isVisible(), false);
   await page.waitForFunction(() => document.querySelector(".sidebar").getBoundingClientRect().right <= 0);
   await page.screenshot({ path: "work/exception-handling-mobile.png", fullPage: true, animations: "disabled" });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);

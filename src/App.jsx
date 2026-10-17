@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Pin,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -145,6 +146,26 @@ function DashboardApp({ authUser, onSignOut }) {
   const [error, setError] = useState("");
   const [page, setPage] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarPinned, setSidebarPinned] = useState(() => {
+    try { return localStorage.getItem("inwardTatNavPinned") !== "false"; } catch { return true; }
+  });
+  const [desktopNavigation, setDesktopNavigation] = useState(() => window.matchMedia("(min-width: 921px)").matches);
+  const menuRef = useRef(null);
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 921px)");
+    const update = () => { setDesktopNavigation(media.matches); setSidebarOpen(false); };
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("inwardTatNavPinned", String(sidebarPinned)); } catch { /* Preferences are optional. */ }
+  }, [sidebarPinned]);
+  const navigationVisible = sidebarOpen || (desktopNavigation && sidebarPinned);
+  const closeOverlay = () => { setSidebarOpen(false); menuRef.current?.focus(); };
+  const toggleNavigation = () => {
+    if (navigationVisible) { setSidebarOpen(false); if (desktopNavigation) setSidebarPinned(false); }
+    else setSidebarOpen(true);
+  };
   const [facility, setFacility] = useState("All facilities");
   const [status, setStatus] = useState("All status");
   const [query, setQuery] = useState("");
@@ -352,23 +373,29 @@ function DashboardApp({ authUser, onSignOut }) {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${sidebarPinned ? "nav-pinned" : "nav-unpinned"}`} onKeyDown={event => { if (event.key === "Escape" && sidebarOpen) closeOverlay(); }}>
       {loadingMonth && <MonthLoadingDialog month={loadingMonth} />}
       {sidebarOpen && (
-        <button className="mobile-scrim" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} />
+        <button className="mobile-scrim" aria-label="Close navigation" onClick={closeOverlay} />
       )}
       <Sidebar
         page={page}
         setPage={(nextPage) => {
           setPage(nextPage);
           setSidebarOpen(false);
+          if (!sidebarPinned || !desktopNavigation) menuRef.current?.focus();
         }}
         open={sidebarOpen}
+        visible={navigationVisible}
+        pinned={sidebarPinned}
+        togglePinned={() => { setSidebarPinned(value => !value); setSidebarOpen(false); menuRef.current?.focus(); }}
       />
       <main className="main-area">
         <TopBar
           page={page}
-          openMenu={() => setSidebarOpen(true)}
+          openMenu={toggleNavigation}
+          menuRef={menuRef}
+          navigationVisible={navigationVisible}
           exportCsv={exportCsv}
           refresh={() => hydrate(true, selectedMonth)}
           refreshing={refreshing}
@@ -454,7 +481,7 @@ function DashboardApp({ authUser, onSignOut }) {
   );
 }
 
-function Sidebar({ page, setPage, open }) {
+function Sidebar({ page, setPage, open, visible, pinned, togglePinned }) {
   const items = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "monthly", label: "Monthly MIS", icon: CalendarRange },
@@ -465,7 +492,7 @@ function Sidebar({ page, setPage, open }) {
     { id: "logic", label: "Calculation Logic", icon: BookOpen },
   ];
   return (
-    <aside className={`sidebar ${open ? "open" : ""}`}>
+    <aside id="main-navigation" className={`sidebar ${open ? "open" : ""}`} inert={!visible}>
       <div className="brand-block">
         <div className="brand-mark">IT</div>
         <div>
@@ -473,7 +500,8 @@ function Sidebar({ page, setPage, open }) {
           <span>Mosaic Wellness</span>
         </div>
       </div>
-      <nav>
+      <button type="button" className="sidebar-pin-button" aria-pressed={pinned} onClick={togglePinned}><Pin size={16} />{pinned ? "Unpin navigation" : "Pin navigation"}</button>
+      <nav aria-label="Main navigation">
         <p>Workspace</p>
         {items.map((item) => (
           <button key={item.id} className={page === item.id ? "active" : ""} onClick={() => setPage(item.id)}>
@@ -494,7 +522,7 @@ function Sidebar({ page, setPage, open }) {
   );
 }
 
-function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, source, authUser, onSignOut }) {
+function TopBar({ page, openMenu, menuRef, navigationVisible, exportCsv, refresh, refreshing, lastRefresh, source, authUser, onSignOut }) {
   const pageTitle =
     page === "exceptions" ? "Exception Handling" : page === "monthly" ? "Monthly MIS" : page === "delay" ? "Putaway Delay Analysis" : page === "dashboard"
       ? "Vehicle Arrival to Putaway TAT"
@@ -514,7 +542,7 @@ function TopBar({ page, openMenu, exportCsv, refresh, refreshing, lastRefresh, s
   return (
     <header className="topbar">
       <div className="topbar-title">
-        <button className="menu-button" onClick={openMenu} aria-label="Open navigation">
+        <button ref={menuRef} className="menu-button" onClick={openMenu} aria-label={navigationVisible ? "Hide navigation" : "Open navigation"} aria-expanded={navigationVisible} aria-controls="main-navigation">
           <Menu size={21} />
         </button>
         <div>
