@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "vite";
 import { fallbackSnapshot } from "../src/data.js";
+import { EXCEPTION_BUCKETS } from "../src/exception-bulk.mjs";
 const { chromium } = await import("file:///C:/Users/Mosaic/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs");
 process.env.VITE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/exception-local-test/exec";
 const server = await createServer({ configFile: false, server: { host: "127.0.0.1", port: 5189, strictPort: true } });
@@ -40,6 +41,21 @@ try {
         row.exceptionBucket = parameters.get("exceptionBucket").trim();
         row.exceptionRemarks = parameters.get("exceptionRemarks").trim();
         response = { ok: true, recordKey: row.recordKey, exceptionFlag: row.exceptionBucket || row.exceptionRemarks ? "Y" : "N", exceptionBucket: row.exceptionBucket, exceptionRemarks: row.exceptionRemarks };
+      }
+    } else if (action === "exceptionbulkpreview" || action === "exceptionbulkapply") {
+      const uploaded = JSON.parse(parameters.get("rows"));
+      const invalid = uploaded.find(row => row.exceptionBucket && !EXCEPTION_BUCKETS.includes(row.exceptionBucket));
+      if (invalid) response = { ok: true, valid: false, totalRows: uploaded.length, errors: [{ row: 2, recordKey: invalid.recordKey, error: "Invalid bucket" }], appliedRows: 0 };
+      else {
+        const updates = uploaded.map(row => {
+          const saved = fixtures.find(fact => fact.recordKey === row.recordKey);
+          const result = { ...row, expectedBucket: saved.exceptionBucket, expectedRemarks: saved.exceptionRemarks,
+            exceptionFlag: row.exceptionBucket || row.exceptionRemarks ? "Y" : "N" };
+          if (action === "exceptionbulkapply") { saved.exceptionBucket = row.exceptionBucket; saved.exceptionRemarks = row.exceptionRemarks; }
+          return result;
+        });
+        response = { ok: true, valid: true, totalRows: uploaded.length, changedRows: uploaded.length,
+          appliedRows: action === "exceptionbulkapply" ? uploaded.length : 0, updates };
       }
     } else {
       const month = parameters.get("month") || "2026-10";
@@ -189,9 +205,29 @@ try {
   await page.screenshot({ path: "work/exception-handling-mobile.png", fullPage: true, animations: "disabled" });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.setViewportSize({ width: 1440, height: 1000 });
+  const bulk = page.getByRole("region", { name: "Bulk exception upload" });
+  const templateDownload = page.waitForEvent("download");
+  await bulk.getByRole("button", { name: "Download bulk template", exact: true }).click();
+  assert.ok((await templateDownload).suggestedFilename().includes("exception-template-2026-09"));
+  const bulkFile = page.getByLabel("Bulk exception CSV", { exact: true });
+  const bulkCsv = bucket => Buffer.from(`Record Key,Exception Bucket,Remarks\nSL Ambient|G2|S1,${bucket},Invoice match\n`);
+  await bulkFile.setInputFiles({ name: "invalid.csv", mimeType: "text/csv", buffer: bulkCsv("Not a bucket") });
+  await bulk.getByRole("button", { name: "Validate bulk CSV", exact: true }).click();
+  await bulk.getByText("Invalid bucket", { exact: false }).waitFor();
+  assert.equal(calls.filter(call => call.action === "exceptionbulkapply").length, 0);
+  await bulkFile.setInputFiles({ name: "valid.csv", mimeType: "text/csv", buffer: bulkCsv("Invoice issue") });
+  await bulk.getByRole("button", { name: "Validate bulk CSV", exact: true }).click();
+  await bulk.getByText("1 valid rows", { exact: false }).waitFor();
+  assert.equal(await bulk.getByRole("button", { name: "Apply bulk changes", exact: true }).isDisabled(), true);
+  await bulk.getByRole("checkbox").check();
+  await bulk.getByRole("button", { name: "Apply bulk changes", exact: true }).click();
+  await bulk.getByText("Bulk update complete: 1 changed", { exact: false }).waitFor();
+  assert.equal(fixtures.find(row => row.grnNumber === "G2").exceptionBucket, "Invoice issue");
+  assert.equal(await page.getByRole("row").filter({ has: page.getByRole("rowheader").filter({ hasText: "G2" }) }).getByRole("combobox").inputValue(), "Invoice issue");
   canManage = false;
   await page.getByRole("button", { name: "Refresh data", exact: true }).click();
   await page.getByText("Read-only access.", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("region", { name: "Bulk exception upload" }).count(), 0);
   assert.equal(await page.locator(".exception-transactions tbody select:enabled").count(), 0);
   assert.equal(await page.locator(".exception-transactions textarea:enabled").count(), 0);
   const saved = fixtures[0];

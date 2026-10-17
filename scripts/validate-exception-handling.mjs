@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
+import { EXCEPTION_BUCKETS } from "../src/exception-bulk.mjs";
 
 let locked = false, releases = 0, writes = 0, failNextWrite = false;
 const removed = [];
@@ -11,11 +12,12 @@ const context = vm.createContext({ Date, Map, Set, Array, String, Number, Boolea
     releaseLock() { locked = false; releases++; } }) },
   CacheService: { getScriptCache: () => ({ remove: key => removed.push(key) }) },
 });
-for (const name of ["Code.gs", "Pipeline.gs", "Api.gs", "ExceptionHandling.gs"]) {
+for (const name of ["Code.gs", "Pipeline.gs", "Api.gs", "ExceptionHandling.gs", "ExceptionBulk.gs"]) {
   new vm.Script(fs.readFileSync(new URL(`../apps-script/${name}`, import.meta.url), "utf8"), { filename: name }).runInContext(context);
 }
 const definition = vm.runInContext("SHEET_DEFINITIONS.find(entry => entry.name === INWARD_TAT.SHEETS.FACT)", context);
 const headers = Array.from(definition.headers);
+assert.deepEqual(Array.from(vm.runInContext("TAT_EXCEPTION_BUCKETS", context)), Array.from(EXCEPTION_BUCKETS));
 assert.equal(headers.length, 29);
 assert.deepEqual(headers.slice(26), ["Exception (Y/N)", "Exception Bucket", "Remarks"]);
 
@@ -132,4 +134,38 @@ assert.equal(context.doPost({ parameter: { action: "saveexception", ...request()
 context.verifyGoogleCredential_ = () => ({ ok: false, error: "expired" });
 assert.equal(context.doPost({ parameter: { action: "saveexception", ...request() } }).error, "expired");
 
-console.log("Exception backend validated: three-column schema, threshold, permissions, POST/auth, edits/clearing, physical rows, conflict checks, rebuild retention, recovery guard, formula safety and write-error restoration.");
+// Bulk validation checks every input before writing, and rechecks stale values.
+reset([makeFact().concat(["N", "", ""]), makeFact("OWN|G2|S1").concat(["N", "", ""])]);
+const bulkInput = [{ recordKey: "OWN|G1|S1", exceptionBucket: "WH delay", exceptionRemarks: "Delay" },
+  { recordKey: "OWN|G2|S1", exceptionBucket: "Invoice issue", exceptionRemarks: "=SUM(1)" }];
+const bulk = (rows, apply = false, month = "2026-10") => context.bulkTatExceptions_({ rows: JSON.stringify(rows), month }, user, apply);
+assert.throws(() => context.bulkTatExceptions_({ rows: "[]", month: "2026-10" }, { email: "viewer" }, false), /not authorised/);
+assert.throws(() => bulk([]), /1,000/);
+assert.throws(() => bulk(Array(1001).fill(bulkInput[0])), /1,000/);
+assert.equal(bulk([{ ...bulkInput[0], exceptionBucket: "Invalid" }]).valid, false);
+assert.equal(bulk([bulkInput[0], bulkInput[0]]).valid, false);
+assert.equal(bulk([{ ...bulkInput[0], recordKey: "missing" }]).valid, false);
+assert.equal(bulk(bulkInput, false, "2026-09").valid, false);
+assert.equal(bulk(bulkInput, true).valid, false); // No preview baseline.
+assert.equal(writes, 0);
+const bulkPreview = bulk(bulkInput);
+assert.equal(bulkPreview.valid, true);
+assert.equal(writes, 0);
+const preserved = cells.slice(1).map(row => row.slice(0, 26));
+assert.equal(bulk(bulkPreview.updates, true).appliedRows, 2);
+assert.deepEqual(cells.slice(1).map(row => row.slice(0, 26)), preserved);
+assert.deepEqual(cells[2].slice(26), ["Y", "Invoice issue", "=SUM(1)"]);
+assert.equal(bulk(bulkPreview.updates, true).appliedRows, 0); // Retry is idempotent.
+const clearPreview = bulk(bulkInput.map(row => ({ ...row, exceptionBucket: "", exceptionRemarks: "" })));
+cells[2][28] = "Changed by another editor";
+const beforeConflict = cells.map(row => row.slice());
+assert.equal(bulk(clearPreview.updates, true).valid, false);
+assert.deepEqual(cells, beforeConflict); // First valid row must not be partially applied.
+const clearLatest = bulk(bulkInput.map(row => ({ ...row, exceptionBucket: "", exceptionRemarks: "" })));
+assert.equal(bulk(clearLatest.updates, true).appliedRows, 2);
+assert.deepEqual(cells[1].slice(26), ["N", "", ""]);
+context.verifyGoogleCredential_ = () => ({ ok: true, user });
+assert.match(context.doGet({ parameter: { action: "exceptionbulkapply" } }).error, /POST/);
+assert.equal(context.doPost({ parameter: { action: "exceptionbulkpreview", rows: JSON.stringify(bulkInput), month: "2026-10" } }).valid, true);
+assert.equal(locked, false);
+console.log("Exception backend validated: single/bulk saves, ten buckets, authorisation, all-row validation, stale previews, retry safety, clearing, unchanged KPIs, retention and formula protection.");

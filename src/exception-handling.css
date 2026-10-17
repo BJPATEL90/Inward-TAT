@@ -1,4 +1,15 @@
 .exception-page { min-width: 0; }
+.exception-bulk { padding: 18px; margin: 16px 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.exception-bulk h3 { margin-top: 0; }
+.exception-bulk p { font-size: 13px; line-height: 1.6; }
+.exception-bulk-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 14px; margin: 14px 0; }
+.exception-bulk label { display: block; font-size: 13px; margin: 10px 0; }
+.exception-bulk input[type="file"] { display: block; max-width: 100%; margin-top: 6px; }
+.exception-bulk button { padding: 9px 12px; color: var(--blue); background: white; border: 1px solid var(--line); border-radius: 6px; }
+.exception-bulk button:disabled { opacity: .5; cursor: default; }
+.exception-bulk [role="alert"] { color: var(--red); }
+.exception-bulk table { border-collapse: collapse; width: 100%; min-width: 650px; font-size: 13px; }
+.exception-bulk th, .exception-bulk td { padding: 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; }
 .exception-page h2, .exception-page h3 { text-wrap: balance; }
 .exception-page p { text-wrap: pretty; }
 .exception-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }

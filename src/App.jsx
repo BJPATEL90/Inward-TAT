@@ -437,6 +437,11 @@ function DashboardApp({ authUser, onSignOut }) {
             onMonthChange={changePerformanceMonth} formatMonth={formatMonthLabel}
             cardComponent={PeriodCard} summarize={summarizeFacts} formatDuration={formatDuration}
             canManage={Boolean(snapshot?.permissions?.canManageExceptions)}
+            onBulkSaved={updates => setSnapshot(current => {
+              const changes = new Map(updates.map(row => [row.recordKey, row]));
+              return { ...current, facts: current.facts.map(row => changes.has(row.recordKey)
+                ? { ...row, ...changes.get(row.recordKey), exceptionBulkRevision: (row.exceptionBulkRevision || 0) + 1 } : row) };
+            })}
             onSaved={result => setSnapshot(current => ({ ...current, facts: current.facts.map(row => row.recordKey === result.recordKey
               ? { ...row, exceptionFlag: result.exceptionFlag, exceptionBucket: result.exceptionBucket, exceptionRemarks: result.exceptionRemarks } : row) }))}
           />

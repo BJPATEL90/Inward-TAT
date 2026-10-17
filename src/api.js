@@ -83,6 +83,14 @@ export async function saveException(payload) {
   return data;
 }
 
+export async function processExceptionBulk(month, rows, apply = false) {
+  if (!API_URL || new URL(API_URL, window.location.origin).hostname !== "script.google.com") throw new Error("Bulk exceptions require the live Apps Script connection.");
+  const data = await postToAppsScript({ action: apply ? "exceptionbulkapply" : "exceptionbulkpreview", month,
+    rows: JSON.stringify(rows), credential: getStoredSession()?.credential || "" });
+  if (!data.ok) throw new Error(data.error || "Bulk exception request failed.");
+  return data;
+}
+
 async function requestMonthly(action, month, source, extra = {}) {
   if (!API_URL || new URL(API_URL, window.location.origin).hostname !== "script.google.com") {
     throw new Error("Monthly reporting requires the live Apps Script connection.");

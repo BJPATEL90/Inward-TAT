@@ -2,12 +2,14 @@ import React, { useState } from "react";
 import { saveException } from "./api";
 import { buildExceptionCsv, exceptionCsvFilename, isValidBusinessException as validException, splitIstTimestamp } from "./exception-csv.mjs";
 import "./exception-handling.css";
+import BulkExceptions from "./BulkExceptions";
+import { EXCEPTION_BUCKETS } from "./exception-bulk.mjs";
 
-const BUCKETS = ["RT availability", "Manpower issue", "PO unavailable for GRN", "MRP issue", "Batch issue", "Short receipt", "Excess receipt", "Other"];
+const BUCKETS = EXCEPTION_BUCKETS;
 
 export default function ExceptionHandling({ rows, labels, fromDate, toDate, setFromDate, setToDate,
   facility, setFacility, facilities, status, setStatus, query, setQuery, selectedMonth, availableMonths,
-  onMonthChange, formatMonth, cardComponent, summarize, formatDuration, canManage, onSaved }) {
+  onMonthChange, formatMonth, cardComponent, summarize, formatDuration, canManage, onSaved, onBulkSaved }) {
   const Card = cardComponent;
   const [notice, setNotice] = useState("");
   const [page, setPage] = useState(1);
@@ -74,6 +76,7 @@ export default function ExceptionHandling({ rows, labels, fromDate, toDate, setF
       {!canManage && <p role="status">Read-only access. Exception edits require existing pending-task management permission.</p>}
       {notice && <p role="status">{notice}</p>}
     </section>
+    {canManage && <BulkExceptions month={selectedMonth} templateRows={tableDelayed.filter(row => !validException(row))} onApplied={onBulkSaved} />}
     <section className="exception-transactions" aria-label="Delayed transactions">
       <div className="exception-table-heading"><h3>Transactions with KPI1 &gt; 12 hours</h3><span>{tableDelayed.length} matching transactions</span></div>
       <div className="exception-export">
@@ -91,7 +94,7 @@ export default function ExceptionHandling({ rows, labels, fromDate, toDate, setF
       </div>
       <div className="exception-table-scroll" tabIndex={0} role="region" aria-label="Scrollable exception transaction table">
         <table><thead><tr><th className="exception-compact-column" scope="col">Transaction date<small>Unloading</small></th><th className="exception-compact-column" scope="col">Time<small>IST</small></th><th scope="col">Facility / GRN / SKU</th><th scope="col">Status</th><th scope="col">KPI1</th><th scope="col">KPI2</th><th scope="col">KPI3</th><th scope="col">Exception (Y/N)</th><th scope="col">Exception Bucket</th><th scope="col">Remarks</th><th scope="col">Action</th></tr></thead>
-          <tbody>{visible.map(row => <ExceptionRow key={row.recordKey} row={row} canManage={canManage} formatDuration={formatDuration}
+          <tbody>{visible.map(row => <ExceptionRow key={`${row.recordKey}|${row.exceptionBulkRevision || 0}`} row={row} canManage={canManage} formatDuration={formatDuration}
             onSaved={result => { onSaved(result); setNotice(`Saved ${row.facility} / ${row.grnNumber} / ${row.sku}. ${result.exceptionFlag === "Y" ? "Exception = Y: excluded from the adjusted KPI dataset; including-exceptions KPIs are unchanged." : "Exception = N: included in the adjusted dataset under the existing eligibility rules."}`); }} />)}
             {!visible.length && <tr><td colSpan={11}>No transactions with KPI1 greater than 12 hours match these filters. Change the date or facility filter to review another group.</td></tr>}
           </tbody></table>

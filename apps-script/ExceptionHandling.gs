@@ -1,7 +1,7 @@
 /** Manual business exceptions. Existing KPI formulas and quality codes are untouched. */
 const TAT_EXCEPTION_BUCKETS = Object.freeze([
   "RT availability", "Manpower issue", "PO unavailable for GRN", "MRP issue",
-  "Batch issue", "Short receipt", "Excess receipt", "Other",
+  "Batch issue", "Short receipt", "Excess receipt", "Other", "WH delay", "Invoice issue",
 ]);
 
 function tatExceptionFlag_(kpi1, bucket, remarks) {

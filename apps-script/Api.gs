@@ -44,7 +44,7 @@ function handleApiRequest_(event) {
       );
       return apiResponse_(auth, event);
     }
-    if (["dashboard", "manualtaskaction", "saveexception", "putawayanalysis", "monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport", "monthlyinbox", "monthlyemailimport"].indexOf(action) === -1) {
+    if (["dashboard", "manualtaskaction", "saveexception", "exceptionbulkpreview", "exceptionbulkapply", "putawayanalysis", "monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport", "monthlyinbox", "monthlyemailimport"].indexOf(action) === -1) {
       return jsonResponse_({ ok: false, error: "Unsupported action: " + action });
     }
 
@@ -53,6 +53,10 @@ function handleApiRequest_(event) {
     );
     if (!auth.ok) {
       return apiResponse_(auth, event);
+    }
+    if (action === "exceptionbulkpreview" || action === "exceptionbulkapply") {
+      if (!event.monthlyPost) throw new Error("Bulk exception updates require POST.");
+      return apiResponse_(bulkTatExceptions_(event.parameter, auth.user, action === "exceptionbulkapply"), event);
     }
     if (action === "saveexception") {
       if (!event.monthlyPost) throw new Error("Exception saves require POST.");
