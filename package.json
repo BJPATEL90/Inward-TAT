@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "test:hybrid": "node scripts/validate-hybrid-matching.mjs",
-    "test:apps-script": "node scripts/validate-apps-script-syntax.mjs"
+    "test:apps-script": "node scripts/validate-apps-script-syntax.mjs",
+    "test:reminders": "node scripts/validate-reminder-engine.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

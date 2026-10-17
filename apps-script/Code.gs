@@ -35,6 +35,10 @@ const INWARD_TAT = Object.freeze({
     EXECUTION_LOG: "Execution_Log",
     EMAIL_LOG: "Email_Log",
     MANUAL_TASKS: "Manual_Task_Actions",
+    REMINDER_CONFIG: "Reminder_Config",
+    REMINDER_STATE: "Reminder_State",
+    REMINDER_PENDING: "Pending_Reminders",
+    REMINDER_LOG: "Reminder_Log",
   }),
 });
 
@@ -187,6 +191,49 @@ const SHEET_DEFINITIONS = Object.freeze([
     ],
     widths: [240, 420, 150, 130, 220, 140, 190, 210, 220, 360, 300, 240, 170],
   },
+  {
+    name: INWARD_TAT.SHEETS.REMINDER_CONFIG,
+    tabColor: INWARD_TAT.COLORS.BLUE,
+    headers: [
+      "Facility Scope", "Primary Recipient(s)", "Stakeholder CC", "Active",
+      "Description", "Updated At",
+    ],
+    widths: [170, 330, 430, 100, 420, 170],
+  },
+  {
+    name: INWARD_TAT.SHEETS.REMINDER_STATE,
+    tabColor: INWARD_TAT.COLORS.AMBER,
+    headers: [
+      "Reminder Key", "Source Spreadsheet Id", "Source Sheet", "Source Row",
+      "Facility", "Reporting Timestamp", "Unloading Timestamp", "GRN ID",
+      "GRN Observed At", "Putaway ID", "Putaway Observed At", "Current Stage",
+      "Stage Entered At", "First Seen At", "Last Seen At", "Closed At",
+      "Last Reminder Slot", "Last Reminder At", "Vendor", "Invoice Number",
+      "Invoice Date", "SKU", "SKU Name", "Vehicle Number", "Source Present",
+    ],
+    widths: [390, 260, 150, 100, 150, 175, 175, 140, 175, 140, 175, 170, 175, 175, 175, 175, 170, 175, 220, 160, 130, 190, 280, 160, 120],
+  },
+  {
+    name: INWARD_TAT.SHEETS.REMINDER_PENDING,
+    tabColor: INWARD_TAT.COLORS.RED,
+    headers: [
+      "Reminder Key", "Stage", "Facility", "Vehicle Number", "Reporting Timestamp",
+      "Unloading Timestamp", "GRN ID", "GRN Observed At", "Putaway ID", "Due At",
+      "Ageing Hours", "Email Eligible", "Vendor", "Invoice Number", "Invoice Date",
+      "SKU", "SKU Name", "Source Sheet", "Source Row", "Last Checked At",
+    ],
+    widths: [390, 180, 150, 160, 175, 175, 140, 175, 140, 175, 120, 120, 220, 160, 130, 190, 280, 150, 100, 175],
+  },
+  {
+    name: INWARD_TAT.SHEETS.REMINDER_LOG,
+    tabColor: INWARD_TAT.COLORS.AMBER,
+    headers: [
+      "Reminder Run Id", "Generated At", "Schedule Slot", "Part", "Parts",
+      "To Recipients", "CC Recipients", "Waiting Unloading", "Waiting GRN",
+      "Waiting Putaway", "Records Included", "Status", "Error Detail",
+    ],
+    widths: [250, 175, 170, 80, 80, 330, 430, 140, 120, 140, 130, 140, 500],
+  },
 ]);
 
 const CONFIG_DEFAULTS = Object.freeze([
@@ -254,6 +301,12 @@ const CONFIG_DEFAULTS = Object.freeze([
   ["LAST_FALLBACK_AT", "", "DATETIME", "Timestamp of the latest fallback freshness check."],
   ["LAST_FALLBACK_DETAIL", "", "TEXT", "Expected and available dashboard coverage recorded by the fallback check."],
   ["LAST_SUCCESSFUL_REFRESH", "", "DATETIME", "Updated only after a complete successful pipeline run."],
+  ["REMINDER_ENABLED", "TRUE", "TEXT", "Enables the pending inward reminder engine."],
+  ["REMINDER_CHECK_MINUTES", 30, "NUMBER", "Frequency of the backend source check."],
+  ["REMINDER_SCHEDULE_HOURS", "3|7|10|13|15|17|19|23", "TEXT", "Asia/Kolkata hours when pending reminder emails may be sent."],
+  ["REMINDER_GRN_SLA_HOURS", 2, "NUMBER", "Allowed time from unloading until a GRN ID is required."],
+  ["REMINDER_PUTAWAY_SLA_HOURS", 10, "NUMBER", "Allowed time from first observed GRN ID until a Putaway ID is required."],
+  ["REMINDER_EMAIL_MAX_ROWS", 100, "NUMBER", "Maximum records in one reminder email part; larger reminders are split without dropping records."],
 ]);
 
 function onOpen() {
@@ -268,6 +321,11 @@ function onOpen() {
     .addItem("Configure daily email", "configureInwardTatEmail")
     .addItem("Activate daily email + send test", "activateInwardTatEmail")
     .addItem("Send email now", "sendDailyInwardTatEmail")
+    .addSeparator()
+    .addItem("Set up pending reminders", "setupPendingReminderEngine")
+    .addItem("Install 30-minute reminder trigger", "installPendingReminderTrigger")
+    .addItem("Run reminder check now", "runPendingReminderEngine")
+    .addItem("Send pending reminder now", "sendPendingReminderEmailNow")
     .addToUi();
 }
 
@@ -524,6 +582,28 @@ function applyDataFormats_(spreadsheet) {
   const importLog = spreadsheet.getSheetByName(INWARD_TAT.SHEETS.IMPORT_LOG);
   importLog.getRange("B:C").setNumberFormat("yyyy-mm-dd hh:mm:ss");
   importLog.getRange("H:J").setNumberFormat("#,##0");
+
+  const reminderConfig = spreadsheet.getSheetByName(INWARD_TAT.SHEETS.REMINDER_CONFIG);
+  reminderConfig.getRange("F:F").setNumberFormat("yyyy-mm-dd hh:mm:ss");
+
+  const reminderState = spreadsheet.getSheetByName(INWARD_TAT.SHEETS.REMINDER_STATE);
+  reminderState.getRange("F:G").setNumberFormat("yyyy-mm-dd hh:mm:ss");
+  reminderState.getRange("I:I").setNumberFormat("yyyy-mm-dd hh:mm:ss");
+  reminderState.getRange("K:K").setNumberFormat("yyyy-mm-dd hh:mm:ss");
+  reminderState.getRange("M:P").setNumberFormat("yyyy-mm-dd hh:mm:ss");
+  reminderState.getRange("R:R").setNumberFormat("yyyy-mm-dd hh:mm:ss");
+  reminderState.getRange("U:U").setNumberFormat("yyyy-mm-dd");
+
+  const reminderPending = spreadsheet.getSheetByName(INWARD_TAT.SHEETS.REMINDER_PENDING);
+  reminderPending.getRange("E:F").setNumberFormat("yyyy-mm-dd hh:mm:ss");
+  reminderPending.getRange("H:H").setNumberFormat("yyyy-mm-dd hh:mm:ss");
+  reminderPending.getRange("J:J").setNumberFormat("yyyy-mm-dd hh:mm:ss");
+  reminderPending.getRange("K:K").setNumberFormat("0.00");
+  reminderPending.getRange("O:O").setNumberFormat("yyyy-mm-dd");
+  reminderPending.getRange("T:T").setNumberFormat("yyyy-mm-dd hh:mm:ss");
+
+  const reminderLog = spreadsheet.getSheetByName(INWARD_TAT.SHEETS.REMINDER_LOG);
+  reminderLog.getRange("B:B").setNumberFormat("yyyy-mm-dd hh:mm:ss");
 }
 
 function createNamedRanges_(spreadsheet) {
