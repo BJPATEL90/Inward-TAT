@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { buildExceptionCsv, EXCEPTION_CSV_HEADERS, exceptionCsvFilename, splitIstTimestamp, isValidBusinessException } from "../src/exception-csv.mjs";
+import { buildExceptionCsv, EXCEPTION_CSV_HEADERS, exceptionCsvFilename, splitIstTimestamp, isValidBusinessException, needsExceptionValidation } from "../src/exception-csv.mjs";
 
 // Independent CSV reader verifies embedded CR/LF, quotes and column alignment.
 function parseCsv(text) {
@@ -25,6 +25,15 @@ const record = { recordKey: "OWN|G1|SKU1", facility: "OWN", grnNumber: "G1", sku
   manualActionReason: "Source corrected", exceptionBucket: "Other", exceptionRemarks: 'Delay, see "note"\r\nગુજરાતી',
 };
 const original = structuredClone(record);
+for (const exceptionBucket of ["WH delay", "WH issue", " WH DELAY "]) {
+  const reviewed = { ...record, exceptionBucket, exceptionFlag: "Y" };
+  assert.equal(isValidBusinessException(reviewed), false);
+  assert.equal(needsExceptionValidation(reviewed), false);
+  assert.equal(parseCsv(buildExceptionCsv([reviewed]).slice(1))[1][28], "N");
+}
+assert.equal(needsExceptionValidation({ kpi1Hours: 13 }), true);
+assert.equal(needsExceptionValidation({ kpi1Hours: 12 }), false);
+assert.equal(needsExceptionValidation(record), false);
 const csv = buildExceptionCsv([record, { ...record, recordKey: "K2", kpi1Hours: 12, exceptionRemarks: "" }]);
 assert.ok(csv.startsWith("\uFEFF"));
 const parsed = parseCsv(csv.slice(1));

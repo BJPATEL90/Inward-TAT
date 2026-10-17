@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "vite";
 import { fallbackSnapshot } from "../src/data.js";
 import { EXCEPTION_BUCKETS } from "../src/exception-bulk.mjs";
+import { isValidBusinessException } from "../src/exception-csv.mjs";
 import ExcelJS from "exceljs";
 const { chromium } = await import("file:///C:/Users/Mosaic/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.mjs");
 process.env.VITE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/exception-local-test/exec";
@@ -41,7 +42,7 @@ try {
         assert.equal(parameters.get("expectedRemarks"), row.exceptionRemarks);
         row.exceptionBucket = parameters.get("exceptionBucket").trim();
         row.exceptionRemarks = parameters.get("exceptionRemarks").trim();
-        response = { ok: true, recordKey: row.recordKey, exceptionFlag: row.exceptionBucket || row.exceptionRemarks ? "Y" : "N", exceptionBucket: row.exceptionBucket, exceptionRemarks: row.exceptionRemarks };
+        response = { ok: true, recordKey: row.recordKey, exceptionFlag: isValidBusinessException(row) ? "Y" : "N", exceptionBucket: row.exceptionBucket, exceptionRemarks: row.exceptionRemarks };
       }
     } else if (action === "exceptionbulkpreview" || action === "exceptionbulkapply") {
       const uploaded = JSON.parse(parameters.get("rows"));
@@ -51,7 +52,7 @@ try {
         const updates = uploaded.map(row => {
           const saved = fixtures.find(fact => fact.recordKey === row.recordKey);
           const result = { ...row, expectedBucket: saved.exceptionBucket, expectedRemarks: saved.exceptionRemarks,
-            exceptionFlag: row.exceptionBucket || row.exceptionRemarks ? "Y" : "N" };
+            exceptionFlag: isValidBusinessException({ ...saved, ...row }) ? "Y" : "N" };
           if (action === "exceptionbulkapply") { saved.exceptionBucket = row.exceptionBucket; saved.exceptionRemarks = row.exceptionRemarks; }
           return result;
         });
@@ -234,6 +235,20 @@ try {
   await bulk.getByText("Bulk update complete: 1 changed", { exact: false }).waitFor();
   assert.equal(fixtures.find(row => row.grnNumber === "G2").exceptionBucket, "Invoice issue");
   assert.equal(await page.getByRole("row").filter({ has: page.getByRole("rowheader").filter({ hasText: "G2" }) }).getByRole("combobox").inputValue(), "Invoice issue");
+  const warehouse = page.getByRole("row").filter({ has: page.getByRole("rowheader").filter({ hasText: "G2" }) });
+  await warehouse.getByRole("combobox").selectOption("WH delay");
+  await warehouse.getByRole("button", { name: "Save", exact: true }).click();
+  await warehouse.getByText("Reviewed · WH delay · included", { exact: true }).waitFor();
+  assert.equal(await adjusted.locator(".primary-duration").innerText(), "20h 00m");
+  assert.equal(await page.getByTestId("pending-validation-count").locator("dd").innerText(), "1");
+  assert.match(await page.getByTestId("issue-chart").innerText(), /WH delay\s+1/);
+  assert.match(await page.getByTestId("no-bucket-count").innerText(), /No bucket: 2/);
+  assert.equal(await page.getByLabel("Available buckets").locator("li").count(), 10);
+  await page.getByLabel("Transaction view", { exact: true }).selectOption("PENDING");
+  assert.equal(await warehouse.count(), 0);
+  assert.equal(await page.locator(".exception-transactions tbody tr").count(), 1);
+  assert.match(await page.locator(".exception-transactions tbody").innerText(), /G6/);
+  await page.getByLabel("Transaction view", { exact: true }).selectOption("INCLUDING");
   canManage = false;
   await page.getByRole("button", { name: "Refresh data", exact: true }).click();
   await page.getByText("Read-only access.", { exact: false }).waitFor();
@@ -249,7 +264,7 @@ try {
   await page.getByRole("button", { name: "Next", exact: true }).click();
   assert.equal(await page.locator(".exception-transactions tbody tr").count(), 8);
   assert.equal(await page.getByTestId("delayed-count").locator("dd").innerText(), "58");
-  assert.equal(await page.getByTestId("validated-count").locator("dd").innerText(), "57");
+  assert.equal(await page.getByTestId("validated-count").locator("dd").innerText(), "56");
   assert.equal(await page.getByTestId("pending-validation-count").locator("dd").innerText(), "1");
   const paginated = await downloadCsv();
   assert.equal(paginated.text.trimEnd().split("\r\n").length - 1, 58);
@@ -259,7 +274,7 @@ try {
   await page.getByRole("button", { name: "Dashboard", exact: true }).click();
   await page.getByRole("button", { name: "Download CSV", exact: true }).waitFor();
   assert.equal(await page.locator(".month-view-toolbar select").inputValue(), "2026-09");
-  assert.equal(calls.filter(call => call.action === "saveexception").length, 5);
+  assert.equal(calls.filter(call => call.action === "saveexception").length, 6);
   assert.deepEqual(errors, []);
   console.log("Exception UI validated: saved-only inclusive/adjusted KPIs, >12 table, buckets/remarks, clearing, failed saves, shared filters/month, read-only access and mobile layout.");
 } finally {

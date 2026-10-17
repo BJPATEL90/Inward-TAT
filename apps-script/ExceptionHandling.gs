@@ -5,6 +5,7 @@ const TAT_EXCEPTION_BUCKETS = Object.freeze([
 ]);
 
 function tatExceptionFlag_(kpi1, bucket, remarks) {
+  if (["wh delay", "wh issue"].indexOf(String(bucket || "").trim().toLowerCase()) !== -1) return "N";
   return typeof kpi1 === "number" && isFinite(kpi1) && kpi1 > 12 &&
     (String(bucket || "").trim() || String(remarks || "").trim()) ? "Y" : "N";
 }

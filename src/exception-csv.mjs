@@ -1,7 +1,16 @@
 /** Saved business-exception rule shared by the cards, table and export. */
 export function isValidBusinessException(row) {
-  return Number.isFinite(row.kpi1Hours) && row.kpi1Hours > 12 &&
+  return !isWarehouseDelay(row) && Number.isFinite(row.kpi1Hours) && row.kpi1Hours > 12 &&
     Boolean(String(row.exceptionBucket || "").trim() || String(row.exceptionRemarks || "").trim());
+}
+
+export function isWarehouseDelay(row) {
+  return ["wh delay", "wh issue"].includes(String(row.exceptionBucket || "").trim().toLowerCase());
+}
+
+export function needsExceptionValidation(row) {
+  return Number.isFinite(row.kpi1Hours) && row.kpi1Hours > 12 &&
+    !String(row.exceptionBucket || "").trim() && !String(row.exceptionRemarks || "").trim();
 }
 
 const istParts = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata",

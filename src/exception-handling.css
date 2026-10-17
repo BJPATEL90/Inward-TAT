@@ -1,8 +1,12 @@
 .exception-page { min-width: 0; }
-.exception-bulk { padding: 18px; margin: 16px 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.exception-bulk { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 18px; padding: 14px; margin: 14px 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.exception-bulk-main { min-width: 0; }
+.exception-bucket-list { border-left: 1px solid var(--line); padding-left: 16px; font-size: 12px; }
+.exception-bucket-list h4 { margin: 0 0 6px; }
+.exception-bucket-list ul { margin: 0; padding-left: 16px; line-height: 1.65; }
 .exception-bulk h3 { margin-top: 0; }
 .exception-bulk p { font-size: 13px; line-height: 1.6; }
-.exception-bulk-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 14px; margin: 14px 0; }
+.exception-bulk-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 .exception-bulk label { display: block; font-size: 13px; margin: 10px 0; }
 .exception-bulk input[type="file"] { display: block; max-width: 100%; margin-top: 6px; }
 .exception-bulk button { padding: 9px 12px; color: var(--blue); background: white; border: 1px solid var(--line); border-radius: 6px; }
@@ -12,10 +16,19 @@
 .exception-bulk th, .exception-bulk td { padding: 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; }
 .exception-page h2, .exception-page h3 { text-wrap: balance; }
 .exception-page p { text-wrap: pretty; }
-.exception-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.exception-card-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.exception-card-grid > div { min-width: 0; }
+.exception-issue-chart { grid-column: span 2; padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.exception-issue-chart h3 { margin: 0; font-size: 15px; }
+.exception-issue-chart p { font-size: 12px; color: var(--muted); margin: 6px 0; }
+.exception-issue-chart ul { list-style: none; padding: 0; margin: 12px 0; }
+.exception-issue-chart li { display: grid; grid-template-columns: 145px minmax(0, 1fr) 30px; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
+.exception-issue-chart li strong { text-align: right; font-variant-numeric: tabular-nums; }
+.exception-bar-track { height: 10px; background: #edf1fb; border-radius: 3px; overflow: hidden; }
+.exception-bar-track > span { display: block; height: 100%; background: var(--blue); }
 .exception-card-grid .period-card { height: auto; }
 .exception-card-grid > div > p { margin: 10px 4px 0; color: var(--muted, #5c6b85); font-size: 13px; }
-.exception-guidance { padding: 14px 18px; border: 1px solid #d9e1ef; border-radius: 12px; background: #fff; }
+.exception-guidance { margin-top: 16px; padding: 14px 18px; border: 1px solid #d9e1ef; border-radius: 12px; background: #fff; }
 .exception-guidance p { margin: 6px 0; line-height: 1.6; font-size: 13px; }
 .exception-validation-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
 .exception-validation-counts > div { padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
@@ -48,7 +61,14 @@
 .exception-transactions button:disabled { opacity: .5; cursor: default; }
 .exception-transactions small[role="alert"] { color: #b42318; max-width: 210px; }
 .exception-page :focus-visible { outline: 2px solid #2443c4; outline-offset: 3px; }
+@media (min-width: 701px) and (max-width: 1100px) {
+  .exception-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 700px) {
+  .exception-bulk { grid-template-columns: minmax(0, 1fr); }
+  .exception-bucket-list { border-left: 0; padding-left: 0; }
+  .exception-issue-chart { grid-column: span 1; }
+  .exception-issue-chart li { grid-template-columns: 120px minmax(0, 1fr) 24px; }
   .exception-card-grid { grid-template-columns: minmax(0, 1fr); }
   .exception-validation-counts { grid-template-columns: minmax(0, 1fr); }
   .exception-filters { grid-template-columns: minmax(0, 1fr); }

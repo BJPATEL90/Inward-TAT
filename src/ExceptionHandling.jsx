@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { saveException } from "./api";
-import { buildExceptionCsv, exceptionCsvFilename, isValidBusinessException as validException, splitIstTimestamp } from "./exception-csv.mjs";
+import { buildExceptionCsv, exceptionCsvFilename, isValidBusinessException as validException, isWarehouseDelay, needsExceptionValidation, splitIstTimestamp } from "./exception-csv.mjs";
 import "./exception-handling.css";
 import BulkExceptions from "./BulkExceptions";
 import { EXCEPTION_BUCKETS } from "./exception-bulk.mjs";
@@ -21,9 +21,9 @@ export default function ExceptionHandling({ rows, labels, fromDate, toDate, setF
   const inclusiveSummary = summarize(rows);
   const adjustedSummary = summarize(adjusted);
   const excluded = rows.length - adjusted.length;
-  const pendingValidation = delayed.filter(row => !validException(row)).length;
+  const pendingValidation = delayed.filter(needsExceptionValidation).length;
   const excludedKpiTransactions = inclusiveSummary.completeRecords - adjustedSummary.completeRecords;
-  const transactionRows = rows.filter(row => transactionView === "INCLUDING" || (transactionView === "EXCLUDING" ? !validException(row) : validException(row)));
+  const transactionRows = rows.filter(row => transactionView === "INCLUDING" || (transactionView === "PENDING" ? needsExceptionValidation(row) : transactionView === "EXCLUDING" ? !validException(row) : validException(row)));
   const tableDelayed = transactionRows.filter(row => Number.isFinite(row.kpi1Hours) && row.kpi1Hours > 12);
   const pages = Math.max(1, Math.ceil(tableDelayed.length / 50));
   const currentPage = Math.min(page, pages);
@@ -63,20 +63,16 @@ export default function ExceptionHandling({ rows, labels, fromDate, toDate, setF
         <p><strong>KPI transaction count: {inclusiveSummary.completeRecords}</strong> · {rows.length} filtered transactions. Existing eligibility rules apply.</p></div>
       <div data-testid="excluding-exceptions"><Card title="Excluding exceptions" data={adjustedSummary} labels={labels} dates={`${fromDate} to ${toDate}`} tone="blue" />
         <p><strong>KPI transaction count: {adjustedSummary.completeRecords}</strong> · {adjusted.length} remaining transactions. {excluded} valid exception{excluded === 1 ? "" : "s"} excluded; {excludedKpiTransactions} removed from the KPI averages.</p></div>
+      <IssueChart rows={delayed} />
     </section>
     <dl className="exception-validation-counts" aria-label="Exception validation counts">
       <div data-testid="delayed-count"><dt>Transactions &gt; 12 hours</dt><dd>{delayed.length}</dd></div>
       <div data-testid="validated-count"><dt>Saved exceptions · Y</dt><dd>{excluded}</dd></div>
-      <div data-testid="pending-validation-count"><dt>Pending exception validation · N</dt><dd>{pendingValidation}</dd></div>
+      <div data-testid="pending-validation-count"><dt>Pending validation · unreviewed</dt><dd>{pendingValidation}</dd></div>
     </dl>
-    <section className="exception-guidance">
-      <p><strong>Exception = Y:</strong> KPI1 is greater than 12 hours and a saved bucket or non-blank remark exists. With both blank, the transaction remains included in both cards. Existing data-quality codes are not business exceptions.</p>
-      <p>After Save, Y transactions are excluded from all three adjusted KPI averages, but stay in this table for review and editing. Pending validation means &gt;12-hour transactions without a saved exception, not pending GRN/Putaway tasks. Counts cover all pages under the active filters.</p>
-      <p>The transaction-view filter below applies to the table and CSV. The two KPI cards and validation counts keep the shared date/facility/status/search scope for comparison.</p>
-      {!canManage && <p role="status">Read-only access. Exception edits require existing pending-task management permission.</p>}
-      {notice && <p role="status">{notice}</p>}
-    </section>
-    {canManage && <BulkExceptions month={selectedMonth} templateRows={tableDelayed.filter(row => !validException(row))} onApplied={onBulkSaved} />}
+    {!canManage && <p role="status">Read-only access. Exception edits require existing pending-task management permission.</p>}
+    {notice && <p role="status">{notice}</p>}
+    {canManage && <BulkExceptions month={selectedMonth} templateRows={tableDelayed.filter(needsExceptionValidation)} onApplied={onBulkSaved} />}
     <section className="exception-transactions" aria-label="Delayed transactions">
       <div className="exception-table-heading"><h3>Transactions with KPI1 &gt; 12 hours</h3><span>{tableDelayed.length} matching transactions</span></div>
       <div className="exception-export">
@@ -84,6 +80,7 @@ export default function ExceptionHandling({ rows, labels, fromDate, toDate, setF
           <option value="INCLUDING">Including exceptions · all transactions</option>
           <option value="EXCLUDING">Excluding exceptions · N only</option>
           <option value="ONLY">Exceptions only · Y only</option>
+          <option value="PENDING">Pending validation · unreviewed</option>
         </select></label>
         <label><span>CSV scope</span><select aria-label="CSV scope" value={exportScope} onChange={event => setExportScope(event.target.value)}>
           <option value="DELAYED">Delayed transactions · all table pages</option><option value="ALL">All filtered transactions · KPI source</option>
@@ -101,6 +98,12 @@ export default function ExceptionHandling({ rows, labels, fromDate, toDate, setF
       </div>
       <div className="exception-pagination"><button type="button" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>Previous</button>
         <span>Page {currentPage} of {pages} · up to 50 rows per page</span><button type="button" disabled={currentPage >= pages} onClick={() => setPage(currentPage + 1)}>Next</button></div>
+    </section>
+    <section className="exception-guidance" aria-label="Exception calculation notes">
+      <p><strong>Exception = Y:</strong> KPI1 &gt; 12 hours with a saved bucket or non-blank remark, except WH delay. Y rows are excluded from all three adjusted KPI averages. Existing data-quality codes are not business exceptions.</p>
+      <p><strong>WH delay / WH issue = N:</strong> reviewed and included under normal KPI eligibility, even with remarks. Not pending validation. Pending validation means &gt;12 hours with both bucket and remarks blank; it is separate from pending GRN/Putaway work.</p>
+      <p>Cards, issue counts and validation counts use the shared date/facility/status/search filters across all pages. The transaction-view selector affects only the table, CSV and pending-key template. Issue counts include all &gt;12-hour rows, including WH delay. No bucket also includes remarks-only reviews.</p>
+      <p>Bulk files have three columns; WH delay automatically becomes N. Blank bucket and remarks together clear a review. Excel provides all bucket choices; CSV requires exact names. Unsaved edits do not affect calculations.</p>
     </section>
   </div>;
 }
@@ -141,7 +144,7 @@ function ExceptionRow({ row, canManage, formatDuration, onSaved }) {
     <KpiDateCell kpi="1" hours={row.kpi1Hours} formatDuration={formatDuration} startLabel="Unloading" startDate={transactionDate} startTime={transactionTime} endLabel="Putaway" endDate={putawayDate} endTime={putawayTime} />
     <KpiDateCell kpi="2" hours={row.kpi2Hours} formatDuration={formatDuration} startLabel="GRN" startDate={grnDate} startTime={grnTime} endLabel="Putaway" endDate={putawayDate} endTime={putawayTime} />
     <KpiDateCell kpi="3" hours={row.kpi3Hours} formatDuration={formatDuration} startLabel="Unloading" startDate={transactionDate} startTime={transactionTime} endLabel="GRN" endDate={grnDate} endTime={grnTime} />
-    <td><strong>{validException(row) ? "Y" : "N"}</strong><small>{validException(row) ? "Excluded from adjusted KPIs" : "Pending exception validation"}</small>{dirty && <small>Unsaved changes</small>}</td>
+    <td><strong>{validException(row) ? "Y" : "N"}</strong><small>{validException(row) ? "Excluded from adjusted KPIs" : isWarehouseDelay(row) ? "Reviewed · WH delay · included" : "Pending exception validation"}</small>{dirty && <small>Unsaved changes</small>}</td>
     <td><select aria-label={`Exception bucket for ${identity}`} value={draft.bucket} disabled={!canManage || saving} onChange={event => setDraft({ ...draft, bucket: event.target.value })}>
       <option value="">No bucket</option>{BUCKETS.map(bucket => <option key={bucket}>{bucket}</option>)}</select></td>
     <td><textarea aria-label={`Remarks for ${identity}`} value={draft.remarks} maxLength={2000} rows={3} disabled={!canManage || saving}
@@ -152,6 +155,23 @@ function ExceptionRow({ row, canManage, formatDuration, onSaved }) {
       {error && <small role="alert">{error}</small>}
     </td>
   </tr>;
+}
+
+function IssueChart({ rows }) {
+  const counts = new Map(BUCKETS.map(bucket => [bucket, 0]));
+  let noBucket = 0;
+  for (const row of rows) {
+    const bucket = isWarehouseDelay(row) ? "WH delay" : String(row.exceptionBucket || "").trim();
+    if (!bucket) noBucket++;
+    else counts.set(bucket, (counts.get(bucket) || 0) + 1);
+  }
+  const maximum = Math.max(1, ...counts.values());
+  return <section className="exception-issue-chart" aria-label="Issue counts" data-testid="issue-chart">
+    <h3>Issue types · transaction count</h3>
+    <p>All filtered transactions with KPI1 &gt; 12 hours</p>
+    <ul>{Array.from(counts, ([bucket, count]) => <li key={bucket}><span>{bucket}</span><span className="exception-bar-track" aria-hidden="true"><span style={{ width: `${count / maximum * 100}%` }} /></span><strong>{count}</strong></li>)}</ul>
+    <p data-testid="no-bucket-count"><strong>No bucket: {noBucket}</strong> · WH delay reviewed: {rows.filter(isWarehouseDelay).length} (N)</p>
+  </section>;
 }
 
 function displayEndpointDate(date) {

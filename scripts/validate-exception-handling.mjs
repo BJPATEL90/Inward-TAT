@@ -66,8 +66,12 @@ assert.equal(context.tatExceptionFlag_(20, "", " \n"), "N");
 assert.equal(context.tatExceptionFlag_(20, "", "reason"), "Y");
 for (const bucket of vm.runInContext("TAT_EXCEPTION_BUCKETS", context)) {
   reset();
-  assert.equal(save({ exceptionBucket: bucket }).exceptionFlag, "Y");
+  assert.equal(save({ exceptionBucket: bucket }).exceptionFlag, bucket === "WH delay" ? "N" : "Y");
 }
+for (const bucket of ["WH delay", "WH issue", " wh DELAY "]) assert.equal(context.tatExceptionFlag_(20, bucket, "reason"), "N");
+reset([makeFact().concat(["Y", "WH delay", "Previously saved"])]);
+context.replaceTatFactsPreservingExceptions_(sheet, [makeFact()]);
+assert.deepEqual(cells[1].slice(26), ["N", "WH delay", "Previously saved"]);
 reset();
 assert.throws(() => context.saveTatException_(request(), { email: "viewer@mosaicwellness.in" }), /not authorised/);
 assert.throws(() => save({ exceptionBucket: "Unknown" }), /Invalid exception bucket/);
@@ -155,6 +159,7 @@ const preserved = cells.slice(1).map(row => row.slice(0, 26));
 assert.equal(bulk(bulkPreview.updates, true).appliedRows, 2);
 assert.deepEqual(cells.slice(1).map(row => row.slice(0, 26)), preserved);
 assert.deepEqual(cells[2].slice(26), ["Y", "Invoice issue", "=SUM(1)"]);
+assert.deepEqual(cells[1].slice(26), ["N", "WH delay", "Delay"]);
 assert.equal(bulk(bulkPreview.updates, true).appliedRows, 0); // Retry is idempotent.
 const clearPreview = bulk(bulkInput.map(row => ({ ...row, exceptionBucket: "", exceptionRemarks: "" })));
 cells[2][28] = "Changed by another editor";

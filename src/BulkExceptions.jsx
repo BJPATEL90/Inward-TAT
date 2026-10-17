@@ -45,16 +45,16 @@ export default function BulkExceptions({ month, templateRows, onApplied }) {
     finally { setBusy(false); }
   };
   return <section className="exception-bulk" aria-label="Bulk exception upload" aria-busy={busy}>
+    <div className="exception-bulk-main">
     <h3>Bulk update exceptions</h3>
-    <p>Three columns only: <strong>Record Key, Exception Bucket, Remarks</strong>. Excel has a Bucket dropdown with all ten choices. CSV is also accepted; unknown bucket names in either format are rejected. Select the reporting month above. Blank bucket and remarks together clear an existing exception.</p>
-    <details><summary>Allowed buckets</summary><p>{EXCEPTION_BUCKETS.join(" · ")}</p></details>
+    <p><strong>Record Key · Exception Bucket · Remarks</strong><br />Excel includes a bucket dropdown. Invalid bucket names are rejected. WH delay is automatically N.</p>
     <div className="exception-bulk-controls">
       <button type="button" disabled={busy} onClick={() => template(true)}>Download Excel template</button>
       <button type="button" disabled={busy} onClick={() => template(false)}>Download CSV template</button>
       <label>Bulk exception file<input type="file" ref={fileRef} accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" disabled={busy} onChange={reset} /></label>
       <button type="button" disabled={busy} onClick={validate}>{busy ? "Processing…" : "Validate bulk file"}</button>
     </div>
-    <p>Maximum 1,000 rows / 2 MB per file. Template includes pending keys from all pages of the current table view, up to this limit. Preview validates against the latest Google Sheet; any error prevents all writes.</p>
+    <p>1,000 rows / 2 MB · Template: unreviewed keys across all table pages. Validate before applying; any error prevents all writes.</p>
     {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     {preview && !preview.valid && <div role="alert"><strong>No entries saved. Correct these errors and validate again:</strong><ul>{preview.errors.map((row, index) => <li key={index}>Row {row.row} · {row.recordKey || "missing key"}: {row.error}</li>)}</ul></div>}
     {preview?.valid && <div>
@@ -63,5 +63,7 @@ export default function BulkExceptions({ month, templateRows, onApplied }) {
       <label><input type="checkbox" checked={confirmed} disabled={busy} onChange={event => setConfirmed(event.target.checked)} /> I verified the Record Keys and changes, including any entries being cleared.</label>
       <button type="button" disabled={!confirmed || busy} onClick={apply}>Apply bulk changes</button>
     </div>}
+    </div>
+    <aside className="exception-bucket-list" aria-label="Available buckets"><h4>Available buckets</h4><ul>{EXCEPTION_BUCKETS.map(bucket => <li key={bucket}>{bucket}</li>)}</ul></aside>
   </section>;
 }
