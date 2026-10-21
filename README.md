@@ -178,7 +178,7 @@ Run these functions from the Apps Script editor as required:
 | `authorizeInwardTat` | Requests the required Sheets, Gmail, URL Fetch, and trigger permissions |
 | `runInwardTatPipeline` | Runs the complete import and KPI rebuild |
 | `rebuildHistoricalInwardTatFacts` | Rebuilds Fact, MTD, volume, and exceptions from the current backend raw sheets without re-importing external sources |
-| `installDailyInwardTatPipelineTrigger` | Installs the daily pipeline trigger near 08:30 IST, before the stakeholder email |
+| `installDailyInwardTatPipelineTrigger` | Installs daily pipeline runs near 08:30, 12:30 and 16:30 IST, plus the existing fallback recovery check |
 | `installInwardTatTrigger(hour)` | Installs the pipeline trigger at a custom hour; defaults to 08:30 IST when run without an argument |
 | `activateInwardTatEmail` | Installs the email trigger and sends a test |
 | `sendDailyInwardTatEmail` | Sends the report immediately |

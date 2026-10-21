@@ -2345,39 +2345,53 @@ function getSheet_(name) {
 function installInwardTatTrigger(hour) {
   const triggerHour =
     hour === undefined || hour === null || hour === "" ? 8 : Number(hour);
-  if (!Number.isInteger(triggerHour) || triggerHour < 0 || triggerHour > 23) {
-    throw new Error("Trigger hour must be a whole number from 0 to 23.");
-  }
-  ScriptApp.getProjectTriggers()
-    .filter(function (trigger) {
-      return trigger.getHandlerFunction() === "runInwardTatPipeline";
-    })
-    .forEach(function (trigger) {
-      ScriptApp.deleteTrigger(trigger);
-    });
-  ScriptApp.newTrigger("runInwardTatPipeline")
-    .timeBased()
-    .everyDays(1)
-    .atHour(triggerHour)
-    .nearMinute(30)
-    .inTimezone("Asia/Kolkata")
-    .create();
+  installInwardTatPipelineSchedule_([triggerHour]);
   return { installed: true, hour: triggerHour, nearMinute: 30 };
 }
 
+function installInwardTatPipelineSchedule_(hours) {
+  if (!hours.length || hours.some(function (hour) {
+    return !Number.isInteger(hour) || hour < 0 || hour > 23;
+  }) || new Set(hours).size !== hours.length) {
+    throw new Error("Trigger hours must be unique whole numbers from 0 to 23.");
+  }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  const created = [];
+  try {
+    const previous = ScriptApp.getProjectTriggers().filter(function (trigger) {
+      return trigger.getHandlerFunction() === "runInwardTatPipeline";
+    });
+    // Keep the previous schedule intact until every replacement is created.
+    try {
+      hours.forEach(function (hour) {
+        created.push(ScriptApp.newTrigger("runInwardTatPipeline").timeBased()
+          .everyDays(1).atHour(hour).nearMinute(30).inTimezone("Asia/Kolkata").create());
+      });
+    } catch (error) {
+      created.forEach(function (trigger) { ScriptApp.deleteTrigger(trigger); });
+      throw error;
+    }
+    previous.forEach(function (trigger) { ScriptApp.deleteTrigger(trigger); });
+    return { installed: true, hours: hours.slice(), nearMinute: 30, timeZone: "Asia/Kolkata" };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function installDailyInwardTatPipelineTrigger() {
-  const result = installInwardTatTrigger(8);
+  const result = installInwardTatPipelineSchedule_([8, 12, 16]);
   const recovery = installInwardTatRecoveryTrigger();
   console.log(
-    "PIPELINE_TRIGGER | INSTALLED | runInwardTatPipeline scheduled daily near 08:30 IST; fallback freshness recovery scheduled near " +
+    "PIPELINE_TRIGGER | INSTALLED | runInwardTatPipeline scheduled daily near 08:30, 12:30 and 16:30 IST; fallback freshness recovery scheduled near " +
       String(recovery.hour).padStart(2, "0") +
       ":00 IST."
   );
   return {
     ok: true,
     handler: "runInwardTatPipeline",
-    schedule: "Daily near 08:30 IST",
-    hour: result.hour,
+    schedule: "Daily near 08:30, 12:30 and 16:30 IST",
+    hours: result.hours,
     nearMinute: result.nearMinute,
     recovery: recovery,
   };
