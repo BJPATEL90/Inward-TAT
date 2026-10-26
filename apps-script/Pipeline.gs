@@ -216,6 +216,70 @@ function backfillPreviousMonthFromGmail() {
   }
 }
 
+
+/**
+ * Manual recovery: force-reimports the latest current-month cumulative Putaway
+ * export for every configured facility, even when the CSV/email was already
+ * processed earlier. Raw rows are deduplicated before facts and KPIs rebuild.
+ */
+function reprocessPutawayMtdFromGmail() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  const startedAt = new Date();
+  const runId = "PUTAWAY-MTD-REPROCESS-" + Utilities.getUuid();
+  try {
+    seedConfig_(getSheet_(INWARD_TAT.SHEETS.CONFIG));
+    const config = getConfig_();
+    const timeZone = String(config.TIME_ZONE || "Asia/Kolkata");
+    const targetStart = new Date(startedAt.getFullYear(), startedAt.getMonth(), 1);
+    const selectionCutoff = new Date(startedAt.getTime() + 86400000);
+    const searchEnd = new Date(selectionCutoff.getTime() + 86400000);
+    const options = {
+      forceReimport: true,
+      selectionStart: targetStart,
+      selectionCutoff: selectionCutoff,
+      gmailAfter: Utilities.formatDate(targetStart, timeZone, "yyyy/MM/dd"),
+      gmailBefore: Utilities.formatDate(searchEnd, timeZone, "yyyy/MM/dd"),
+      selectionLabel: "current-month MTD forced Putaway reimport",
+    };
+    logExecution_(runId, "PUTAWAY_MTD_REPROCESS", "STARTED",
+      "Manual MTD Putaway reprocess started; duplicate protection bypassed for selected exports.",
+      { selectionStart: targetStart, selectionCutoff: selectionCutoff });
+
+    const putaway = importUnicommerceEmails_("PUTAWAY", config, runId, options);
+    logExecution_(runId, "PUTAWAY_MTD_DEDUPE", "STARTED",
+      "Deduplicating Putaway raw rows after forced MTD reimport.", {});
+    dedupeRawReportSheets_();
+    logExecution_(runId, "PUTAWAY_MTD_DEDUPE", "COMPLETED",
+      "Putaway raw deduplication completed.", {});
+
+    const processing = rebuildTatFacts_(config, runId);
+    updateConfigValue_("LAST_SUCCESSFUL_REFRESH", new Date());
+    CacheService.getScriptCache().remove("INWARD_TAT_DASHBOARD_V1");
+    logExecution_(runId, "PUTAWAY_MTD_REPROCESS", "COMPLETED",
+      "Manual MTD Putaway reprocess and KPI rebuild completed successfully.", {
+        selectedExports: putaway.selected,
+        importsCompleted: putaway.imported,
+        importsSkipped: putaway.skipped,
+        importsFailed: putaway.failed,
+        rowsRead: processing.factRows,
+        rowsImported: processing.completeRows,
+        rowsSkipped: processing.exceptionRows,
+        durationSeconds: (new Date().getTime() - startedAt.getTime()) / 1000,
+      });
+    return { ok: true, runId: runId, putaway: putaway,
+      processing: processing, completedAt: new Date().toISOString() };
+  } catch (error) {
+    logExecution_(runId, "PUTAWAY_MTD_REPROCESS", "FAILED",
+      error.message || String(error), {
+        durationSeconds: (new Date().getTime() - startedAt.getTime()) / 1000,
+      });
+    throw error;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function clearWronglyPulledPutawayData() {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
