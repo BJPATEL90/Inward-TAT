@@ -93,20 +93,24 @@ function saveTatException_(parameters, user) {
     throw new Error("Reload the transaction before saving: previous bucket and remarks are required.");
   }
   const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
+  if (!lock.tryLock(5000)) throw new Error("The pipeline or another save is updating the data. Your remarks have not been changed by this request. Please retry shortly.");
   try {
-    const sheet = ensureFactMatchingSchema_();
-    // Read physical row positions: generic sheetObjects_ compacts blank rows.
-    const matrix = sheet.getRange(1, 1, sheet.getLastRow(), 29).getValues();
-    const headers = matrix[0];
-    const matches = matrix.slice(1).map(function (values, index) {
-      const row = { __row: index + 2 };
-      headers.forEach(function (header, column) { row[header] = values[column]; });
-      return row;
-    }).filter(function (row) { return String(row["Record Key"] || "") === key; });
+    const sheet = getSheet_(INWARD_TAT.SHEETS.FACT);
+    const headers = sheet.getRange(1, 1, 1, 29).getValues()[0];
+    const expectedHeaders = SHEET_DEFINITIONS.filter(function (entry) { return entry.name === INWARD_TAT.SHEETS.FACT; })[0].headers;
+    if (headers.join("|") !== expectedHeaders.join("|")) throw new Error("Transaction schema has changed. Contact the administrator before saving.");
+    // Read only the key column, then the one physical row. Do not reformat the
+    // sheet or transfer all 29 columns for every individual remark save.
+    const matches = [];
+    if (sheet.getLastRow() > 1) sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().forEach(function (values, index) {
+      if (String(values[0] || "") === key) matches.push(index + 2);
+    });
     if (matches.length !== 1) throw new Error("Transaction is missing or duplicated. Refresh before saving.");
-    const fact = matches[0];
-    if (String(fact["Exception Bucket"] || "") !== parameters.expectedBucket || String(fact.Remarks || "") !== parameters.expectedRemarks) {
+    const fact = { __row: matches[0] };
+    const values = sheet.getRange(fact.__row, 1, 1, 29).getValues()[0];
+    headers.forEach(function (header, column) { fact[header] = values[column]; });
+    const alreadySaved = String(fact["Exception Bucket"] || "") === bucket && String(fact.Remarks || "") === remarks;
+    if (!alreadySaved && (String(fact["Exception Bucket"] || "") !== parameters.expectedBucket || String(fact.Remarks || "") !== parameters.expectedRemarks)) {
       throw new Error("This exception was changed by another user. Refresh before saving.");
     }
     const kpi1 = fact["KPI1 Unloading to Putaway Hours"];

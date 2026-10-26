@@ -78,7 +78,7 @@ export async function saveException(payload) {
   if (!API_URL || new URL(API_URL, window.location.origin).hostname !== "script.google.com") {
     throw new Error("Exception updates require the live Apps Script connection.");
   }
-  const data = await postToAppsScript({ ...payload, action: "saveexception", credential: getStoredSession()?.credential || "" });
+  const data = await postToAppsScript({ ...payload, action: "saveexception", credential: getStoredSession()?.credential || "" }, { timeoutMs: 45000, maxAttempts: 1 });
   if (!data.ok) throw new Error(data.error || "Unable to save the exception.");
   return data;
 }

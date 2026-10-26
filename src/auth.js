@@ -64,8 +64,8 @@ export async function verifyGoogleCredential(credential) {
   return { credential, user: data.user };
 }
 
-export async function postToAppsScript(parameters) {
-  const retryDelays = [0, 400, 1000];
+export async function postToAppsScript(parameters, { timeoutMs = 0, maxAttempts = 3 } = {}) {
+  const retryDelays = [0, 400, 1000].slice(0, maxAttempts);
   let lastError;
 
   for (let attempt = 0; attempt < retryDelays.length; attempt += 1) {
@@ -73,25 +73,41 @@ export async function postToAppsScript(parameters) {
       await new Promise((resolve) => window.setTimeout(resolve, retryDelays[attempt]));
     }
 
+    let timer;
+    const controller = new AbortController();
     try {
       const url = new URL(APPS_SCRIPT_URL);
       url.searchParams.set("_request", `${Date.now()}-${attempt}`);
+      const request = async () => {
       const response = await fetch(url.toString(), {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
         body: new URLSearchParams(parameters),
         redirect: "follow",
         cache: "no-store",
+        signal: controller.signal,
       });
-      if (response.ok) return response.json();
+      if (response.ok) return await response.json();
 
-      lastError = new Error(`Dashboard API returned ${response.status}`);
-      if (response.status !== 404 && response.status !== 429 && response.status < 500) {
-        throw lastError;
+      throw new Error(`Dashboard API returned ${response.status}`);
+      };
+      if (timeoutMs) {
+        return await Promise.race([request(), new Promise((_, reject) => {
+          timer = window.setTimeout(() => {
+            const failure = new Error("Save confirmation timed out. Your entered remarks are retained. The server may still finish saving; retry the same values to confirm, or copy your draft before refreshing.");
+            failure.name = "SaveTimeoutError";
+            reject(failure);
+            controller.abort();
+          }, timeoutMs);
+        })]);
       }
+      return await request();
     } catch (error) {
       lastError = error;
+      if (error.name === "SaveTimeoutError") throw error;
       if (/returned (400|401|403)/.test(String(error?.message || ""))) throw error;
+    } finally {
+      if (timer) window.clearTimeout(timer);
     }
   }
 

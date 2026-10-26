@@ -14,7 +14,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   page.setDefaultTimeout(15000);
   const errors = [], calls = [];
-  let canManage = true, failSave = false;
+  let canManage = true, failSave = false, stallSave = false, stalledRoute;
   let fixtures = [
     ["G1", "SL Ambient", 20, "COMPLETE", "", ""],
     ["G2", "SL Ambient", 40, "COMPLETE", "Other", "Saved delay"],
@@ -35,6 +35,7 @@ try {
     let response;
     if (action === "authVerify") response = { ok: true, user: { email: "owner@mosaicwellness.in", name: "Test owner" } };
     else if (action === "saveexception") {
+      if (stallSave) { stalledRoute = route; return; }
       const row = fixtures.find(row => row.recordKey === parameters.get("recordKey"));
       if (failSave) response = { ok: false, error: "This exception was changed by another user. Refresh before saving." };
       else {
@@ -166,6 +167,19 @@ try {
   failSave = false;
   await row.getByRole("button", { name: "Reset to saved" }).click();
   assert.equal(await remarks.inputValue(), "Remarks-only exception");
+  await page.clock.install();
+  stallSave = true;
+  await remarks.fill("Retained after timeout");
+  const stalledRequest = page.waitForRequest(request => request.postData()?.includes("action=saveexception"));
+  await save.click(); await stalledRequest;
+  await page.clock.fastForward(45001);
+  await row.getByRole("alert").getByText("Save confirmation timed out", { exact: false }).waitFor();
+  assert.equal(await remarks.inputValue(), "Retained after timeout");
+  assert.equal(await save.isEnabled(), true);
+  stallSave = false;
+  await stalledRoute.abort().catch(() => {});
+  await row.getByRole("button", { name: "Reset to saved" }).click();
+  await page.clock.resume();
   await page.getByLabel("Search transactions").fill("G1");
   assert.equal(await adjusted.locator(".primary-duration").innerText(), "—");
   assert.match(await inclusive.innerText(), /20h 00m/);
@@ -274,7 +288,7 @@ try {
   await page.getByRole("button", { name: "Dashboard", exact: true }).click();
   await page.getByRole("button", { name: "Download CSV", exact: true }).waitFor();
   assert.equal(await page.locator(".month-view-toolbar select").inputValue(), "2026-09");
-  assert.equal(calls.filter(call => call.action === "saveexception").length, 6);
+  assert.equal(calls.filter(call => call.action === "saveexception").length, 7);
   assert.deepEqual(errors, []);
   console.log("Exception UI validated: saved-only inclusive/adjusted KPIs, >12 table, buckets/remarks, clearing, failed saves, shared filters/month, read-only access and mobile layout.");
 } finally {

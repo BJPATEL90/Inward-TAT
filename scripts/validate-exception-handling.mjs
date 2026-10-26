@@ -8,7 +8,7 @@ const removed = [];
 const context = vm.createContext({ Date, Map, Set, Array, String, Number, Boolean, Math, JSON,
   SpreadsheetApp: { flush() {} },
   Utilities: { formatDate: date => new Date(date.getTime() + 330 * 60000).toISOString().slice(0, 10) },
-  LockService: { getScriptLock: () => ({ waitLock() { assert.equal(locked, false); locked = true; },
+  LockService: { getScriptLock: () => ({ tryLock() { if (locked) return false; locked = true; return true; }, waitLock() { assert.equal(locked, false); locked = true; },
     releaseLock() { locked = false; releases++; } }) },
   CacheService: { getScriptCache: () => ({ remove: key => removed.push(key) }) },
 });
@@ -53,6 +53,7 @@ const sheet = {
   },
 };
 context.ensureFactMatchingSchema_ = () => sheet;
+context.getSheet_ = () => sheet;
 context.isManualTaskUser_ = email => email === "owner@mosaicwellness.in";
 const user = { email: "owner@mosaicwellness.in" };
 const reset = (rows = [makeFact().concat(["N", "", ""])]) => { cells = [headers.slice(), ...rows.map(row => row.slice())]; writes = 0; };
@@ -84,7 +85,11 @@ assert.deepEqual(cells[1].slice(0, 26), before);
 assert.deepEqual(cells[1].slice(26), ["Y", "Manpower issue", ""]);
 assert.ok(removed.includes("INWARD_TAT_DASHBOARD_V2_2026-10"));
 assert.ok(removed.includes("INWARD_TAT_DASHBOARD_V2_CURRENT"));
-assert.throws(() => save(), /another user/);
+assert.equal(save().exceptionFlag, "Y"); // Lost acknowledgement: same desired values are safe to retry.
+assert.throws(() => save({ exceptionBucket: "Other" }), /another user/);
+locked = true;
+assert.throws(() => save(), /retry shortly/);
+locked = false;
 assert.equal(save({ expectedBucket: "Manpower issue", exceptionBucket: "", exceptionRemarks: "=IMPORTXML(\"url\")" }).exceptionFlag, "Y");
 assert.equal(cells[1][28], '=IMPORTXML("url")');
 assert.equal(save({ expectedRemarks: '=IMPORTXML("url")', exceptionBucket: "", exceptionRemarks: "" }).exceptionFlag, "N");
