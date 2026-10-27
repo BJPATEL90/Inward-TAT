@@ -1492,6 +1492,61 @@ function rebuildTatFacts_(config, runId, monthlyInputs) {
   };
 }
 
+
+/**
+ * Replaces rebuilt fact rows while carrying forward user-maintained exception
+ * classification fields by the existing Facility + GRN Number + SKU key.
+ */
+function replaceTatFactsPreservingExceptions_(sheet, factRows) {
+  const headers = readHeaders_(sheet);
+  const normalized = headers.map(normalizeHeader_);
+  const facilityIndex = normalized.indexOf("facility");
+  const skuIndex = normalized.indexOf("sku");
+  const grnIndex = normalized.indexOf("grnnumber");
+  const exceptionIndex = normalized.indexOf("exceptionyn");
+  const bucketIndex = normalized.indexOf("exceptionbucket");
+  const remarksIndex = normalized.indexOf("remarks");
+  const preserved = new Map();
+
+  if (sheet.getLastRow() > 1 && facilityIndex >= 0 && skuIndex >= 0 && grnIndex >= 0) {
+    const existing = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
+    existing.forEach(function (row) {
+      const key = makeRecordKey_(
+        normalizeFacility_(row[facilityIndex]),
+        normalizeSku_(row[skuIndex]),
+        normalizeGrn_(row[grnIndex])
+      );
+      if (key) {
+        preserved.set(key, {
+          exception: exceptionIndex >= 0 ? row[exceptionIndex] : "",
+          bucket: bucketIndex >= 0 ? row[bucketIndex] : "",
+          remarks: remarksIndex >= 0 ? row[remarksIndex] : "",
+        });
+      }
+    });
+  }
+
+  const merged = factRows.map(function (row) {
+    const next = row.slice();
+    while (next.length < headers.length) next.push("");
+    const key = facilityIndex >= 0 && skuIndex >= 0 && grnIndex >= 0
+      ? makeRecordKey_(
+          normalizeFacility_(next[facilityIndex]),
+          normalizeSku_(next[skuIndex]),
+          normalizeGrn_(next[grnIndex])
+        )
+      : "";
+    const prior = preserved.get(key);
+    if (prior) {
+      if (exceptionIndex >= 0) next[exceptionIndex] = prior.exception || "";
+      if (bucketIndex >= 0) next[bucketIndex] = prior.bucket || "";
+      if (remarksIndex >= 0) next[remarksIndex] = prior.remarks || "";
+    }
+    return next.slice(0, headers.length);
+  });
+  replaceDataRows_(sheet, merged);
+}
+
 function ensureFactMatchingSchema_() {
   const sheet = getSheet_(INWARD_TAT.SHEETS.FACT);
   const definition = SHEET_DEFINITIONS.filter(function (entry) {
