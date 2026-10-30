@@ -51,6 +51,7 @@ function validateMonthlySource_(source) {
     extractedAt: extractedAt.toISOString(),
     sheetId: source.sheetId ? String(source.sheetId) : null,
     goodsSnapshotMode: source.goodsSnapshotMode === "SHEET_ROWS_V1" ? "SHEET_ROWS_V1" : null,
+    batch: source.batch || null,
     coverageDeclared: source.coverageDeclared !== false,
     extractionTimeBasis: source.extractionTimeBasis || "DECLARED",
     completeMonthCoverage: source.coverageDeclared !== false && start <= window.start && end >= window.end,

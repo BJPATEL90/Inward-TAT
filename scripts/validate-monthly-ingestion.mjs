@@ -113,6 +113,9 @@ assert.equal(JSON.parse(migratedRecords[0].key).length, 5);
 assert.equal(JSON.parse(legacyRevision.records.find(row => row.values._sourceType === "PUTAWAY").key).length, 3);
 savedRevisionFile.getBlob = savedGetBlob;
 assert.equal(context.monthlyParseCsv_(putaway).records[0].values.Facility, "OWN");
+const verbosePutaway = { ...putaway, content: putaway.content.split("\n")[0] + ",Unused Description\n" + putaway.content.split("\n")[1] + ",original source evidence\n" };
+assert.equal(context.monthlyParseCsv_(verbosePutaway).records[0].values["Unused Description"], undefined);
+assert.ok(verbosePutaway.content.includes("original source evidence")); // Original archive input remains intact.
 const multiGrnItem = { ...putaway, content: putaway.content + putaway.content.split("\n")[1].replace(",G1,", ",G2,") + "\n" };
 const multiGrnParsed = context.monthlyParseCsv_(multiGrnItem);
 assert.equal(multiGrnParsed.records.length, 2);

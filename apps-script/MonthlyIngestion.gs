@@ -20,6 +20,17 @@ function monthlyPutawaySourceKey_(values) {
     normalizeSku_(values["SKU Code"]), normalizeGrn_(values["GRN Number"])]);
 }
 
+/** Original columns remain in source archives; keep only engine inputs in state. */
+function monthlyCompactPutaway_(record) {
+  if (record.values._sourceType !== "PUTAWAY") return record;
+  const values = { _sourceType: "PUTAWAY" };
+  ["Facility", "Putaway Item Id", "SKU Code", "GRN Number", "Type", "Status Code", "Last Updated"].forEach(function (name) {
+    if (Object.prototype.hasOwnProperty.call(record.values, name)) values[name] = record.values[name];
+  });
+  record.values = values;
+  return record;
+}
+
 function readMonthlyState_(month) {
   const fileId = PropertiesService.getScriptProperties().getProperty(monthlyStateKey_(month));
   if (!fileId) return { schemaVersion: 1, month: month, revision: 0, status: "PROVISIONAL", records: [], sources: [] };
@@ -36,6 +47,7 @@ function readMonthlyState_(month) {
       try { parts = JSON.parse(record.key); } catch (ignored) { /* Preserve unrelated identities. */ }
       if (Array.isArray(parts) && parts.length === 3 && parts[0] === "PUTAWAY") record.key = monthlyPutawaySourceKey_(record.values);
     }
+    monthlyCompactPutaway_(record);
   });
   return state;
 }
@@ -128,11 +140,11 @@ function monthlyParseCsv_(source) {
         ? [source.type, String(source.sheetId), "ROW", index + 2]
         : [source.type, String(source.sheetId), String(values["SR NO."]).trim()];
     }
-    records.push({ key: JSON.stringify(parts), sourceId: "VALIDATION", extractedAt: metadata.extractedAt, values: values });
+    records.push(monthlyCompactPutaway_({ key: JSON.stringify(parts), sourceId: "VALIDATION", extractedAt: metadata.extractedAt, values: values }));
   });
   // Detect duplicate/conflicting identities within a source before persistence.
   const checked = reconcileMonthlyRecords_([], records);
-  if (source.type === "PUTAWAY" && !checked.records.length) throw new Error("No PUTAWAY_GRN_ITEM records were found. This export cannot support inward TAT.");
+  if (source.type === "PUTAWAY" && !checked.records.length && !(source.channel === "BACKFILL_EMAIL" && source.batch)) throw new Error("No PUTAWAY_GRN_ITEM records were found. This export cannot support inward TAT.");
   if (source.type === "GRN" && !checked.records.length) throw new Error("No GRN records for the supported inward facilities were found in this export.");
   return { metadata: metadata, records: checked.records, sourceRows: matrix.length - 1 };
 }
@@ -165,10 +177,15 @@ function ingestMonthlySource_(source, user, config) {
     if (state.sources.some(function (entry) { return entry.hash === archived.hash; })) {
       return Object.assign(monthlyPublicState_(state), { duplicate: true });
     }
+    // Prior derived data and change payloads can be large; sources/revisions keep
+    // the audit history and this execution recomputes current calculations.
+    delete state.changes;
+    delete state.calculations;
     parsed.records.forEach(function (record) { record.sourceId = archived.fileId; });
     const merged = source.type === "GOODS_INWARD" && source.channel === "GOOGLE_SHEET" && source.goodsSnapshotMode === "SHEET_ROWS_V1"
       ? reconcileMonthlyGoodsSnapshot_(state.records, parsed.records, source)
       : reconcileMonthlyRecords_(state.records, parsed.records);
+    state.records = [];
     const next = {
       schemaVersion: 1, month: state.month, revision: state.revision + 1,
       status: state.status === "FINAL" || state.status === "REVISION_PENDING" ? "REVISION_PENDING" : "PROVISIONAL",

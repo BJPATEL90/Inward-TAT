@@ -85,6 +85,7 @@ function monthlyExecuteInboxBackfill_(apply) {
   const source = monthlyBackfillSource_(monthlyInboxBackfillSettings_(), access.config);
   let result;
   if (apply) {
+    if (source.content.length > 5000000) throw new Error("Large export: run previewMonthlyInboxBackfillBatch, then runMonthlyInboxBackfillBatch repeatedly until complete=true.");
     const state = ingestMonthlySource_(source, access.user, access.config);
     result = { month: state.month, revision: state.revision, duplicate: state.duplicate, reconciliation: state.lastReconciliation };
   } else {
