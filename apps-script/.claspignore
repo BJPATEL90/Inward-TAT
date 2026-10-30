@@ -9,4 +9,8 @@
 !MonthlyIngestion.gs
 !MonthlyReport.gs
 !MonthlyDrive.gs
+!ExceptionBulk.gs
+!ExceptionHandling.gs
+!ReminderEngine.gs
+!SkuPacksizeAnalysis.gs
 !appsscript.json
