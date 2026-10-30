@@ -190,6 +190,31 @@ const refreshedGoods = context.readMonthlyState_("2026-09").records.find(row => 
 assert.equal(refreshedGoods.values["SR NO."], "1");
 assert.equal(refreshedGoods.values["Unnamed Source Column 8"], "source note");
 
+// Receiving serials are not line IDs: split batches/GRNs share serial 454.
+const snapshot = { ...grn, type: "GOODS_INWARD", facility: "ALL", sheetId: "source-workbook:123",
+  channel: "GOOGLE_SHEET", goodsSnapshotMode: "SHEET_ROWS_V1", extractedAt: "2099-10-01T08:00:00+05:30",
+  content: "SR NO.,Received at,SKU,GRN no.,Invoice number,Unloading Date,Unloading Time,Batch No.\n454,SL Mother Hub,SKU1,G1,INV1,2026-09-30,23:00:00,B1\n454,SL Mother Hub,SKU1,G2,INV1,2026-09-30,23:00:00,B2\n" };
+const splitParsed = context.monthlyParseCsv_(snapshot);
+assert.equal(splitParsed.records.length, 2);
+assert.notEqual(splitParsed.records[0].key, splitParsed.records[1].key);
+const erpCount = context.readMonthlyState_("2026-09").records.filter(row => row.values._sourceType !== "GOODS_INWARD").length;
+const splitResult = context.ingestMonthlySource_(snapshot, user, config);
+assert.equal(splitResult.recordCounts.GOODS_INWARD, 2);
+const legacyGoods = { ...refreshedGoods, key: JSON.stringify(["GOODS_INWARD", "source-workbook:123", "1"]) };
+const migratedGoods = context.reconcileMonthlyGoodsSnapshot_([legacyGoods], splitParsed.records, snapshot);
+assert.equal(migratedGoods.records.length, 2); // Legacy serial identity replaced, not appended.
+assert.equal(migratedGoods.counts.replacedSnapshotRows, 1);
+assert.equal(splitResult.records, erpCount + 2);
+assert.equal(context.ingestMonthlySource_(snapshot, user, config).duplicate, true);
+const reordered = { ...snapshot, extractedAt: "2099-10-02T08:00:00+05:30",
+  content: snapshot.content.split("\n").slice(0, 1).concat(snapshot.content.split("\n").slice(1, 3).reverse()).join("\n") + "\n" };
+assert.equal(context.ingestMonthlySource_(reordered, user, config).recordCounts.GOODS_INWARD, 2);
+assert.throws(() => context.ingestMonthlySource_({ ...snapshot, extractedAt: "2099-10-01T09:00:00+05:30" }, user, config), /newer Goods Receiving/);
+const otherTab = { ...splitParsed.records[0], key: JSON.stringify(["GOODS_INWARD", "other-tab", "ROW", 2]) };
+const scoped = context.reconcileMonthlyGoodsSnapshot_([otherTab, ...splitParsed.records], [splitParsed.records[0]], snapshot);
+assert.equal(scoped.records.length, 2); // Other tab retained; absent row removed only from this snapshot.
+assert.ok(scoped.records.some(row => row.key === otherTab.key));
+
 config.MONTHLY_CLOSING_GRN_JOB = "GRN/Previous-Month-Close";
 config.GRN_EMAIL_FROM = "noreply@e.unicommerce.com";
 config.GRN_EMAIL_SUBJECT = "Export Job Complete - GRN";

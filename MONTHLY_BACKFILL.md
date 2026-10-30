@@ -12,3 +12,13 @@ Deployed 30 October 2026 as version 55 in Apps Script project `14CR1zTWF9p1JdGhA
 Dedicated owner-run imports accept up to 40 million CSV characters and 200,000 source rows. This is a parser ceiling, not a runtime guarantee; split extraction windows if Apps Script memory/time limits are reached. Browser upload remains 5 MB / 20,000 rows and normal inbox import remains 25 million characters. One email per execution avoids processing an entire mailbox in one run.
 
 This stage writes only the existing isolated monthly archive. It does not create the proposed per-month Google Sheet or month-row dashboard, and does not copy daily exception annotations into monthly data. Those remain separate development tasks. Do not treat this as a final monthly closure.
+
+## Receiving snapshot refresh correction — 30 October 2026
+
+Deployed as version 56. Live readback, health and unauthenticated refresh rejection passed. Prior live code is in `work/monthly-refresh-backup-20261030`. No operational refresh was executed during release; select October and Refresh Data in the authenticated dashboard to publish the updated snapshot.
+
+Receiving serial numbers repeat legitimately across split batch/GRN lines. Monthly refresh previously keyed Goods Receiving by workbook, tab and serial, rejecting these rows as same-time conflicts (October serial 454). Refresh now reads the complete tab and uses physical source rows within a versioned `SHEET_ROWS_V1` snapshot. This applies only to internal Google Sheet refresh, not ERP uploads or inbox imports.
+
+Each successful refresh replaces only the previous Goods Receiving snapshot for the exact same workbook/tab; current deletions, sorting and corrections therefore cannot leave duplicate old lines behind. Other source tabs and all GRN/Putaway records remain intact. Existing serial-based snapshot rows migrate on the next refresh. Removed/replaced rows are recorded in revision changes, and all prior revisions/source envelopes remain archived. A stale refresh cannot overwrite a newer snapshot; failed verification cannot publish the state pointer. Users must keep the receiving tab complete; a deliberately removed source row disappears from the current snapshot while remaining in prior archived revisions.
+
+Regression checks cover repeated serials with different batches/GRNs, legacy-key replacement, repeat import, row reorder, scope isolation and stale snapshot rejection. Refreshing unloading alone does not fetch missing ERP reports or finalize the month.

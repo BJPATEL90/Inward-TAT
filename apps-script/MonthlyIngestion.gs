@@ -122,7 +122,11 @@ function monthlyParseCsv_(source) {
         String(values["Batch Code"]).trim().toUpperCase(), String(values["Vendor Batch Number"]).trim().toUpperCase()];
     } else {
       if (!source.sheetId || !String(values["SR NO."]).trim()) throw new Error("Goods source sheet and serial number are required.");
-      parts = [source.type, String(source.sheetId), String(values["SR NO."]).trim()];
+      // A receiving serial can span different batches/GRNs. Physical row identity
+      // is safe only with replacement of the complete selected-sheet snapshot.
+      parts = source.channel === "GOOGLE_SHEET" && source.goodsSnapshotMode === "SHEET_ROWS_V1"
+        ? [source.type, String(source.sheetId), "ROW", index + 2]
+        : [source.type, String(source.sheetId), String(values["SR NO."]).trim()];
     }
     records.push({ key: JSON.stringify(parts), sourceId: "VALIDATION", extractedAt: metadata.extractedAt, values: values });
   });
@@ -131,6 +135,24 @@ function monthlyParseCsv_(source) {
   if (source.type === "PUTAWAY" && !checked.records.length) throw new Error("No PUTAWAY_GRN_ITEM records were found. This export cannot support inward TAT.");
   if (source.type === "GRN" && !checked.records.length) throw new Error("No GRN records for the supported inward facilities were found in this export.");
   return { metadata: metadata, records: checked.records, sourceRows: matrix.length - 1 };
+}
+
+/** Replace one complete receiving-tab snapshot; retain ERP and other tabs. */
+function reconcileMonthlyGoodsSnapshot_(existing, incoming, source) {
+  const scoped = existing.filter(function (record) {
+    let key;
+    try { key = JSON.parse(record.key); } catch (ignored) { return false; }
+    return record.values._sourceType === "GOODS_INWARD" && key[0] === "GOODS_INWARD" && key[1] === String(source.sheetId);
+  });
+  if (scoped.some(function (record) { return Date.parse(record.extractedAt) > Date.parse(source.extractedAt); })) {
+    throw new Error("A newer Goods Receiving snapshot already exists. Refresh again to read the latest sheet.");
+  }
+  const incomingKeys = new Set(incoming.map(function (record) { return record.key; }));
+  const removed = new Set(scoped.filter(function (record) { return !incomingKeys.has(record.key); }));
+  const merged = reconcileMonthlyRecords_(existing.filter(function (record) { return !removed.has(record); }), incoming);
+  merged.counts.replacedSnapshotRows = removed.size;
+  merged.changes = Array.from(removed).map(function (record) { return { key: record.key, before: record, after: null }; }).concat(merged.changes);
+  return merged;
 }
 
 function ingestMonthlySource_(source, user, config) {
@@ -144,7 +166,9 @@ function ingestMonthlySource_(source, user, config) {
       return Object.assign(monthlyPublicState_(state), { duplicate: true });
     }
     parsed.records.forEach(function (record) { record.sourceId = archived.fileId; });
-    const merged = reconcileMonthlyRecords_(state.records, parsed.records);
+    const merged = source.type === "GOODS_INWARD" && source.channel === "GOOGLE_SHEET" && source.goodsSnapshotMode === "SHEET_ROWS_V1"
+      ? reconcileMonthlyGoodsSnapshot_(state.records, parsed.records, source)
+      : reconcileMonthlyRecords_(state.records, parsed.records);
     const next = {
       schemaVersion: 1, month: state.month, revision: state.revision + 1,
       status: state.status === "FINAL" || state.status === "REVISION_PENDING" ? "REVISION_PENDING" : "PROVISIONAL",
@@ -320,6 +344,7 @@ function refreshMonthlySources_(month, user) {
     month: month, type: "GOODS_INWARD", facility: "ALL", content: output,
     periodStart: window.start.toISOString(), periodEndExclusive: new Date(Math.min(now.getTime(), window.end.getTime())).toISOString(),
     extractedAt: now.toISOString(), channel: "GOOGLE_SHEET", filename: sheet.getName(),
+    goodsSnapshotMode: "SHEET_ROWS_V1",
     goodsAllowedFacilities: String(config.GOODS_ALLOWED_FACILITIES || "SL Mother Hub|SL Ambient"),
     sheetId: spreadsheet.getId() + ":" + sheet.getSheetId(),
   };
