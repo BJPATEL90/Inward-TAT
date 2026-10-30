@@ -34,3 +34,31 @@ body = "not JSON";
 assert.throws(() => context.monthlyDriveRequest_("https://www.googleapis.com/drive/v3/files"), /unknown reason/);
 try { context.monthlyDriveRequest_("https://www.googleapis.com/drive/v3/files"); } catch (error) { assert.equal(error.message.includes("secret-token"), false); }
 console.log("Monthly Drive diagnostics validated for disabled API, missing scopes and non-JSON failures; tokens are not logged.");
+let location = "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=test";
+let uploadFails = false, missingId = false;
+const uploads = [];
+const blob = { getName: () => "revision.json", getContentType: () => "application/json",
+  getBytes: () => { throw Error("Large blob must never become a JavaScript byte array"); } };
+context.UrlFetchApp.fetch = (url, options) => {
+  assert.equal(options.headers.Authorization, "Bearer secret-token");
+  uploads.push({url, options});
+  if (options.method === "post") {
+    assert.ok(url.includes("uploadType=resumable"));
+    assert.equal(options.headers["X-Upload-Content-Type"], "application/json");
+    assert.deepEqual(JSON.parse(options.payload), {name: "revision.json", parents: ["archive-folder"]});
+    return {getResponseCode: () => 200, getHeaders: () => ({location})};
+  }
+  assert.equal(options.method, "put"); assert.equal(options.payload, blob);
+  assert.equal(options.followRedirects, false);
+  return {getResponseCode: () => uploadFails ? 500 : 200, getContentText: () => JSON.stringify(missingId ? {} : {id: "saved-file"})};
+};
+assert.equal(context.monthlyDrive_().getFolderById("archive-folder").createFile(blob).getId(), "saved-file");
+uploadFails = true;
+assert.throws(() => context.monthlyDrive_().getFolderById("archive-folder").createFile(blob), /HTTP 500/);
+uploadFails = false; missingId = true;
+assert.throws(() => context.monthlyDrive_().getFolderById("archive-folder").createFile(blob), /without a file ID/);
+location = "https://example.com/upload";
+const count = uploads.length;
+assert.throws(() => context.monthlyDrive_().getFolderById("archive-folder").createFile(blob), /invalid upload session/);
+assert.equal(uploads.length, count + 1); // No bearer-authenticated call to untrusted host.
+console.log("Resumable archive upload validated: native Blob payload, preserved headers, failed-upload guards and trusted session URLs.");

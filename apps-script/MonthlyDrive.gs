@@ -1,7 +1,7 @@
 /** Archive access uses existing drive.file scope; no broader Drive consent. */
 function monthlyDriveRequest_(url, options) {
   const response = UrlFetchApp.fetch(url, Object.assign({}, options || {}, {
-    headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() }, muteHttpExceptions: true,
+    headers: Object.assign({}, (options || {}).headers || {}, { Authorization: "Bearer " + ScriptApp.getOAuthToken() }), muteHttpExceptions: true,
   }));
   const code = response.getResponseCode();
   if (code < 200 || code >= 300) {
@@ -51,14 +51,21 @@ function monthlyDrive_() {
           return { hasNext: function () { return index < data.files.length; }, next: function () { return file(data.files[index++].id); } };
         },
         createFile: function (blob) {
-          const boundary = "inwardTat" + Utilities.getUuid().replace(/-/g, "");
           const metadata = { name: blob.getName(), parents: [id] };
-          const prefix = "--" + boundary + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify(metadata) +
-            "\r\n--" + boundary + "\r\nContent-Type: " + blob.getContentType() + "\r\n\r\n";
-          const bytes = Utilities.newBlob(prefix).getBytes().concat(blob.getBytes(), Utilities.newBlob("\r\n--" + boundary + "--\r\n").getBytes());
-          const created = JSON.parse(monthlyDriveRequest_("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
-            method: "post", contentType: "multipart/related; boundary=" + boundary, payload: bytes,
+          // Do not expand a large Blob into JavaScript number arrays for multipart
+          // concatenation. Pass the Blob directly through a resumable session.
+          const session = monthlyDriveRequest_("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id", {
+            method: "post", contentType: "application/json", payload: JSON.stringify(metadata),
+            headers: { "X-Upload-Content-Type": blob.getContentType() }, followRedirects: false,
+          });
+          const headers = session.getHeaders();
+          const locationKey = Object.keys(headers).find(function (name) { return name.toLowerCase() === "location"; });
+          const location = String(headers[locationKey] || "");
+          if (!/^https:\/\/www\.googleapis\.com\/upload\/drive\/v3\/files(?:\?|\/)/.test(location)) throw new Error("Drive returned an invalid upload session URL.");
+          const created = JSON.parse(monthlyDriveRequest_(location, {
+            method: "put", contentType: blob.getContentType(), payload: blob, followRedirects: false,
           }).getContentText());
+          if (!created.id) throw new Error("Drive upload completed without a file ID.");
           return file(created.id);
         },
       };

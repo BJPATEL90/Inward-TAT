@@ -172,7 +172,9 @@ function ingestMonthlySource_(source, user, config) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
+    if (source.batch) console.log("Monthly batch: reading current revision.");
     const state = readMonthlyState_(source.month);
+    if (source.batch) console.log("Monthly batch: archiving original batch rows.");
     const archived = archiveMonthlySource_(config.MONTHLY_ARCHIVE_FOLDER_ID, source);
     if (state.sources.some(function (entry) { return entry.hash === archived.hash; })) {
       return Object.assign(monthlyPublicState_(state), { duplicate: true });
@@ -186,6 +188,7 @@ function ingestMonthlySource_(source, user, config) {
       ? reconcileMonthlyGoodsSnapshot_(state.records, parsed.records, source)
       : reconcileMonthlyRecords_(state.records, parsed.records);
     state.records = [];
+    if (source.batch) console.log("Monthly batch: calculating KPIs for " + merged.records.length + " stored source records.");
     const next = {
       schemaVersion: 1, month: state.month, revision: state.revision + 1,
       status: state.status === "FINAL" || state.status === "REVISION_PENDING" ? "REVISION_PENDING" : "PROVISIONAL",
@@ -207,10 +210,12 @@ function ingestMonthlySource_(source, user, config) {
       calculations: calculateMonthlyRevision_(state.month, merged.records, config),
     };
     const content = JSON.stringify(next);
+    if (source.batch) console.log("Monthly batch: uploading revision " + next.revision + " (" + content.length + " JSON characters).");
     const filename = "Inward-TAT-" + source.month + "-revision-" + next.revision + "-" + Utilities.getUuid() + ".json";
     const file = monthlyDrive_().getFolderById(config.MONTHLY_ARCHIVE_FOLDER_ID)
       .createFile(Utilities.newBlob(content, "application/json", filename));
     // Publish last, after validating the written revision. Failure leaves the prior pointer intact.
+    if (source.batch) console.log("Monthly batch: verifying uploaded revision.");
     if (file.getBlob().getDataAsString("UTF-8") !== content) throw new Error("Monthly revision failed verification.");
     PropertiesService.getScriptProperties().setProperty(monthlyStateKey_(source.month), file.getId());
     return Object.assign(monthlyPublicState_(next), { duplicate: false });
