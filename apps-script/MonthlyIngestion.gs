@@ -65,8 +65,10 @@ function monthlyPublicState_(state) {
 
 function monthlyParseCsv_(source) {
   const metadata = validateMonthlySource_(source);
-  const fromEmail = source.channel === "EMAIL";
-  if (source.content.length > (fromEmail ? 25000000 : 5000000)) throw new Error(fromEmail ? "Email export exceeds the 25 million character limit. Use smaller extraction windows." : "Upload exceeds the 5 million character limit. Use Import from Inbox or split the CSV.");
+  const backfillEmail = source.channel === "BACKFILL_EMAIL";
+  const fromEmail = source.channel === "EMAIL" || backfillEmail;
+  const characterLimit = backfillEmail ? 40000000 : fromEmail ? 25000000 : 5000000;
+  if (source.content.length > characterLimit) throw new Error(fromEmail ? "Email export exceeds the " + characterLimit / 1000000 + " million character limit. Use smaller extraction windows." : "Upload exceeds the 5 million character limit. Use Import from Inbox or split the CSV.");
   if (!["ALL", "SL Mother Hub", "SL Ambient", "SL Rx", "OWN", "EXPORT"].includes(metadata.facility)) {
     throw new Error("Choose a supported facility or ALL for a multi-facility GRN export.");
   }
