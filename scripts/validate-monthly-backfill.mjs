@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 
+const manifest = JSON.parse(fs.readFileSync(new URL("../apps-script/appsscript.json", import.meta.url), "utf8"));
+assert.ok(manifest.oauthScopes.includes("https://www.googleapis.com/auth/userinfo.email"), "Owner identity check requires userinfo.email scope");
+
 const config = { GRN_EMAIL_FROM: "exports@example.com", PUTAWAY_EMAIL_FROM: "exports@example.com" };
 let writes = 0, downloads = 0, parsedSource;
 const message = {
