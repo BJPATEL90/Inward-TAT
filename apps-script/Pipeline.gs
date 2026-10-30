@@ -1336,8 +1336,11 @@ function rebuildTatFacts_(config, runId, monthlyInputs) {
   });
 
   const factRows = [];
-  const allSourceKeys = new Set(
-    Array.from(goodsMap.keys()).concat(
+  // Monthly MIS retains only unloading-cohort facts. Avoid constructing ERP-only
+  // facts that the monthly caller immediately discards (large Putaway exports).
+  const allSourceKeys = new Set(monthlyInputs
+    ? Array.from(goodsMap.keys())
+    : Array.from(goodsMap.keys()).concat(
       Array.from(grnMap.keys()),
       Array.from(putawayMap.keys())
     )

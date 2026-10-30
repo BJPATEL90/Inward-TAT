@@ -149,6 +149,9 @@ const dataset = [
   record("PUTAWAY", { Facility: "OWN", "SKU Code": "SKU1", "GRN Number": "G1", "Status Code": "COMPLETE", "Last Updated": "2026-10-02 08:00:00" }),
 ];
 const calculated = context.calculateMonthlyRevision_("2026-09", dataset, {});
+const cohortInputs = { goods: [dataset[0].values], grn: [dataset[1].values],
+  putaway: [dataset[2].values, { Facility: "OWN", "SKU Code": "UNMATCHED", "GRN Number": "OTHER", "Status Code": "COMPLETE", "Last Updated": "2026-10-02 08:00:00" }], manualActions: new Map() };
+assert.equal(context.rebuildTatFacts_({}, "MONTHLY_PREVIEW", cohortInputs).facts.length, 1); // ERP-only keys never materialized.
 assert.equal(calculated.summary.completeRecords, 1);
 const wrongPutawayFacility = dataset.map(row => row.values._sourceType === "PUTAWAY" ? record("PUTAWAY", { ...row.values, Facility: "SL Mother Hub" }) : row);
 assert.equal(context.calculateMonthlyRevision_("2026-09", wrongPutawayFacility, {}).summary.completeRecords, 0);
