@@ -20,6 +20,13 @@ try {
     let response;
     if (action === "authVerify") response = { ok: true, user: { email: "owner@mosaicwellness.in", name: "Test user" } };
     else if (action === "dashboard") response = { ...fallbackSnapshot, ok: true };
+    else if (action === "monthlyDailySync") {
+      const apply = parameters.get("apply") === "true";
+      if (apply) { assert.equal(parameters.get("captureHash"), "verified-preview"); assert.equal(parameters.get("expectedRevision"), String(revision)); revision++; }
+      response = { ok: true, preview: !apply, revision, captureHash: "verified-preview", sync: {
+        transactions: 773, added: 0, changed: 53, unchanged: 720, becameComplete: 50, becamePending: 0, manuallyClosed: 3,
+      } };
+    }
     else if (action === "monthlyReport") response = { ok: true, filename: `Inward_TAT_MIS_2026-09_r${revision}_PROVISIONAL.xlsx`, fileId: "archive", revision, status: "PROVISIONAL", base64: "UEsDBAE=", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
     else if (action === "monthlyInbox") response = { ok: true, nextOffset: null, receivedFrom: "2026-10-07", receivedThrough: "2026-10-15", emails: [
       { messageId: "b456", type: "PUTAWAY", exportJob: "Copy of Putaway All facility", facility: "ALL", receivedAt: "2026-10-14T05:39:19Z", processable: false, issue: "This export has no GRN Number." },
@@ -84,6 +91,15 @@ try {
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download Monthly MIS (.xlsx)", exact: true }).click();
   assert.equal((await download).suggestedFilename(), "Inward_TAT_MIS_2026-09_r3_PROVISIONAL.xlsx");
+  await page.getByRole("button", { name: "Sync from Daily Data", exact: true }).click();
+  await page.getByText("Daily sync preview for 2026-09", { exact: true }).waitFor();
+  assert.equal(revision, 3);
+  await page.getByRole("button", { name: "Cancel sync", exact: true }).click();
+  assert.equal(await page.getByRole("button", { name: "Apply daily sync", exact: true }).count(), 0);
+  await page.getByRole("button", { name: "Sync from Daily Data", exact: true }).click();
+  await page.getByRole("button", { name: "Apply daily sync", exact: true }).click();
+  await page.getByText("Daily sync saved as revision 4.", { exact: false }).waitFor();
+  assert.equal(revision, 4);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: "work/monthly-mis-mobile.png", fullPage: true, animations: "disabled" });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);

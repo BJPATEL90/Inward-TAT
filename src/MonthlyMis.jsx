@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { loadMonthlyStatus, refreshMonthlySources, uploadMonthlySource, downloadMonthlyReport, loadMonthlyInbox, importMonthlyInbox } from "./api";
+import { loadMonthlyStatus, refreshMonthlySources, uploadMonthlySource, downloadMonthlyReport, loadMonthlyInbox, importMonthlyInbox, syncMonthlyDaily } from "./api";
 import "./monthly-mis.css";
 
 function previousMonth() {
@@ -16,6 +16,7 @@ export default function MonthlyMis() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [syncPreview, setSyncPreview] = useState(null);
   const [reportLink, setReportLink] = useState(null);
   const [type, setType] = useState("GRN");
   const [facility, setFacility] = useState("");
@@ -36,7 +37,7 @@ export default function MonthlyMis() {
   useEffect(() => {
     let active = true;
     selection.current = month;
-    setData(null); setError(""); setNotice(""); setReportLink(null); setConfirmed(false);
+    setData(null); setError(""); setNotice(""); setReportLink(null); setConfirmed(false); setSyncPreview(null);
     setFrom(`${month}-01T00:00`);
     setEmails([]); setMessageId(""); setNextOffset(null); setReceivedFrom(`${month}-01`);
     setFacility(""); setEmailFacility("");
@@ -53,7 +54,7 @@ export default function MonthlyMis() {
 
   async function run(operation) {
     const selected = month;
-    setBusy(true); setError(""); setNotice(""); setReportLink(null);
+    setBusy(true); setError(""); setNotice(""); setReportLink(null); setSyncPreview(null);
     try {
       await operation(selected);
       if (selection.current === selected) setData(await loadMonthlyStatus(selected));
@@ -110,15 +111,33 @@ export default function MonthlyMis() {
     <div className="mis-toolbar">
       <label>Reporting month<input type="month" required value={month} disabled={busy} onChange={event => event.target.value && setMonth(event.target.value)} /></label>
       <button disabled={busy || !data} onClick={() => run(async selected => { await refreshMonthlySources(selected); setNotice("Unloading refreshed and stored reports recalculated. Upload missing GRN/Putaway exports below."); })}>Refresh Data</button>
+      <button disabled={busy || !data} onClick={() => run(async selected => {
+        const result = await syncMonthlyDaily(selected);
+        if (selection.current !== selected) return;
+        if (result.duplicate) setNotice("This month already contains the same daily snapshot. No revision added.");
+        else setSyncPreview(result);
+      })}>Sync from Daily Data</button>
       <button disabled={busy || !data?.revision} onClick={download}>Download Monthly MIS (.xlsx)</button>
     </div>
     {busy && <p role="status">Processing monthly reports…</p>}
     {error && <div className="mis-error" role="alert">{error}<button disabled={busy} onClick={() => run(async () => {})}>Reload month</button></div>}
     {notice && <p className="mis-notice" role="status">{notice}</p>}
+    {syncPreview && <div className="mis-notice" role="status">
+      <strong>Daily sync preview for {month}</strong>
+      <p>{syncPreview.sync.transactions} daily transactions: {syncPreview.sync.added} added, {syncPreview.sync.changed} changed, {syncPreview.sync.unchanged} unchanged.
+        {" "}{syncPreview.sync.becameComplete} become complete; {syncPreview.sync.becamePending} previously complete records need review; {syncPreview.sync.manuallyClosed} are manually closed.</p>
+      <p>Apply saves a new provisional monthly revision with daily source evidence, exception remarks and manual actions. Daily sheets are read only. Records absent from daily data remain in the monthly archive.</p>
+      <button disabled={busy} onClick={() => run(async selected => {
+        const result = await syncMonthlyDaily(selected, syncPreview);
+        setNotice(`Daily sync saved as revision ${result.revision}. ${result.sync.becameComplete} records became complete. Review pending items before downloading the MIS.`);
+      })}>Apply daily sync</button>
+      <button disabled={busy} onClick={() => setSyncPreview(null)}>Cancel sync</button>
+    </div>}
     {reportLink && <p><a href={reportLink.url} target="_blank" rel="noreferrer">Open archived MIS</a></p>}
     <div className="mis-status"><strong>{data?.status?.replaceAll("_", " ") || "Monthly reporting"}</strong><span>Revision {data?.revision || 0}</span><span>Last refresh: {data?.updatedAt ? new Date(data.updatedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "Not refreshed"}</span></div>
     <div className="mis-cards">{[["KPI1: Unloading to Putaway", duration(summary.kpi1Hours)], ["KPI2: GRN to Putaway", duration(summary.kpi2Hours)], ["KPI3: Unloading to GRN", duration(summary.kpi3Hours)], ["Complete / eligible", `${count(summary.completeRecords)} / ${count(summary.eligibleRecords)}`], ["Pending", count(summary.pendingRecords)], ["Source corrections", count(data?.sourceExceptionCount)], ["Boxes unloaded", count(data?.totalBoxes)]].map(([label, value]) => <article key={label}><span>{label}</span><strong>{value}</strong></article>)}</div>
-    <p>Monthly figures remain provisional until source coverage and pending closure are reviewed. {summary.excludedRecords || 0} approved OWN SKU records excluded from KPIs. {data?.missingBoxValues || 0} source rows have missing box values.</p>
+    <p>Monthly figures remain provisional until source coverage and pending closure are reviewed. {summary.excludedRecords || 0} approved OWN SKU records excluded from KPIs. {summary.manuallyClosedRecords || 0} manually closed records are separate from system-completed records. {data?.missingBoxValues || 0} source rows have missing box values.</p>
+    {summary.excludingExceptions && <p>Excluding business exceptions — KPI1: {duration(summary.excludingExceptions.kpi1Hours)} · KPI2: {duration(summary.excludingExceptions.kpi2Hours)} · KPI3: {duration(summary.excludingExceptions.kpi3Hours)}. WH delay remains included.</p>}
     <form className="mis-upload" onSubmit={upload}>
       <h2>Upload Missing / Corrected Reports</h2>
       <p>Select the reporting month above, find an export email and fetch it. Automatic imports remain provisional: an email timestamp does not prove full-month source coverage.</p>
@@ -163,7 +182,7 @@ export default function MonthlyMis() {
       </fieldset>
     </form>
     <MisTable title="Source coverage" headers={["Report", "Facility", "Coverage", "Generated / proxy (UTC)", "Accepted rows", "Archive"]} rows={(data?.sources || []).map(source => [source.type, source.facility, source.coverageDeclared === false ? "Not verified — provisional" : source.completeMonthCoverage ? "Full month declared" : "Partial", source.extractedAt, source.acceptedRows, <a href={`https://drive.google.com/file/d/${source.fileId}/view`} target="_blank" rel="noreferrer">Source</a>])} />
-    <MisTable title="Daily progress" headers={["Date", "Records", "Complete", "Pending", "KPI1", "KPI2", "KPI3", "Boxes", "Progress"]} rows={(data?.daily || []).map(day => [day.date, day.records, day.completeRecords, day.pendingRecords, duration(day.kpi1Hours), duration(day.kpi2Hours), duration(day.kpi3Hours), day.boxes, day.progress])} />
+    <MisTable title="Daily progress" headers={["Date", "Records", "Complete", "Manually closed", "Pending", "KPI1", "KPI2", "KPI3", "Boxes", "Progress"]} rows={(data?.daily || []).map(day => [day.date, day.records, day.completeRecords, day.manuallyClosedRecords || 0, day.pendingRecords, duration(day.kpi1Hours), duration(day.kpi2Hours), duration(day.kpi3Hours), day.boxes, day.progress])} />
     <MisTable title="Facility performance" headers={["Facility", "Eligible", "Complete", "Pending", "KPI1", "KPI2", "KPI3"]} rows={(data?.facilities || []).map(row => [row.facility, row.eligibleRecords, row.completeRecords, row.pendingRecords, duration(row.kpi1Hours), duration(row.kpi2Hours), duration(row.kpi3Hours)])} />
     <MisTable title="Pending closure — first 100 items; full list in Excel" headers={["Facility", "GRN", "SKU", "Required correction", "Owner", "Ageing"]} rows={(data?.pending || []).map(row => [row.facility, row.grn, row.sku, row.stage, row.owner, duration(row.ageingHours)])} />
   </section>;

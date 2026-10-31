@@ -1,0 +1,19 @@
+# Sync from Daily Data
+
+Backend deployed 31 October 2026 as version 61 in the existing correct Apps Script project. Live readback and health/authentication guard checks passed; all unrelated scripts, manifest and owner-entered backfill settings were preserved. Backup: `work/monthly-daily-sync-backup-20261031`. Operational sync has not been run; use the frontend preview before applying.
+
+Monthly MIS now offers **Sync from Daily Data → preview → Apply daily sync**. Select the required reporting month first. This avoids downloading/importing ERP reports that the daily pipeline already processed. All figures remain provisional until closure review; the sync does not certify full-month source coverage.
+
+The preview reads processed daily facts for the selected IST unloading month and their referenced Goods Receiving, GRN and Putaway raw rows. It also captures matching manual task actions, saved exception buckets and remarks. Large daily raw sheets are scanned in 5,000-row blocks, retaining only referenced rows. This is a snapshot of processed results plus representative supporting source rows, not another complete shelf-level ERP export. All daily sheets are read only.
+
+The preview shows added/changed/unchanged transactions, records becoming complete, previously complete records needing review, and manual closures. It writes no files or revisions. Apply rereads the daily data under the shared script lock and checks both the source-content hash and expected monthly revision; changes since preview require a fresh preview. Missing facts, wrong schemas, missing raw rows and raw imports newer than the daily calculation stop the sync. The daily pipeline must finish before syncing.
+
+Apply archives the exact daily capture, including manual action evidence, verifies it, merges new evidence/results by stable key and saves a new verified monthly revision. The state pointer is published last. Prior revisions and reports remain intact, final months reopen as revision-pending, and repeating an unchanged sync adds no duplicate revision. A record absent from the daily month is retained in the monthly archive; it is not silently deleted. Date/SKU/GRN corrections that change transaction keys therefore still require reconciliation of obsolete monthly keys.
+
+Daily results are overlaid onto monthly facts with references rebased to the archived evidence. Later monthly sources with newer extraction timestamps can supersede an older daily overlay. Copies of raw rows used as daily evidence are never treated as a complete shelf-level Putaway source during monthly recomputation. Received boxes use daily Goods corrections without double-counting the corresponding older monthly row.
+
+Manual closures have their own counts and stay distinct from system-completed records. They do not enter complete-record KPI averages or the pending-open list. Saved exception flags are recalculated using existing >12-hour and bucket/remarks rules; WH delay remains N and included. Monthly UI and Excel include averages excluding business exceptions. Excel adds bucket, remarks and manual action audit columns, with manual action dates/times split. Existing KPI duration/date/time columns stay in their original positions; daily operations are unchanged.
+
+Use the existing **Download Monthly MIS (.xlsx)** after applying and reviewing pending items. The workbook contains the synced evidence and immutable capture links. Dashboard month selection/status is not an automatic sync or a final-closure action.
+
+Validation covers read-only preview, authorisation/lock contention, stale preview rejection, failed-write recovery, idempotency, retained unrelated records, source provenance, exception rules, separate manual closures and corrected box totals. Browser checks exercise preview/cancel/apply, revision reload, existing import/export flows and mobile layout. No operational sync is run during deployment; the user reviews the preview before applying.

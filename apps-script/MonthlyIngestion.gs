@@ -391,20 +391,25 @@ function calculateMonthlyRevision_(month, records, config) {
     if (values._sourceType === "PUTAWAY") inputs.putaway.push(values);
   });
   const calculated = rebuildTatFacts_(config, "MONTHLY_PREVIEW", inputs);
-  const facts = calculated.facts.filter(function (row) {
+  const baseFacts = calculated.facts.filter(function (row) {
     return monthlyContainsTimestamp_(month, row[4]);
   });
+  const facts = monthlyDailyFactOverlay_(records, baseFacts, month);
   const excludedSkus = new Set(String(config.OWN_EXCLUDED_SKUS || config.EXCLUDED_SKUS || "").split(/[|,;\n]/).map(normalizeSku_).filter(Boolean));
   function summarize(rows) {
     const excluded = rows.filter(function (row) { return row[1] === "OWN" && excludedSkus.has(row[2]); });
     const eligible = rows.filter(function (row) { return !excluded.includes(row); });
     const complete = eligible.filter(function (row) { return row[13] === "COMPLETE"; });
+    const manuallyClosed = eligible.filter(function (row) { return row[13] === "MANUALLY_CLOSED"; });
+    const adjusted = complete.filter(function (row) { return row[26] !== "Y"; });
     return {
       records: rows.length, excludedRecords: excluded.length, eligibleRecords: eligible.length,
-      completeRecords: complete.length, pendingRecords: eligible.length - complete.length,
+      completeRecords: complete.length, manuallyClosedRecords: manuallyClosed.length, pendingRecords: eligible.length - complete.length - manuallyClosed.length,
       kpi1Hours: average_(complete.map(function (row) { return row[9]; })),
       kpi2Hours: average_(complete.map(function (row) { return row[8]; })),
       kpi3Hours: average_(complete.map(function (row) { return row[7]; })),
+      excludingExceptions: { records: adjusted.length, kpi1Hours: average_(adjusted.map(function (row) { return row[9]; })),
+        kpi2Hours: average_(adjusted.map(function (row) { return row[8]; })), kpi3Hours: average_(adjusted.map(function (row) { return row[7]; })) },
     };
   }
   const groupedDays = new Map();
@@ -421,8 +426,35 @@ function calculateMonthlyRevision_(month, records, config) {
     facilities: Array.from(groupedFacilities.keys()).sort().map(function (facility) { return Object.assign({ facility: facility }, summarize(groupedFacilities.get(facility))); }),
     sourceExceptions: sourceExceptions.concat(calculated.exceptions.filter(function (entry) { return entry.sourceReport === "GOODS_INWARD"; })),
     // Existing manual overrides are integrated with monthly review in the closure phase.
-    manualOverridesApplied: false,
+    manualOverridesApplied: records.some(function (record) { return record.values._sourceType === "DAILY_FACT"; }),
   };
+}
+
+function monthlyDailyFactOverlay_(records, baseFacts, month) {
+  const facts = new Map(baseFacts.map(function (row) { return [row[0], row]; }));
+  const indices = new Map(records.map(function (record, index) { return [record.key, index + 2]; }));
+  records.forEach(function (record) {
+    if (record.values._sourceType !== "DAILY_FACT") return;
+    const saved = record.values;
+    let row = saved.fact.slice();
+    [4, 5, 6, 10, 11, 12, 19, 24].forEach(function (index) {
+      if (!row[index]) return;
+      const value = row[index];
+      const parsed = typeof value === "string" && /T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? new Date(value) : parseDateTime_(value);
+      if (parsed && Number.isFinite(parsed.getTime())) row[index] = parsed;
+    });
+    if (!monthlyContainsTimestamp_(month, row[4])) return;
+    const base = facts.get(row[0]);
+    const newerSource = base && [16, 17, 18].some(function (column) {
+      const source = records[Number(base[column]) - 2];
+      return source && Date.parse(source.extractedAt) > Date.parse(record.extractedAt);
+    });
+    if (newerSource) row = base.slice(0, 26).concat(saved.fact.slice(26, 29));
+    else { row[16] = indices.get(saved.goodsKey) || ""; row[17] = indices.get(saved.grnKey) || ""; row[18] = indices.get(saved.putawayKey) || ""; }
+    if (typeof tatExceptionFlag_ === "function") row[26] = tatExceptionFlag_(row[9], row[27], row[28]);
+    facts.set(row[0], row);
+  });
+  return Array.from(facts.values());
 }
 
 function monthlyValidUnloading_(row) {

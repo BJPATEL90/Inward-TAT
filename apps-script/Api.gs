@@ -44,7 +44,7 @@ function handleApiRequest_(event) {
       );
       return apiResponse_(auth, event);
     }
-    if (["dashboard", "manualtaskaction", "saveexception", "exceptionbulkpreview", "exceptionbulkapply", "putawayanalysis", "monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport", "monthlyinbox", "monthlyemailimport"].indexOf(action) === -1) {
+    if (["dashboard", "manualtaskaction", "saveexception", "exceptionbulkpreview", "exceptionbulkapply", "putawayanalysis", "monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport", "monthlyinbox", "monthlyemailimport", "monthlydailysync"].indexOf(action) === -1) {
       return jsonResponse_({ ok: false, error: "Unsupported action: " + action });
     }
 
@@ -62,9 +62,10 @@ function handleApiRequest_(event) {
       if (!event.monthlyPost) throw new Error("Exception saves require POST.");
       return apiResponse_(saveTatException_(event.parameter, auth.user), event);
     }
-    if (["monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport", "monthlyinbox", "monthlyemailimport"].indexOf(action) !== -1) {
+    if (["monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport", "monthlyinbox", "monthlyemailimport", "monthlydailysync"].indexOf(action) !== -1) {
       if (!event.monthlyPost) throw new Error("Monthly workflow requires POST.");
       const month = String(event.parameter.month || "").trim();
+      if (action === "monthlydailysync") return apiResponse_(syncMonthlyDaily_(event.parameter, auth.user), event);
       if (action === "monthlyinbox" || action === "monthlyemailimport") {
         const request = JSON.parse(String(event.parameter.source || "{}"));
         if (request.month !== month) throw new Error("Email request month differs from the selected month.");

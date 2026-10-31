@@ -8,7 +8,7 @@ function monthlyExcelDateTime_(value, offsetMinutes) {
     (ist.getUTCHours() * 3600 + ist.getUTCMinutes() * 60 + ist.getUTCSeconds()) / 86400];
 }
 
-function monthlyReportModel_(state, config) {
+function monthlyReportModel_(state, config, includeSourceTables) {
   config = state.calculationConfig || config;
   const calculations = state.calculations || { facts: [], sourceExceptions: [], summary: {}, daily: [], facilities: [] };
   const exclusions = new Set(String(config.OWN_EXCLUDED_SKUS || "").split(/[|,;\n]/).map(normalizeSku_).filter(Boolean));
@@ -16,33 +16,35 @@ function monthlyReportModel_(state, config) {
   const headers = ["Record Key", "Facility", "GRN Number", "SKU", "Invoice", "Boxes (source row)",
     "Unloading Date", "Unloading Time", "GRN Date", "GRN Time", "Putaway Date", "Putaway Time",
     "KPI1 Hours", "KPI2 Hours", "KPI3 Hours", "Status", "KPI Eligibility", "Exception", "Match Method",
-    "Owner", "Ageing Hours", "Goods Source", "GRN Source", "Putaway Source"];
+    "Owner", "Ageing Hours", "Goods Source", "GRN Source", "Putaway Source",
+    "Business Exception (Y/N)", "Exception Bucket", "Remarks", "Manual Action Status", "Manual Action By", "Manual Action Date", "Manual Action Time", "Manual Action Reason"];
   function source(rowNumber) { return state.records[Number(rowNumber) - 2] || null; }
   function sourceLink(record) { return record ? "https://drive.google.com/file/d/" + record.sourceId + "/view" : ""; }
   const details = calculations.facts.map(function (fact) {
     const goods = source(fact[16]);
     const exempt = fact[1] === "OWN" && exclusions.has(fact[2]);
-    const pending = !exempt && fact[13] !== "COMPLETE";
+    const pending = !exempt && fact[13] !== "COMPLETE" && fact[13] !== "MANUALLY_CLOSED";
     return [fact[0], fact[1], fact[3], fact[2], goods ? goods.values["Invoice number"] || "" : "",
       goods && Number.isFinite(Number(goods.values["No. of Boxes Recd"])) ? Number(goods.values["No. of Boxes Recd"]) : "",
       ...monthlyExcelDateTime_(fact[4]), ...monthlyExcelDateTime_(fact[5]), ...monthlyExcelDateTime_(fact[6]),
       fact[9], fact[8], fact[7], exempt ? "EXCLUDED" : fact[13], exempt ? "EXCLUDE" : "INCLUDE",
       exempt ? "Approved OWN SKU exclusion" : fact[14], fact[20], pending ? "Unassigned" : "",
       pending ? Math.max(0, (Date.parse(cutoff) - new Date(fact[4]).getTime()) / 3600000) : "",
-      sourceLink(goods), sourceLink(source(fact[17])), sourceLink(source(fact[18]))];
+      sourceLink(goods), sourceLink(source(fact[17])), sourceLink(source(fact[18])),
+      fact[26] || "N", fact[27] || "", fact[28] || "", fact[22] || "", fact[23] || "", ...monthlyExcelDateTime_(fact[24]), fact[25] || ""];
   });
   calculations.sourceExceptions.forEach(function (entry) {
     const record = source(entry.sourceRow);
     details.push([record ? record.key : "", entry.facility, entry.grnNumber, entry.sku,
       record ? record.values["Invoice number"] || "" : "", "", "", "", "", "", "", "", "", "", "",
       "SOURCE_EXCEPTION", "REVIEW", entry.exceptionCode + ": " + entry.exceptionDetail, "", "Unassigned", "",
-      sourceLink(record), "", ""]);
+      sourceLink(record), "", "", "", "", "", "", "", "", "", ""]);
   });
   const volume = new Map();
   const allowed = String(config.GOODS_ALLOWED_FACILITIES || "SL Mother Hub|SL Ambient").split("|").map(normalizeFacility_);
-  state.records.forEach(function (record) {
+  monthlyReportGoodsRecords_(state).forEach(function (record) {
     const row = record.values;
-    if (row._sourceType !== "GOODS_INWARD" || !allowed.includes(normalizeFacility_(row["Received at"])) || !monthlyValidUnloading_(row)) return;
+    if (!allowed.includes(normalizeFacility_(row["Received at"])) || !monthlyValidUnloading_(row)) return;
     const unloading = combineDateAndTime_(row["Unloading Date"], row["Unloading Time"]);
     if (!monthlyContainsTimestamp_(state.month, unloading)) return;
     const day = Utilities.formatDate(unloading, "Asia/Kolkata", "yyyy-MM-dd");
@@ -62,11 +64,11 @@ function monthlyReportModel_(state, config) {
       missingBoxValues: (volume.get(date) || {}).missingBoxes || 0,
       progress: time >= Date.parse(cutoff) ? "Future day" : dailyMap.has(date) ? "Activity captured" : "No activity captured; check sources" }, day));
   }
-  const sourceTables = ["GOODS_INWARD", "GRN", "PUTAWAY"].map(function (type) {
+  const sourceTables = includeSourceTables === false ? [] : ["GOODS_INWARD", "GRN", "PUTAWAY", "DAILY_EVIDENCE"].map(function (type) {
     const records = state.records.filter(function (record) { return record.values._sourceType === type; });
     const names = Array.from(new Set(records.flatMap(function (record) { return Object.keys(record.values).filter(function (name) { return name.charAt(0) !== "_"; }); })));
     const columns = names.flatMap(function (name) {
-      if (/Timestamp|Last Updated|QC Completed On|^Created$|^Updated$/i.test(name)) return [{ name: name, label: name + " Date", kind: "datePart" }, { name: name, label: name + " Time", kind: "timePart" }, { name: name, label: name + " Unparsed Original", kind: "unparsed" }];
+      if (/Timestamp|Last Updated|QC Completed On|^Created$|^Updated$|Imported At|Calculated At|Action At/i.test(name)) return [{ name: name, label: name + " Date", kind: "datePart" }, { name: name, label: name + " Time", kind: "timePart" }, { name: name, label: name + " Unparsed Original", kind: "unparsed" }];
       return [{ name: name, label: name, kind: /date|MFG\.|EXP\./i.test(name) ? "date" : /time/i.test(name) ? "time" : "text" }];
     });
     return { type: type, headers: ["Stable Source Key", "Archive Source", "Extracted Date (UTC)", "Extracted Time (UTC)"].concat(columns.map(function (column) { return column.label; })),
@@ -92,11 +94,31 @@ function monthlyReportModel_(state, config) {
     sourceExceptionCount: calculations.sourceExceptions.length };
 }
 
+function monthlyReportGoodsRecords_(state) {
+  const sheets = new Map(state.sources.filter(function (source) { return source.type === "GOODS_INWARD"; }).map(function (source) { return [source.sheetId, source.filename]; }));
+  const goods = new Map();
+  state.records.forEach(function (record) {
+    if (record.values._sourceType !== "GOODS_INWARD") return;
+    let parts = [];
+    try { parts = JSON.parse(record.key); } catch (ignored) { /* Retain unknown legacy identity. */ }
+    const key = parts[2] === "ROW" ? JSON.stringify([String(parts[1]).split(":")[0], sheets.get(parts[1]) || parts[1], parts[3]]) : record.key;
+    goods.set(key, record);
+  });
+  state.records.forEach(function (record) {
+    if (record.values._sourceType !== "DAILY_EVIDENCE" || record.values._dailyKind !== "goods") return;
+    const values = record.values;
+    const key = JSON.stringify([String(values["Source Spreadsheet Id"] || ""), values["Source Sheet"], Number(values["Source Row"])]);
+    const previous = goods.get(key);
+    if (!previous || Date.parse(record.extractedAt) >= Date.parse(previous.extractedAt)) goods.set(key, record);
+  });
+  return Array.from(goods.values());
+}
+
 function monthlyReportPreview_(state, config) {
-  const model = monthlyReportModel_(state, config);
+  const model = monthlyReportModel_(state, config, false);
   return Object.assign(monthlyPublicState_(state), {
     daily: model.daily, totalBoxes: model.totalBoxes, missingBoxValues: model.missingBoxValues,
-    pending: model.details.filter(function (row) { return row[15] === "SOURCE_EXCEPTION" || (row[16] === "INCLUDE" && row[15] !== "COMPLETE"); })
+    pending: model.details.filter(function (row) { return row[15] === "SOURCE_EXCEPTION" || (row[16] === "INCLUDE" && row[15] !== "COMPLETE" && row[15] !== "MANUALLY_CLOSED"); })
       .slice(0, 100).map(function (row) { return { key: row[0], facility: row[1], grn: row[2], sku: row[3], stage: row[17], owner: row[19], ageingHours: row[20] }; }),
   });
 }
@@ -152,6 +174,8 @@ function createMonthlyMisWithConfig_(month, expectedRevision, config, testState)
       [8, 10, 12].forEach(function (column) { detail.getRange(4, column, detailValues.length, 1).setNumberFormat("hh:mm:ss"); });
       detail.getRange(4, 13, detailValues.length, 3).setNumberFormat("0.00");
       detail.getRange(4, 21, detailValues.length, 1).setNumberFormat("0.0");
+      detail.getRange(4, 30, detailValues.length, 1).setNumberFormat("dd-mmm-yyyy");
+      detail.getRange(4, 31, detailValues.length, 1).setNumberFormat("hh:mm:ss");
       detail.getRange(3, 1, detailValues.length + 1, model.headers.length).createFilter();
       detail.setFrozenRows(3); detail.setFrozenColumns(4);
       let sourceRow = endRow + 4;
@@ -177,6 +201,11 @@ function createMonthlyMisWithConfig_(month, expectedRevision, config, testState)
         const q = "'Detailed Data'!Q4:Q" + endRow; const p = "'Detailed Data'!P4:P" + endRow;
         summary.getRange(15 + index, 2).setFormula('=IF(COUNTIFS(' + q + ',"INCLUDE",' + p + ',"COMPLETE")=0,"",SUMIFS(\'Detailed Data\'!' + column + '4:' + column + endRow + ',' + q + ',"INCLUDE",' + p + ',"COMPLETE")/COUNTIFS(' + q + ',"INCLUDE",' + p + ',"COMPLETE"))').setNumberFormat("0.00");
       });
+      summary.getRange("A18:B18").setValues([["Manually closed (not system-completed)", model.summary.manuallyClosedRecords || 0]]);
+      const adjusted = model.summary.excludingExceptions || {};
+      summary.getRange("E3:F7").setValues([["Excluding business exceptions", "Value"], ["Complete eligible records", adjusted.records || 0],
+        ["KPI1 hours", adjusted.kpi1Hours == null ? "" : adjusted.kpi1Hours], ["KPI2 hours", adjusted.kpi2Hours == null ? "" : adjusted.kpi2Hours],
+        ["KPI3 hours", adjusted.kpi3Hours == null ? "" : adjusted.kpi3Hours]]);
       summary.getRange("A20:H21").merge().setValue("IST reporting month follows unloading date. Later GRN/Putaway completions remain in this month. Provisional until source coverage and pending items are reviewed. Owner assignment and final approval are part of closure setup.").setWrap(true);
       summary.setRowHeight(20, 60);
       const dailyValues = model.daily.map(function (day) { return [monthlyExcelDateTime_(day.date + "T00:00:00+05:30")[0], day.records,

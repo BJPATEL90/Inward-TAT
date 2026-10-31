@@ -97,13 +97,15 @@ async function requestMonthly(action, month, source, extra = {}) {
   }
   const payload = { action, month, credential: getStoredSession()?.credential || "", ...extra };
   if (source) payload.source = JSON.stringify(source);
-  const result = await postToAppsScript(payload);
+  const result = await postToAppsScript(payload, action === "monthlyDailySync" ? { timeoutMs: 180000, maxAttempts: 1 } : {});
   if (!result.ok) throw new Error(result.error || "Monthly processing failed");
   return result;
 }
 
 export function loadMonthlyStatus(month) { return requestMonthly("monthlyStatus", month); }
 export function refreshMonthlySources(month) { return requestMonthly("monthlyRefresh", month); }
+export function syncMonthlyDaily(month, preview) { return requestMonthly("monthlyDailySync", month, null,
+  preview ? { apply: "true", expectedRevision: String(preview.revision), captureHash: preview.captureHash } : { apply: "false" }); }
 export function uploadMonthlySource(month, source) { return requestMonthly("monthlyUpload", month, source); }
 export function loadMonthlyInbox(month, source) { return requestMonthly("monthlyInbox", month, source); }
 export function importMonthlyInbox(month, source) { return requestMonthly("monthlyEmailImport", month, source); }
