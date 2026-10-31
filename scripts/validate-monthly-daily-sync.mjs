@@ -77,4 +77,8 @@ assert.ok(retained.records.some(r=>r.key==='unrelated'));
 const wh=state.calculations.facts[0].slice();wh[27]='WH delay';
 const overlay=context.monthlyDailyFactOverlay_([{key:'d',sourceId:'s',extractedAt:date.toISOString(),values:{_sourceType:'DAILY_FACT',fact:wh}}],[],month);
 assert.equal(overlay[0][26],'N');
+const oldBase=f1.slice();oldBase[13]='INCOMPLETE';oldBase[16]=2;oldBase[17]='';oldBase[18]='';
+const newerGoods={key:'goods',sourceId:'g',extractedAt:'2099-01-01T00:00:00Z',values:{_sourceType:'GOODS_INWARD'}};
+const snap={key:'daily',sourceId:'s',extractedAt:date.toISOString(),values:{_sourceType:'DAILY_FACT',fact:f1}};
+assert.equal(context.monthlyDailyFactOverlay_([newerGoods,snap],[oldBase],month)[0][13],'COMPLETE');
 console.log('Daily-to-monthly sync validated: read-only preview, authorisation/locks, stale preview rejection, failed-write recovery, provenance, remarks, manual closure, exception rules and idempotency.');

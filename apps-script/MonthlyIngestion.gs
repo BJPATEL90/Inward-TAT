@@ -445,7 +445,9 @@ function monthlyDailyFactOverlay_(records, baseFacts, month) {
     });
     if (!monthlyContainsTimestamp_(month, row[4])) return;
     const base = facts.get(row[0]);
-    const newerSource = base && [16, 17, 18].some(function (column) {
+    // A Goods-only refresh must not discard synced ERP completions. New ERP
+    // imports can supersede a daily snapshot; later daily corrections use Sync.
+    const newerSource = base && [17, 18].some(function (column) {
       const source = records[Number(base[column]) - 2];
       return source && Date.parse(source.extractedAt) > Date.parse(record.extractedAt);
     });

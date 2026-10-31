@@ -1,6 +1,6 @@
 # Sync from Daily Data
 
-Backend deployed 31 October 2026 as version 61 in the existing correct Apps Script project. Live readback and health/authentication guard checks passed; all unrelated scripts, manifest and owner-entered backfill settings were preserved. Backup: `work/monthly-daily-sync-backup-20261031`. Operational sync has not been run; use the frontend preview before applying.
+Backend initially deployed 31 October 2026 as version 61, followed by the version 62 safeguard preventing a Goods-only refresh from discarding synced ERP completions. Live readback and health/authentication guard checks passed for the initial release; all unrelated scripts, manifest and owner-entered backfill settings were preserved. Backup: `work/monthly-daily-sync-backup-20261031`. Operational sync has not been run; use the frontend preview before applying.
 
 Monthly MIS now offers **Sync from Daily Data → preview → Apply daily sync**. Select the required reporting month first. This avoids downloading/importing ERP reports that the daily pipeline already processed. All figures remain provisional until closure review; the sync does not certify full-month source coverage.
 
