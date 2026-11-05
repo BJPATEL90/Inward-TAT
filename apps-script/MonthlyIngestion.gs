@@ -394,7 +394,7 @@ function calculateMonthlyRevision_(month, records, config) {
   const baseFacts = calculated.facts.filter(function (row) {
     return monthlyContainsTimestamp_(month, row[4]);
   });
-  const facts = monthlyDailyFactOverlay_(records, baseFacts, month);
+  const facts = monthlyDailyExceptionOverlay_(monthlyDailyFactOverlay_(records, baseFacts, month));
   const excludedSkus = new Set(String(config.OWN_EXCLUDED_SKUS || config.EXCLUDED_SKUS || "").split(/[|,;\n]/).map(normalizeSku_).filter(Boolean));
   function summarize(rows) {
     const excluded = rows.filter(function (row) { return row[1] === "OWN" && excludedSkus.has(row[2]); });
@@ -408,7 +408,8 @@ function calculateMonthlyRevision_(month, records, config) {
       kpi1Hours: average_(complete.map(function (row) { return row[9]; })),
       kpi2Hours: average_(complete.map(function (row) { return row[8]; })),
       kpi3Hours: average_(complete.map(function (row) { return row[7]; })),
-      excludingExceptions: { records: adjusted.length, kpi1Hours: average_(adjusted.map(function (row) { return row[9]; })),
+      excludingExceptions: { records: adjusted.length, excludedRecords: complete.length - adjusted.length,
+        kpi1Hours: average_(adjusted.map(function (row) { return row[9]; })),
         kpi2Hours: average_(adjusted.map(function (row) { return row[8]; })), kpi3Hours: average_(adjusted.map(function (row) { return row[7]; })) },
     };
   }
@@ -428,6 +429,55 @@ function calculateMonthlyRevision_(month, records, config) {
     // Existing manual overrides are integrated with monthly review in the closure phase.
     manualOverridesApplied: records.some(function (record) { return record.values._sourceType === "DAILY_FACT"; }),
   };
+}
+
+/**
+ * Exception annotations are maintained in the daily Fact sheet. Monthly source
+ * refreshes and later GRN/Putaway imports must carry those annotations forward
+ * by Record Key; otherwise the inclusive and adjusted KPI cohorts silently
+ * become identical. A blank daily annotation intentionally clears an older
+ * monthly snapshot for the same key. Rows absent from the daily Fact retain
+ * their archived annotation.
+ */
+function monthlyDailyExceptionOverlay_(facts) {
+  // Some isolated validation harnesses do not load the daily spreadsheet
+  // adapter. Production Apps Script always provides it through Code.gs.
+  if (!facts.length || typeof openInwardTatSpreadsheet_ === "undefined") return facts;
+  const keys = new Set(facts.map(function (row) { return String(row[0] || ""); }));
+  const annotations = new Map();
+  const spreadsheet = openInwardTatSpreadsheet_();
+  const sheet = spreadsheet.getSheetByName(INWARD_TAT.SHEETS.FACT);
+  if (!sheet) throw new Error("Daily Fact sheet is missing; monthly exception annotations were not changed.");
+  const width = 29;
+  const headers = sheet.getRange(1, 1, 1, width).getValues()[0];
+  const expected = SHEET_DEFINITIONS.filter(function (entry) { return entry.name === INWARD_TAT.SHEETS.FACT; })[0].headers;
+  if (headers.join("|") !== expected.join("|")) {
+    throw new Error("Daily Fact schema has changed; monthly exception annotations were not changed.");
+  }
+  const lastRow = sheet.getLastRow();
+  for (let start = 2; start <= lastRow; start += 2000) {
+    const count = Math.min(2000, lastRow - start + 1);
+    const rowKeys = sheet.getRange(start, 1, count, 1).getValues();
+    const values = sheet.getRange(start, 27, count, 3).getValues();
+    rowKeys.forEach(function (cells, index) {
+      const key = String(cells[0] || "");
+      if (!keys.has(key)) return;
+      if (annotations.has(key)) throw new Error("Daily Fact contains a duplicate monthly Record Key: " + key);
+      annotations.set(key, { bucket: String(values[index][1] || ""), remarks: String(values[index][2] || "") });
+    });
+  }
+  return facts.map(function (fact) {
+    const entry = annotations.get(String(fact[0] || ""));
+    if (!entry) {
+      fact[26] = tatExceptionFlag_(fact[9], fact[27], fact[28]);
+      return fact;
+    }
+    const row = fact.slice();
+    row[27] = entry.bucket;
+    row[28] = entry.remarks;
+    row[26] = tatExceptionFlag_(row[9], row[27], row[28]);
+    return row;
+  });
 }
 
 function monthlyDailyFactOverlay_(records, baseFacts, month) {

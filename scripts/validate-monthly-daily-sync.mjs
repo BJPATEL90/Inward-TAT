@@ -62,6 +62,7 @@ const saved=context.syncMonthlyDaily_(apply,user);assert.equal(saved.revision,2)
 const state=context.readMonthlyState_(month);
 assert.equal(state.calculations.summary.completeRecords,1);assert.equal(state.calculations.summary.manuallyClosedRecords,1);assert.equal(state.calculations.summary.pendingRecords,0);
 assert.equal(state.calculations.summary.excludingExceptions.records,0);
+assert.equal(state.calculations.summary.excludingExceptions.excludedRecords,1);
 const model=context.monthlyReportModel_(state,config);
 assert.equal(model.headers.length,model.details[0].length);assert.equal(model.details[0][26],'Saved remark');
 assert.equal(model.details[1][27],'MANUALLY_CLOSED');assert.equal(model.totalBoxes,10);
@@ -81,4 +82,9 @@ const oldBase=f1.slice();oldBase[13]='INCOMPLETE';oldBase[16]=2;oldBase[17]='';o
 const newerGoods={key:'goods',sourceId:'g',extractedAt:'2099-01-01T00:00:00Z',values:{_sourceType:'GOODS_INWARD'}};
 const snap={key:'daily',sourceId:'s',extractedAt:date.toISOString(),values:{_sourceType:'DAILY_FACT',fact:f1}};
 assert.equal(context.monthlyDailyFactOverlay_([newerGoods,snap],[oldBase],month)[0][13],'COMPLETE');
+const dailyAnnotation=context.monthlyDailyExceptionOverlay_([f1.slice()])[0];
+assert.equal(dailyAnnotation[26],'Y');assert.equal(dailyAnnotation[27],'Invoice issue');assert.equal(dailyAnnotation[28],'Saved remark');
+factData[1][27]='';factData[1][28]='';
+const clearedAnnotation=context.monthlyDailyExceptionOverlay_([dailyAnnotation])[0];
+assert.equal(clearedAnnotation[26],'N');assert.equal(clearedAnnotation[27],'');assert.equal(clearedAnnotation[28],'');
 console.log('Daily-to-monthly sync validated: read-only preview, authorisation/locks, stale preview rejection, failed-write recovery, provenance, remarks, manual closure, exception rules and idempotency.');

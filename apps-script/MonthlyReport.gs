@@ -203,7 +203,8 @@ function createMonthlyMisWithConfig_(month, expectedRevision, config, testState)
       });
       summary.getRange("A18:B18").setValues([["Manually closed (not system-completed)", model.summary.manuallyClosedRecords || 0]]);
       const adjusted = model.summary.excludingExceptions || {};
-      summary.getRange("E3:F7").setValues([["Excluding business exceptions", "Value"], ["Complete eligible records", adjusted.records || 0],
+      summary.getRange("E3:F8").setValues([["Excluding business exceptions", "Value"], ["Business exceptions removed", adjusted.excludedRecords || 0],
+        ["Complete eligible records", adjusted.records || 0],
         ["KPI1 hours", adjusted.kpi1Hours == null ? "" : adjusted.kpi1Hours], ["KPI2 hours", adjusted.kpi2Hours == null ? "" : adjusted.kpi2Hours],
         ["KPI3 hours", adjusted.kpi3Hours == null ? "" : adjusted.kpi3Hours]]);
       summary.getRange("A20:H21").merge().setValue("IST reporting month follows unloading date. Later GRN/Putaway completions remain in this month. Provisional until source coverage and pending items are reviewed. Owner assignment and final approval are part of closure setup.").setWrap(true);

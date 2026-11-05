@@ -17,3 +17,7 @@ Manual closures have their own counts and stay distinct from system-completed re
 Use the existing **Download Monthly MIS (.xlsx)** after applying and reviewing pending items. The workbook contains the synced evidence and immutable capture links. Dashboard month selection/status is not an automatic sync or a final-closure action.
 
 Validation covers read-only preview, authorisation/lock contention, stale preview rejection, failed-write recovery, idempotency, retained unrelated records, source provenance, exception rules, separate manual closures and corrected box totals. Browser checks exercise preview/cancel/apply, revision reload, existing import/export flows and mobile layout. No operational sync is run during deployment; the user reviews the preview before applying.
+
+## Exception annotation retention
+
+Monthly recalculation now reads only the Record Key and exception columns from the daily Fact sheet in bounded blocks. Matching monthly records receive the latest bucket and remarks, and the Y/N flag is recalculated against the monthly KPI1 value. This applies to Refresh Data, later GRN/Putaway imports and daily-sync revisions, so a later monthly source update no longer erases the adjusted KPI cohort. A blank daily annotation clears an older monthly annotation for the same key; archived rows absent from the daily Fact retain their saved annotation. The dashboard and Excel summary show both the number of business exceptions removed and the completed-record count retained. WH delay remains N and included.
