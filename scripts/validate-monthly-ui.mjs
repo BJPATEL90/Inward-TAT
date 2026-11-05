@@ -35,7 +35,8 @@ try {
     else {
       if (action === "monthlyUpload" || action === "monthlyEmailImport") revision++;
       response = { ok: true, month: parameters.get("month"), revision, status: "PROVISIONAL", updatedAt: "2026-10-13T03:00:00Z",
-        summary: { eligibleRecords: 100, completeRecords: 98, pendingRecords: 2, excludedRecords: 7, kpi1Hours: 21.29, kpi2Hours: 12.32, kpi3Hours: 8.97 },
+        summary: { eligibleRecords: 100, completeRecords: 98, pendingRecords: 2, excludedRecords: 7, kpi1Hours: 21.29, kpi2Hours: 12.32, kpi3Hours: 8.97,
+          excludingExceptions: { records: 84, excludedRecords: 14, kpi1Hours: 13.35, kpi2Hours: 10.55, kpi3Hours: 2.80 } },
         sourceExceptionCount: 1, totalBoxes: 2000, missingBoxValues: 0,
         sources: [{ type: "GRN", facility: "ALL", completeMonthCoverage: true, extractedAt: "2026-10-01T02:30:00Z", acceptedRows: 100, fileId: "source" }],
         daily: [{ date: "2026-09-30", records: 10, completeRecords: 8, pendingRecords: 2, kpi1Hours: 20, kpi2Hours: 12, kpi3Hours: 8, boxes: 200, progress: "Activity captured" }],
@@ -50,6 +51,12 @@ try {
   await page.getByLabel("Reporting month").fill("2026-09");
   await page.getByRole("button", { name: "Download Monthly MIS (.xlsx)", exact: true }).waitFor();
   await page.waitForFunction(() => !document.querySelector(".monthly-mis")?.getAttribute("aria-busy") || document.querySelector(".monthly-mis")?.getAttribute("aria-busy") === "false");
+  const comparison = page.getByLabel("Monthly KPI comparison");
+  assert.equal(await comparison.getByRole("heading", { name: "Including business exceptions", exact: true }).count(), 1);
+  assert.equal(await comparison.getByRole("heading", { name: "Excluding business exceptions", exact: true }).count(), 1);
+  assert.equal(await comparison.getByText("21.29 h", { exact: true }).count(), 1);
+  assert.equal(await comparison.getByText("13.35 h", { exact: true }).count(), 1);
+  assert.equal(await comparison.getByText("14 valid business exceptions removed", { exact: true }).count(), 1);
   assert.equal(await page.getByRole("button", { name: "Download CSV", exact: true }).count(), 0);
   await page.getByLabel("Reporting month").blur();
   await page.screenshot({ path: "work/monthly-mis-desktop.png", fullPage: true, animations: "disabled" });

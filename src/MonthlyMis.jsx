@@ -94,6 +94,7 @@ export default function MonthlyMis() {
     } catch (reason) { setError(reason.message); } finally { setBusy(false); }
   }
   const summary = data?.summary || {};
+  const adjusted = summary.excludingExceptions || {};
   const selectedEmail = emails.find(email => email.messageId === messageId);
   async function findEmails(offset = 0) {
     await run(async selected => {
@@ -135,9 +136,19 @@ export default function MonthlyMis() {
     </div>}
     {reportLink && <p><a href={reportLink.url} target="_blank" rel="noreferrer">Open archived MIS</a></p>}
     <div className="mis-status"><strong>{data?.status?.replaceAll("_", " ") || "Monthly reporting"}</strong><span>Revision {data?.revision || 0}</span><span>Last refresh: {data?.updatedAt ? new Date(data.updatedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "Not refreshed"}</span></div>
-    <div className="mis-cards">{[["KPI1: Unloading to Putaway", duration(summary.kpi1Hours)], ["KPI2: GRN to Putaway", duration(summary.kpi2Hours)], ["KPI3: Unloading to GRN", duration(summary.kpi3Hours)], ["Complete / eligible", `${count(summary.completeRecords)} / ${count(summary.eligibleRecords)}`], ["Pending", count(summary.pendingRecords)], ["Source corrections", count(data?.sourceExceptionCount)], ["Boxes unloaded", count(data?.totalBoxes)]].map(([label, value]) => <article key={label}><span>{label}</span><strong>{value}</strong></article>)}</div>
+    <div className="mis-result-comparison" aria-label="Monthly KPI comparison">
+      <section className="mis-result-panel mis-result-including" aria-labelledby="mis-including-title">
+        <header><div><h2 id="mis-including-title">Including business exceptions</h2><p>Original completed-record result</p></div><strong>{count(summary.completeRecords)} transactions</strong></header>
+        <div className="mis-result-cards">{[["KPI1", "Unloading to Putaway", duration(summary.kpi1Hours)], ["KPI2", "GRN to Putaway", duration(summary.kpi2Hours)], ["KPI3", "Unloading to GRN", duration(summary.kpi3Hours)]].map(([kpi, label, value]) => <article key={kpi}><span>{kpi}</span><strong>{value}</strong><small>{label}</small></article>)}</div>
+      </section>
+      <section className="mis-result-panel mis-result-excluding" aria-labelledby="mis-excluding-title">
+        <header><div><h2 id="mis-excluding-title">Excluding business exceptions</h2><p>Adjusted result; WH delay remains included</p></div><strong>{count(adjusted.records)} transactions</strong></header>
+        <div className="mis-result-cards">{[["KPI1", "Unloading to Putaway", duration(adjusted.kpi1Hours)], ["KPI2", "GRN to Putaway", duration(adjusted.kpi2Hours)], ["KPI3", "Unloading to GRN", duration(adjusted.kpi3Hours)]].map(([kpi, label, value]) => <article key={kpi}><span>{kpi}</span><strong>{value}</strong><small>{label}</small></article>)}</div>
+        <p className="mis-excluded-count">{count(adjusted.excludedRecords)} valid business exceptions removed</p>
+      </section>
+    </div>
+    <div className="mis-cards mis-support-cards">{[["Complete / eligible", `${count(summary.completeRecords)} / ${count(summary.eligibleRecords)}`], ["Pending", count(summary.pendingRecords)], ["Source corrections", count(data?.sourceExceptionCount)], ["Boxes unloaded", count(data?.totalBoxes)]].map(([label, value]) => <article key={label}><span>{label}</span><strong>{value}</strong></article>)}</div>
     <p>Monthly figures remain provisional until source coverage and pending closure are reviewed. {summary.excludedRecords || 0} approved OWN SKU records excluded from KPIs. {summary.manuallyClosedRecords || 0} manually closed records are separate from system-completed records. {data?.missingBoxValues || 0} source rows have missing box values.</p>
-    {summary.excludingExceptions && <p>Excluding business exceptions ({count(summary.excludingExceptions.excludedRecords)} removed; {count(summary.excludingExceptions.records)} completed records retained) — KPI1: {duration(summary.excludingExceptions.kpi1Hours)} · KPI2: {duration(summary.excludingExceptions.kpi2Hours)} · KPI3: {duration(summary.excludingExceptions.kpi3Hours)}. WH delay remains included.</p>}
     <form className="mis-upload" onSubmit={upload}>
       <h2>Upload Missing / Corrected Reports</h2>
       <p>Select the reporting month above, find an export email and fetch it. Automatic imports remain provisional: an email timestamp does not prove full-month source coverage.</p>

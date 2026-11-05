@@ -1,5 +1,5 @@
 .monthly-mis { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; max-width: 100%; gap: 20px; padding: 24px; color: #172033; }
-.monthly-mis > *, .mis-cards article, .mis-table, .mis-table > div, .mis-upload fieldset { min-width: 0; }
+.monthly-mis > *, .mis-cards article, .mis-result-panel, .mis-result-cards article, .mis-table, .mis-table > div, .mis-upload fieldset { min-width: 0; }
 .mis-toolbar, .mis-status { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; }
 .monthly-mis label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
 .monthly-mis input, .monthly-mis select { min-width: 0; padding: 10px; border: 1px solid #cad3e4; border-radius: 6px; background: white; color: #172033; }
@@ -10,6 +10,21 @@
 .mis-cards article { display: grid; gap: 10px; }
 .mis-cards strong { font-size: 24px; }
 .mis-cards span, .mis-status span { font-size: 13px; color: #52627e; }
+.mis-result-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.mis-result-panel { background: white; border: 1px solid #d9e1ef; border-top: 4px solid #2443c4; border-radius: 12px; padding: 18px; }
+.mis-result-excluding { border-top-color: #0b8a5a; }
+.mis-result-panel > header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 14px; }
+.mis-result-panel h2 { margin: 0; font-size: 16px; color: #172033; }
+.mis-result-panel header p, .mis-result-panel .mis-excluded-count { margin: 4px 0 0; font-size: 12px; color: #52627e; }
+.mis-result-panel header > strong { white-space: nowrap; color: #2443c4; font-size: 14px; }
+.mis-result-excluding header > strong { color: #0b7a48; }
+.mis-result-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.mis-result-cards article { display: grid; gap: 4px; padding: 13px; background: #f6f8fc; border-radius: 8px; }
+.mis-result-excluding .mis-result-cards article { background: #f1faf6; }
+.mis-result-cards span { font-size: 12px; font-weight: 700; color: #52627e; }
+.mis-result-cards strong { font-size: 22px; color: #172033; }
+.mis-result-cards small { font-size: 11px; color: #65738c; line-height: 1.35; }
+.mis-excluded-count { font-weight: 700; }
 .mis-upload h2, .mis-table h2 { margin: 0 0 12px; font-size: 18px; }
 .mis-upload p, .monthly-mis > p { font-size: 13px; line-height: 1.6; }
 .mis-upload fieldset { border: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
@@ -22,4 +37,5 @@
 .mis-error button { margin-left: 15px; }
 .mis-notice { color: #0b7a48; }
 .monthly-mis a { color: #2443c4; text-decoration: underline; }
-@media (max-width: 600px) { .monthly-mis { padding: 12px; } .mis-toolbar button { width: 100%; } }
+@media (max-width: 900px) { .mis-result-comparison { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .monthly-mis { padding: 12px; } .mis-toolbar button { width: 100%; } .mis-result-panel > header { display: grid; } .mis-result-cards { grid-template-columns: 1fr; } }
