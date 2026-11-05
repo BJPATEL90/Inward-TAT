@@ -20,6 +20,7 @@ const grids = [];
 let exports = 0;
 let failExport = false;
 let releases = 0;
+let reportSize = 5;
 const archived = new Map();
 function cellKey(row, column) { return `${row}:${column}`; }
 function range(sheet, row, col, rows = 1, columns = 1) {
@@ -57,7 +58,7 @@ const context = vm.createContext({ Date, Map, Set, String, Number, Array, JSON, 
     getBlob: () => ({ getBytes: () => failExport ? [1] : [80, 75, 3, 4, 1], setName: name => ({ name, getBytes: () => [80, 75, 3, 4, 1] }) }) }; } },
   DriveApp: { getFileById: () => ({ moveTo() {} }), getFolderById: () => ({
     getFilesByName: name => ({ hasNext: () => archived.has(name), next: () => archived.get(name) }),
-    createFile: blob => { const file = { getId: () => "xlsx-file", getBlob: () => blob }; archived.set(blob.name, file); return file; },
+    createFile: blob => { const file = { getId: () => "xlsx-file", getSize: () => reportSize, getBlob: () => blob }; archived.set(blob.name, file); return file; },
   }) },
 });
 for (const file of ["Pipeline.gs", "MonthlyClosure.gs", "MonthlyIngestion.gs", "MonthlyReport.gs"]) {
@@ -84,6 +85,8 @@ assert.equal(grids.length, 0);
 const report = context.createMonthlyMis_(state.month, 3, { email: "owner" });
 assert.equal(report.revision, 3);
 assert.equal(report.status, "PROVISIONAL");
+assert.equal(report.delivery, "INLINE");
+assert.ok(report.base64);
 assert.equal(grids.length, 2);
 assert.deepEqual(grids.map(s => s.name), ["Summary", "Detailed Data"]);
 assert.equal(grids[0].charts.length, 4);
@@ -93,6 +96,12 @@ assert.equal(grids[1].cells.get("4:5").startsWith("'="), true);
 assert.equal(grids[1].formats.some(f => f.col === 8 && f.format === "hh:mm:ss"), true);
 assert.equal(context.createMonthlyMis_(state.month, 3, { email: "owner" }).filename, report.filename);
 assert.equal(exports, 1); // Repeated request returns the archived XLSX.
+reportSize = 12000001;
+const largeReport = context.createMonthlyMis_(state.month, 3, { email: "owner" });
+assert.equal(largeReport.delivery, "DRIVE");
+assert.equal(largeReport.base64, undefined);
+assert.equal(largeReport.fileSizeBytes, 12000001);
+assert.match(largeReport.downloadUrl, /drive\.google\.com\/uc\?export=download/);
 context.readMonthlyState_ = () => { throw new Error("Test exporter read operational monthly state"); };
 assert.equal(context.createMonthlyMisWithConfig_(state.month, 3, config, state).fileId, report.fileId);
 context.monthlyAccess_ = () => { throw new Error("Monthly workflow is not enabled yet."); };

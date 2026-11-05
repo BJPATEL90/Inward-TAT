@@ -85,12 +85,21 @@ export default function MonthlyMis() {
     setBusy(true); setError(""); setReportLink(null);
     try {
       const report = await downloadMonthlyReport(month, data.revision);
-      const bytes = Uint8Array.from(atob(report.base64), character => character.charCodeAt(0));
-      const url = URL.createObjectURL(new Blob([bytes], { type: report.mimeType }));
-      const anchor = document.createElement("a"); anchor.href = url; anchor.download = report.filename; anchor.click();
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-      setReportLink({ url: `https://drive.google.com/file/d/${report.fileId}/view`, filename: report.filename });
-      setNotice(`Downloaded ${report.status.toLowerCase().replaceAll("_", " ")} MIS, revision ${report.revision}.`);
+      const driveUrl = report.driveUrl || `https://drive.google.com/file/d/${report.fileId}/view`;
+      setReportLink({ url: driveUrl, filename: report.filename });
+      if (report.base64) {
+        const bytes = Uint8Array.from(atob(report.base64), character => character.charCodeAt(0));
+        const url = URL.createObjectURL(new Blob([bytes], { type: report.mimeType }));
+        const anchor = document.createElement("a"); anchor.href = url; anchor.download = report.filename; anchor.click();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        setNotice(`Downloaded ${report.status.toLowerCase().replaceAll("_", " ")} MIS, revision ${report.revision}.`);
+      } else {
+        const anchor = document.createElement("a");
+        anchor.href = report.downloadUrl || driveUrl; anchor.target = "_blank"; anchor.rel = "noopener noreferrer";
+        document.body.appendChild(anchor); anchor.click(); anchor.remove();
+        const size = report.fileSizeBytes ? ` (${(report.fileSizeBytes / 1000000).toFixed(1)} MB)` : "";
+        setNotice(`Large MIS${size} opened from the archived Drive file. If the download did not start, use Open archived MIS below.`);
+      }
     } catch (reason) { setError(reason.message); } finally { setBusy(false); }
   }
   const summary = data?.summary || {};

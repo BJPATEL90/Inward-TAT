@@ -248,10 +248,17 @@ function createMonthlyMisWithConfig_(month, expectedRevision, config, testState)
       if (!blob) throw new Error("Excel export failed. The monthly revision remains intact; retry download.");
       output = folder.createFile(blob.setName(filename));
     }
+    const fileId = output.getId();
+    const size = Number(output.getSize());
+    const result = { ok: true, filename: filename, month: month, revision: state.revision, status: state.status,
+      fileId: fileId, fileSizeBytes: size, mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      driveUrl: "https://drive.google.com/file/d/" + fileId + "/view",
+      downloadUrl: "https://drive.google.com/uc?export=download&id=" + encodeURIComponent(fileId) };
+    // Base64 expands the response by roughly one third. Keep small files on the
+    // existing direct path; large files use the already archived Drive copy.
+    if (size > 12000000) return Object.assign(result, { delivery: "DRIVE" });
     const bytes = output.getBlob().getBytes();
-    if (bytes.length > 12000000) throw new Error("MIS exceeds the direct-download limit. Retrieve the archived report from Drive.");
-    return { ok: true, filename: filename, month: month, revision: state.revision, status: state.status,
-      fileId: output.getId(), base64: Utilities.base64Encode(bytes), mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
+    return Object.assign(result, { delivery: "INLINE", base64: Utilities.base64Encode(bytes) });
   } finally { lock.releaseLock(); }
 }
 
