@@ -4,6 +4,7 @@
 .monthly-mis label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
 .monthly-mis input, .monthly-mis select { min-width: 0; padding: 10px; border: 1px solid #cad3e4; border-radius: 6px; background: white; color: #172033; }
 .monthly-mis button { padding: 11px 16px; border: 0; border-radius: 6px; background: #2443c4; color: white; cursor: pointer; }
+.monthly-mis .mis-template-button { display: inline-flex; align-items: center; padding: 11px 16px; border: 1px solid #2443c4; border-radius: 6px; background: white; color: #2443c4; font-weight: 600; text-decoration: none; }
 .monthly-mis button:disabled { opacity: .5; cursor: default; }
 .mis-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 .mis-cards article, .mis-upload, .mis-table { background: white; border: 1px solid #d9e1ef; border-radius: 10px; padding: 18px; }

@@ -44,7 +44,7 @@ function handleApiRequest_(event) {
       );
       return apiResponse_(auth, event);
     }
-    if (["dashboard", "manualtaskaction", "saveexception", "exceptionbulkpreview", "exceptionbulkapply", "putawayanalysis", "monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport", "monthlyinbox", "monthlyemailimport", "monthlydailysync"].indexOf(action) === -1) {
+    if (["dashboard", "manualtaskaction", "saveexception", "exceptionbulkpreview", "exceptionbulkapply", "putawayanalysis", "monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport", "monthlycsv", "monthlyinbox", "monthlyemailimport", "monthlydailysync"].indexOf(action) === -1) {
       return jsonResponse_({ ok: false, error: "Unsupported action: " + action });
     }
 
@@ -62,7 +62,7 @@ function handleApiRequest_(event) {
       if (!event.monthlyPost) throw new Error("Exception saves require POST.");
       return apiResponse_(saveTatException_(event.parameter, auth.user), event);
     }
-    if (["monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport", "monthlyinbox", "monthlyemailimport", "monthlydailysync"].indexOf(action) !== -1) {
+    if (["monthlystatus", "monthlyupload", "monthlyrefresh", "monthlyreport", "monthlycsv", "monthlyinbox", "monthlyemailimport", "monthlydailysync"].indexOf(action) !== -1) {
       if (!event.monthlyPost) throw new Error("Monthly workflow requires POST.");
       const month = String(event.parameter.month || "").trim();
       if (action === "monthlydailysync") return apiResponse_(syncMonthlyDaily_(event.parameter, auth.user), event);
@@ -72,6 +72,7 @@ function handleApiRequest_(event) {
         return apiResponse_(action === "monthlyinbox" ? listMonthlyInbox_(request, auth.user) : importMonthlyInbox_(request, auth.user), event);
       }
       if (action === "monthlyreport") return apiResponse_(createMonthlyMis_(month, event.parameter.revision, auth.user), event);
+      if (action === "monthlycsv") return apiResponse_(createMonthlyCsv_(month, event.parameter.revision, auth.user), event);
       if (action === "monthlyupload") {
         const sourceMonth = JSON.parse(String(event.parameter.source || "{}")).month;
         if (sourceMonth !== month) throw new Error("Uploaded source month differs from the selected month.");

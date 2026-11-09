@@ -9,6 +9,9 @@
 !MonthlyIngestion.gs
 !MonthlyReport.gs
 !MonthlyDrive.gs
+!MonthlyBackfill.gs
+!MonthlyBackfillBatch.gs
+!MonthlyDailySync.gs
 !ExceptionBulk.gs
 !ExceptionHandling.gs
 !ReminderEngine.gs

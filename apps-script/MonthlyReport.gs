@@ -128,6 +128,31 @@ function monthlySafeCell_(value) {
   return typeof value === "string" && /^[=+@-]/.test(value) ? "'" + value : value == null ? "" : value;
 }
 
+function monthlyCsvCell_(value) {
+  let text = value == null ? "" : String(value);
+  if (typeof value === "string" && /^[=+@-]/.test(text)) text = "'" + text;
+  return /[",\r\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+}
+
+/** Lightweight transaction-only export for the formula-ready Excel template. */
+function createMonthlyCsv_(month, expectedRevision, user) {
+  const config = monthlyAccess_(user);
+  const state = readMonthlyState_(month);
+  if (!state.revision || !state.calculations) throw new Error("Refresh this month before downloading CSV data.");
+  if (String(expectedRevision) !== String(state.revision)) throw new Error("Monthly data changed. Reload the month before downloading CSV data.");
+  const model = monthlyReportModel_(state, config, false);
+  if (model.details.length > 10000) {
+    throw new Error("This month has " + model.details.length + " transaction rows. The Excel template supports up to 10,000 rows; contact the administrator to split the selected month.");
+  }
+  const csv = "\uFEFF" + [model.headers].concat(model.details).map(function (row) {
+    return row.map(monthlyCsvCell_).join(",");
+  }).join("\r\n");
+  if (csv.length > 8000000) throw new Error("Monthly transaction CSV exceeds 8 MB. Contact the administrator to split the selected month.");
+  return { ok: true, month: month, revision: state.revision, status: state.status,
+    filename: "Inward_TAT_Monthly_Data_" + month + "_r" + state.revision + ".csv",
+    rows: model.details.length, base64: Utilities.base64Encode(csv), mimeType: "text/csv;charset=utf-8" };
+}
+
 function monthlyWriteTable_(sheet, row, values) {
   if (!values.length) return;
   const width = values[0].length;

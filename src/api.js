@@ -110,3 +110,4 @@ export function uploadMonthlySource(month, source) { return requestMonthly("mont
 export function loadMonthlyInbox(month, source) { return requestMonthly("monthlyInbox", month, source); }
 export function importMonthlyInbox(month, source) { return requestMonthly("monthlyEmailImport", month, source); }
 export function downloadMonthlyReport(month, revision) { return requestMonthly("monthlyReport", month, null, { revision: String(revision) }); }
+export function downloadMonthlyCsv(month, revision) { return requestMonthly("monthlyCsv", month, null, { revision: String(revision) }); }

@@ -80,6 +80,23 @@ assert.equal(model.sourceTables[1].headers.includes("GRN Received Timestamp Date
 assert.equal(model.sourceTables[1].rows[0][4], "OWN");
 assert.equal(context.monthlySafeCell_("=SUM(1,2)"), "'=SUM(1,2)");
 assert.equal(context.monthlySafeCell_(33), 33);
+const csv = context.createMonthlyCsv_(state.month, 3, { email: "owner" });
+const csvText = Buffer.from(csv.base64, "base64").toString("utf8");
+assert.equal(csv.rows, 2);
+assert.match(csv.filename, /Monthly_Data_2026-09_r3\.csv$/);
+assert.ok(csvText.startsWith("\uFEFFRecord Key,Facility,GRN Number"));
+assert.ok(csvText.includes("'=HYPERLINK"));
+const originalFacts = state.calculations.facts;
+state.calculations.facts = Array.from({ length: 10000 }, (_, index) => {
+  const row = fact("EXPORT");
+  row[0] = `EXPORT|G${index + 1}|OWNAPP.00034`;
+  return row;
+});
+assert.equal(context.createMonthlyCsv_(state.month, 3, { email: "owner" }).rows, 10000);
+state.calculations.facts.push(fact("EXPORT"));
+assert.throws(() => context.createMonthlyCsv_(state.month, 3, { email: "owner" }), /supports up to 10,000 rows/);
+state.calculations.facts = originalFacts;
+assert.throws(() => context.createMonthlyCsv_(state.month, 2, { email: "owner" }), /changed/);
 assert.throws(() => context.createMonthlyMis_(state.month, 2, { email: "owner" }), /changed/);
 assert.equal(grids.length, 0);
 const report = context.createMonthlyMis_(state.month, 3, { email: "owner" });

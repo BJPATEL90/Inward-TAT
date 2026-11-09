@@ -15,7 +15,6 @@ try {
   await page.context().route("https://drive.google.com/**", route => route.fulfill({ status: 200, contentType: "text/plain", body: "Drive download test" }));
   const calls = [];
   let revision = 1;
-  let largeReport = false;
   await page.route("https://script.google.com/**", async route => {
     const parameters = new URLSearchParams(route.request().postData());
     const action = parameters.get("action"); calls.push({ action, parameters });
@@ -29,9 +28,7 @@ try {
         transactions: 773, added: 0, changed: 53, unchanged: 720, becameComplete: 50, becamePending: 0, manuallyClosed: 3,
       } };
     }
-    else if (action === "monthlyReport") response = { ok: true, filename: `Inward_TAT_MIS_2026-09_r${revision}_PROVISIONAL.xlsx`, fileId: "archive", revision, status: "PROVISIONAL",
-      ...(largeReport ? { delivery: "DRIVE", fileSizeBytes: 15000000, driveUrl: "https://drive.google.com/file/d/archive/view", downloadUrl: "https://drive.google.com/uc?export=download&id=archive" } : { delivery: "INLINE", base64: "UEsDBAE=" }),
-      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
+    else if (action === "monthlyCsv") response = { ok: true, filename: `Inward_TAT_Monthly_Data_2026-09_r${revision}.csv`, revision, status: "PROVISIONAL", rows: 98, base64: "77u/UmVjb3JkIEtleSxGYWNpbGl0eQ0K", mimeType: "text/csv;charset=utf-8" };
     else if (action === "monthlyInbox") response = { ok: true, nextOffset: null, receivedFrom: "2026-10-07", receivedThrough: "2026-10-15", emails: [
       { messageId: "b456", type: "PUTAWAY", exportJob: "Copy of Putaway All facility", facility: "ALL", receivedAt: "2026-10-14T05:39:19Z", processable: false, issue: "This export has no GRN Number." },
       { messageId: "a123", type: "GRN", exportJob: "GRN", facility: "ALL", receivedAt: "2026-10-14T05:30:00Z", processable: true },
@@ -53,7 +50,8 @@ try {
   await page.goto("http://127.0.0.1:5188");
   await page.getByRole("button", { name: "Monthly MIS", exact: true }).click();
   await page.getByLabel("Reporting month").fill("2026-09");
-  await page.getByRole("button", { name: "Download Monthly MIS (.xlsx)", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Download Monthly Data (.csv)", exact: true }).waitFor();
+  assert.match(await page.getByRole("link", { name: "Download Formula Excel Template", exact: true }).getAttribute("href"), /Inward_TAT_Monthly_MIS_Formula_Template\.xlsx$/);
   await page.waitForFunction(() => !document.querySelector(".monthly-mis")?.getAttribute("aria-busy") || document.querySelector(".monthly-mis")?.getAttribute("aria-busy") === "false");
   const comparison = page.getByLabel("Monthly KPI comparison");
   assert.equal(await comparison.getByRole("heading", { name: "Including business exceptions", exact: true }).count(), 1);
@@ -100,16 +98,9 @@ try {
   assert.equal(emailSource.simple, true);
   assert.equal(emailSource.content, undefined); // Export is downloaded server-side, not sent by the browser.
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download Monthly MIS (.xlsx)", exact: true }).click();
-  assert.equal((await download).suggestedFilename(), "Inward_TAT_MIS_2026-09_r3_PROVISIONAL.xlsx");
-  largeReport = true;
-  const popupPromise = page.waitForEvent("popup");
-  await page.getByRole("button", { name: "Download Monthly MIS (.xlsx)", exact: true }).click();
-  const popup = await popupPromise;
-  assert.match(popup.url(), /drive\.google\.com\/uc\?export=download/);
-  await popup.close();
-  await page.getByText("Large MIS (15.0 MB) opened from the archived Drive file.", { exact: false }).waitFor();
-  largeReport = false;
+  await page.getByRole("button", { name: "Download Monthly Data (.csv)", exact: true }).click();
+  assert.equal((await download).suggestedFilename(), "Inward_TAT_Monthly_Data_2026-09_r3.csv");
+  await page.getByText("Downloaded 98 monthly transaction rows", { exact: false }).waitFor();
   await page.getByRole("button", { name: "Sync from Daily Data", exact: true }).click();
   await page.getByText("Daily sync preview for 2026-09", { exact: true }).waitFor();
   assert.equal(revision, 3);
@@ -127,7 +118,7 @@ try {
   await page.getByRole("button", { name: "Dashboard", exact: true }).click();
   await page.getByRole("button", { name: "Download CSV", exact: true }).waitFor();
   assert.equal(await page.getByRole("button", { name: "Refresh data", exact: true }).count(), 1);
-  console.log("Monthly UI validated: month selection, refresh, upload metadata, revision reload, XLSX download, desktop/mobile layout and no browser exceptions.");
+  console.log("Monthly UI validated: month selection, refresh, upload metadata, revision reload, CSV download, desktop/mobile layout and no browser exceptions.");
 } finally {
   await browser?.close();
   await server.close();
