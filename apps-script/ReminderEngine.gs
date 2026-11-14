@@ -297,7 +297,50 @@ function readPendingReminderSource_(config, previousRows) {
       });
     });
   });
+  return deduplicatePendingReminderSourceRows_(output);
+}
+
+function deduplicatePendingReminderSourceRows_(rows) {
+  const output = [];
+  const indexByBusinessKey = new Map();
+  rows.forEach(function (row) {
+    const businessKey = pendingReminderBusinessKey_(row);
+    if (!businessKey) {
+      output.push(row);
+      return;
+    }
+    if (!indexByBusinessKey.has(businessKey)) {
+      indexByBusinessKey.set(businessKey, output.length);
+      output.push(row);
+      return;
+    }
+    const outputIndex = indexByBusinessKey.get(businessKey);
+    const existing = output[outputIndex];
+    if (pendingReminderSourceCompleteness_(row) >= pendingReminderSourceCompleteness_(existing)) {
+      output[outputIndex] = row;
+    }
+  });
   return output;
+}
+
+function pendingReminderBusinessKey_(row) {
+  const facility = normalizeFacility_(row.facility || row.Facility);
+  const grnId = reminderText_(row.grnId || row["GRN ID"])
+    .toUpperCase()
+    .replace(/\s+/g, "");
+  const sku = reminderText_(row.sku || row.SKU)
+    .toUpperCase()
+    .replace(/\s+/g, "");
+  return facility && grnId && sku
+    ? [facility.toUpperCase(), grnId, sku].join("|")
+    : "";
+}
+
+function pendingReminderSourceCompleteness_(row) {
+  return (reminderText_(row.putawayId || row["Putaway ID"]) ? 100 : 0)
+    + (reminderText_(row.grnId || row["GRN ID"]) ? 10 : 0)
+    + (row.unloadingTimestamp || row["Unloading Timestamp"] ? 2 : 0)
+    + (row.reportingTimestamp || row["Reporting Timestamp"] ? 1 : 0);
 }
 
 function reminderSourceValue_(row, indexes, aliases) {
@@ -315,6 +358,7 @@ function reminderText_(value) {
 function reconcilePendingReminderState_(sourceRows, previousByKey, checkedAt) {
   const seen = new Set();
   const seenSourceRows = new Set(sourceRows.map(pendingReminderSourceRowKey_));
+  const seenBusinessKeys = new Set(sourceRows.map(pendingReminderBusinessKey_).filter(Boolean));
   const output = sourceRows.map(function (source) {
     seen.add(source.reminderKey);
     const previous = previousByKey.get(source.reminderKey) || {};
@@ -385,6 +429,8 @@ function reconcilePendingReminderState_(sourceRows, previousByKey, checkedAt) {
   previousByKey.forEach(function (previous, key) {
     if (seen.has(key)) return;
     if (seenSourceRows.has(pendingReminderSourceRowKey_(previous))) return;
+    const businessKey = pendingReminderBusinessKey_(previous);
+    if (businessKey && seenBusinessKeys.has(businessKey)) return;
     output.push(reminderStateObjectFromSheet_(previous, false));
   });
   return output.filter(function (row) {

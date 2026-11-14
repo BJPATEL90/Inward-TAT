@@ -123,6 +123,49 @@ duplicatePrevious.set(`${state.reminderKey}|ROW:${state.sourceRow}`, {
 const deduplicatedState = context.reconcilePendingReminderState_([withGrn], duplicatePrevious, at("2026-10-17T15:30:00+05:30"));
 assert.equal(deduplicatedState.length, 1, "stale alternate keys for the same source row must be purged");
 
+const stalePreviousMonth = {
+  ...withGrn,
+  reminderKey: "source|FG-Oct-26|SR:980|SKU:SKU-1|INV:INV-1",
+  sourceSheet: "FG-Oct-26",
+  sourceRow: 981,
+  facility: "SL Mother Hub",
+  grnId: "G3829",
+  putawayId: "",
+  invoiceNumber: "CHPL/0326/26-27",
+  sku: "MWMMHTP.0005.AAAA.B0_N",
+};
+const completedCurrentMonth = {
+  ...stalePreviousMonth,
+  reminderKey: "source|FG-Nov-26|SR:138|SKU:MWMMHTP.0005.AAAA.B0_N|INV:CHPL/0326/26-27",
+  sourceSheet: "FG-Nov-26",
+  sourceRow: 139,
+  putawayId: "PT3982",
+};
+const crossMonthRows = context.deduplicatePendingReminderSourceRows_([
+  stalePreviousMonth,
+  completedCurrentMonth,
+]);
+assert.equal(crossMonthRows.length, 1, "the same GRN/SKU must be coalesced across monthly tabs");
+assert.equal(crossMonthRows[0].putawayId, "PT3982", "the completed cross-month copy must supersede a stale open copy");
+
+const staleCrossMonthState = context.reconcilePendingReminderState_(
+  [stalePreviousMonth],
+  new Map(),
+  at("2026-11-05T12:09:43+05:30")
+)[0];
+const reconciledCrossMonthState = context.reconcilePendingReminderState_(
+  crossMonthRows,
+  previousMap(staleCrossMonthState),
+  at("2026-11-14T10:09:45+05:30")
+);
+assert.equal(reconciledCrossMonthState.length, 1, "stale state from the superseded monthly tab must be purged");
+assert.equal(reconciledCrossMonthState[0].currentStage, "CLOSED");
+assert.equal(
+  context.buildPendingReminderRows_(reconciledCrossMonthState, config, at("2026-11-14T10:09:45+05:30")).length,
+  0,
+  "a completed duplicate must no longer appear in reminder emails"
+);
+
 for (const hour of [3, 7, 10, 13, 15, 17, 19, 23]) {
   const date = new Date(`2026-10-17T${String(hour).padStart(2, "0")}:00:00+05:30`);
   assert.ok(context.pendingReminderScheduleSlot_(date, config), `hour ${hour} should be scheduled`);
