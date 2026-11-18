@@ -1385,7 +1385,11 @@ function rebuildTatFacts_(config, runId, monthlyInputs) {
 
     if (!unloading) issueCodes.push("NO_GOODS_MATCH");
     if (joinBlocked && (!grnReceived || !putawayCompleted)) {
-      issueCodes.push("AMBIGUOUS_MATCH");
+      issueCodes.push(
+        goodsRow && goodsRow.matchMethod === "CROSS_FACILITY_SKU_MISMATCH"
+          ? "CROSS_FACILITY_SKU_MISMATCH"
+          : "AMBIGUOUS_MATCH"
+      );
     } else {
       if (!grnReceived) issueCodes.push("NO_GRN_MATCH");
       if (!putawayCompleted) {
@@ -2292,6 +2296,31 @@ function resolveHybridGrnMatch_(
         ".",
       blockGrnJoin: false,
       grnRow: fallbackGrn,
+    };
+  }
+
+  let sameGrnDifferentSku = null;
+  grnMap.forEach(function (candidate) {
+    if (
+      !sameGrnDifferentSku &&
+      candidate.grn === grnNumber &&
+      candidate.sku !== sku
+    ) {
+      sameGrnDifferentSku = candidate;
+    }
+  });
+  if (sameGrnDifferentSku) {
+    return {
+      facility: fallbackFacility,
+      key: fallbackKey,
+      method: "CROSS_FACILITY_SKU_MISMATCH",
+      detail:
+        "GRN " + grnNumber + " exists at ERP facility " +
+        sameGrnDifferentSku.facility + " for SKU " + sameGrnDifferentSku.sku +
+        ", but the Goods Inward row has SKU " + sku +
+        ". Exact SKU match is required; record held for source correction.",
+      blockGrnJoin: true,
+      grnRow: null,
     };
   }
 
