@@ -2082,6 +2082,12 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
+.pending-identity .pending-period {
+  color: var(--navy);
+  font-size: 9px;
+  font-weight: 700;
+}
+
 .pending-timeline {
   display: grid;
   grid-template-columns: 1fr auto 1fr auto 1fr;

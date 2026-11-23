@@ -1340,7 +1340,11 @@ function PendingTasks({
               </div>
               <div className="pending-identity">
                 <span className={`facility-pill ${facilityClass(row.facility)}`}>{row.facility}</span>
-                <div><strong>{row.grnNumber || "GRN pending"}</strong><small>{row.sku}</small></div>
+                <div>
+                  <strong>{row.grnNumber || "GRN pending"}</strong>
+                  <small>{row.sku}</small>
+                  <small className="pending-period">Unloading date: {row.unloadingDate || "Not available"}</small>
+                </div>
               </div>
               <div className="pending-timeline">
                 <PendingMilestone label="Unloading" value={row.unloadingTimestamp} complete />
