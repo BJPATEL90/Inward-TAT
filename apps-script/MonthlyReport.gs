@@ -119,7 +119,12 @@ function monthlyReportPreview_(state, config) {
   return Object.assign(monthlyPublicState_(state), {
     daily: model.daily, totalBoxes: model.totalBoxes, missingBoxValues: model.missingBoxValues,
     pending: model.details.filter(function (row) { return row[15] === "SOURCE_EXCEPTION" || (row[16] === "INCLUDE" && row[15] !== "COMPLETE" && row[15] !== "MANUALLY_CLOSED"); })
-      .slice(0, 100).map(function (row) { return { key: row[0], facility: row[1], grn: row[2], sku: row[3], stage: row[17], owner: row[19], ageingHours: row[20] }; }),
+      .slice(0, 100).map(function (row) {
+        return { key: row[0], facility: row[1], grn: row[2], sku: row[3],
+          unloadingDate: row[6], unloadingTime: row[7], grnDate: row[8], grnTime: row[9],
+          putawayDate: row[10], putawayTime: row[11], stage: row[17], owner: row[19],
+          ageingHours: row[20], matchMethod: row[18], requiredCorrection: row[17] };
+      }),
   });
 }
 

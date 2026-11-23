@@ -9,6 +9,22 @@ function previousMonth() {
   return `${month === 1 ? year - 1 : year}-${String(month === 1 ? 12 : month - 1).padStart(2, "0")}`;
 }
 const duration = value => value == null || value === "" ? "—" : `${Number(value).toFixed(2)} h`;
+const excelDate = value => {
+  if (value == null || value === "") return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const date = new Date(Date.UTC(1899, 11, 30) + Math.floor(value) * 86400000);
+    return date.toISOString().slice(0, 10);
+  }
+  return String(value).slice(0, 10);
+};
+const excelTime = value => {
+  if (value == null || value === "") return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const seconds = Math.round((value - Math.floor(value)) * 86400) % 86400;
+    return [Math.floor(seconds / 3600), Math.floor((seconds % 3600) / 60), seconds % 60].map(part => String(part).padStart(2, "0")).join(":");
+  }
+  return String(value).slice(11, 19);
+};
 
 export default function MonthlyMis() {
   const [month, setMonth] = useState(previousMonth);
@@ -195,7 +211,12 @@ export default function MonthlyMis() {
     <MisTable title="Source coverage" headers={["Report", "Facility", "Coverage", "Generated / proxy (UTC)", "Accepted rows", "Archive"]} rows={(data?.sources || []).map(source => [source.type, source.facility, source.coverageDeclared === false ? "Not verified — provisional" : source.completeMonthCoverage ? "Full month declared" : "Partial", source.extractedAt, source.acceptedRows, <a href={`https://drive.google.com/file/d/${source.fileId}/view`} target="_blank" rel="noreferrer">Source</a>])} />
     <MisTable title="Daily progress" headers={["Date", "Records", "Complete", "Manually closed", "Pending", "KPI1", "KPI2", "KPI3", "Boxes", "Progress"]} rows={(data?.daily || []).map(day => [day.date, day.records, day.completeRecords, day.manuallyClosedRecords || 0, day.pendingRecords, duration(day.kpi1Hours), duration(day.kpi2Hours), duration(day.kpi3Hours), day.boxes, day.progress])} />
     <MisTable title="Facility performance" headers={["Facility", "Eligible", "Complete", "Pending", "KPI1", "KPI2", "KPI3"]} rows={(data?.facilities || []).map(row => [row.facility, row.eligibleRecords, row.completeRecords, row.pendingRecords, duration(row.kpi1Hours), duration(row.kpi2Hours), duration(row.kpi3Hours)])} />
-    <MisTable title="Pending closure — first 100 items; full list in Excel" headers={["Facility", "GRN", "SKU", "Required correction", "Owner", "Ageing"]} rows={(data?.pending || []).map(row => [row.facility, row.grn, row.sku, row.stage, row.owner, duration(row.ageingHours)])} />
+    <MisTable title="Pending closure — first 100 items; full list in Excel" headers={["Unloading date", "GRN date", "Putaway date", "Facility", "GRN", "SKU", "Required correction", "Owner", "Ageing"]} rows={(data?.pending || []).map(row => [
+      [excelDate(row.unloadingDate), excelTime(row.unloadingTime)].filter(Boolean).join(" ") || "—",
+      [excelDate(row.grnDate), excelTime(row.grnTime)].filter(Boolean).join(" ") || "—",
+      [excelDate(row.putawayDate), excelTime(row.putawayTime)].filter(Boolean).join(" ") || "—",
+      row.facility, row.grn, row.sku, row.requiredCorrection || row.stage, row.owner, duration(row.ageingHours)
+    ])} />
   </section>;
 }
 function MisTable({ title, headers, rows }) {
