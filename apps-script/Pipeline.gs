@@ -1336,15 +1336,12 @@ function rebuildTatFacts_(config, runId, monthlyInputs) {
   });
 
   const factRows = [];
-  // Monthly MIS retains only unloading-cohort facts. Avoid constructing ERP-only
-  // facts that the monthly caller immediately discards (large Putaway exports).
-  const allSourceKeys = new Set(monthlyInputs
-    ? Array.from(goodsMap.keys())
-    : Array.from(goodsMap.keys()).concat(
-      Array.from(grnMap.keys()),
-      Array.from(putawayMap.keys())
-    )
-  );
+  // Fact_Inward_TAT is an unloading-cohort table. ERP-only GRN/Putaway rows
+  // must not create synthetic facts: they have no unloading transaction to
+  // anchor KPI1/KPI3 and otherwise produce phantom pending rows (for example,
+  // several different SKUs under one completed GRN). Keep their source rows
+  // available for reconciliation, but only Goods Inward keys can enter Fact.
+  const allSourceKeys = new Set(Array.from(goodsMap.keys()));
 
   allSourceKeys.forEach(function (key) {
     const goodsRow = goodsMap.get(key);
